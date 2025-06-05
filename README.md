@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 # Canonical's Sphinx Starter Pack
 
 *A pre-configured repository to build and publish documentation with Sphinx.*
@@ -32,3 +33,6 @@ The file `test-starter-pack.yml` tests the functionality of the starter pack pro
 <!--Links-->
 
 [Sphinx]: https://www.sphinx-doc.org/
+=======
+# service-mesh
+>>>>>>> 38683db (Initial commit)
