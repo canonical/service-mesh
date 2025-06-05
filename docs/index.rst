@@ -1,9 +1,7 @@
-Documentation starter pack
+Service Mesh documentation
 ==========================
 
-The documentation starter pack helps you to quickly set up, build, and publish documentation with Sphinx.
-
-It contains common styling and configuration through the `Canonical Sphinx`_ extension, supports both |RST| and Markdown, and includes automatic documentation checks.
+The Canonical Service Mesh project consists of a set of charms that provide a low-ops service mesh deployed and operated using Juju.
 
 .. toctree::
    :hidden:
@@ -11,6 +9,7 @@ It contains common styling and configuration through the `Canonical Sphinx`_ ext
 
    Tutorials </tutorial/index>
    How-to guides </how-to/index>
+   Explanation </explanation/index>
    Reference </reference/index>
 
 In this documentation
@@ -22,7 +21,7 @@ In this documentation
       :link: /tutorial/index
       :link-type: doc
 
-      **Get started** - use Sphinx and Read the Docs to host and test your documentation.
+      **Get started** - a hands-on introduction the Canonical Service Mesh.
 
    .. grid-item-card:: How-to guides
       :link: /how-to/index
@@ -32,8 +31,15 @@ In this documentation
 
 .. grid:: 1 1 2 2
 
+
+   .. grid-item-card:: Explanation
+      :link: /explanation/index
+      :link-type: doc
+
+      **Discussion and clarification** of key topics and concepts
+
    .. grid-item-card:: Reference
       :link: /reference/index
       :link-type: doc
 
-      **Technical information** - understand the automatic checks and Sphinx capabilities.
+      **Technical information** - specifications, APIs, architecture
