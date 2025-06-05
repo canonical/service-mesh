@@ -1,18 +1,9 @@
-<<<<<<< HEAD
-# Canonical's Sphinx Starter Pack
+# Canonical Service Mesh
 
-*A pre-configured repository to build and publish documentation with Sphinx.*
+The Canonical Service Mesh project consists of a set of charms that provide a low-ops 
+service mesh deployed and operated using Juju.
 
-## Description
-
-The Documentation starter pack includes:
-
-* A bundled [Sphinx] theme, configuration, and extensions
-* Support for both reStructuredText (reST) and MyST Markdown
-* Build checks for links, spelling, and inclusive language
-* Customisation support layered over a core configuration
-
-See the full documentation: https://canonical-starter-pack.readthedocs-hosted.com/
+See the full documentation: https://documentation.ubuntu.com/service-mesh/
 
 ## Structure
 
@@ -33,6 +24,3 @@ The file `test-starter-pack.yml` tests the functionality of the starter pack pro
 <!--Links-->
 
 [Sphinx]: https://www.sphinx-doc.org/
-=======
-# service-mesh
->>>>>>> 38683db (Initial commit)
