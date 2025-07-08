@@ -1,4 +1,4 @@
-# Getting Started with Charmed Istio: Cross-Model Mesh
+# Use the Istio Mesh across different Juju models
 
 This tutorial demonstrates how to extend your Istio service mesh across multiple Juju models, enabling secure communication between charms deployed in different models. You'll learn how to create authorization policies and establish cross-model relations through Charmed Istio.
 

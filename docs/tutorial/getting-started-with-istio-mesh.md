@@ -1,4 +1,4 @@
-# Getting Started with Charmed Istio Service Mesh
+# Get Started with the Charmed Istio Service Mesh
 
 ## Introduction
 

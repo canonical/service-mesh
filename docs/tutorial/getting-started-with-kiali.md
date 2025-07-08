@@ -1,4 +1,4 @@
-# Getting Started with Kiali
+# Monitor the Istio Mesh using Kiali
 
 This tutorial demonstrates how to deploy and configure [Kiali](https://kiali.io) to observe your Charmed Istio service mesh. You'll learn how to visualize your mesh topology, monitor traffic flow, and gain insights into your distributed applications.
 
