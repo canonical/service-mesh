@@ -1,4 +1,8 @@
+<!-- vale off -->
+
 # Use the Istio Mesh across different Juju models
+
+<!-- vale on -->
 
 This tutorial demonstrates how to extend your Istio service mesh across multiple Juju models, enabling secure communication between charms deployed in different models. You'll learn how to create authorization policies and establish cross-model relations through Charmed Istio.
 
@@ -15,9 +19,13 @@ Before starting this tutorial, ensure you have:
 - Completed the [Getting Started with Charmed Istio Service Mesh](./getting-started-with-istio-mesh.md) tutorial
 - Basic familiarity with [Juju cross-model relations](https://documentation.ubuntu.com/juju/stable/reference/cross-model-integration/) (CMR)
 
-## Deploy the Reviews Charm in a New Model
+## Deploy the reviews charm in a new model
+
+<!-- vale off -->
 
 ### Step 1: Remove the `bookinfo-reviews-k8s` charm
+
+<!-- vale on -->
 
 Remove the `bookinfo-reviews-k8s` charm from the `bookinfo` model so it can be deployed in a different model to demonstrate cross-model communications through Charmed Istio:
 
@@ -28,7 +36,11 @@ juju switch bookinfo
 juju remove-application bookinfo-reviews-k8s
 ```
 
-### Step 2: Create a New Juju Model
+<!-- vale off -->
+
+### Step 2: Create a new Juju model
+
+<!-- vale on -->
 
 Let's create a separate model for the `bookinfo-reviews-k8s` charm and deploy it in that Juju model:
 
@@ -36,8 +48,11 @@ Let's create a separate model for the `bookinfo-reviews-k8s` charm and deploy it
 juju add-model bookinfo-2
 juju deploy bookinfo-reviews-k8s
 ```
+<!-- vale off -->
 
-### Step 3: Deploy Istio Beacon in the New Model
+### Step 3: Deploy Istio Beacon in the new model
+
+<!-- vale on -->
 
 Similar to the `bookinfo` model in the previous tutorial, let's deploy the `istio-beacon-k8s` charm into this model so the `bookinfo-reviews-k8s` charm can be added to the service mesh:
 
@@ -49,7 +64,7 @@ juju deploy istio-beacon-k8s --trust --channel=2/edge
 While it's possible to use a single `istio-beacon-k8s` charm across multiple models, it's recommended to deploy one beacon per Juju model for better isolation and management. This tutorial follows the recommended approach.
 ```
 
-### Step 4: Add the Reviews Charm to the Mesh
+### Step 4: Add the reviews charm to the mesh
 
 Integrate the `bookinfo-reviews-k8s` charm with the beacon to add it to the service mesh:
 
@@ -57,9 +72,9 @@ Integrate the `bookinfo-reviews-k8s` charm with the beacon to add it to the serv
 juju integrate bookinfo-reviews-k8s istio-beacon-k8s
 ```
 
-## Configure Cross-Model Relations
+## Configure cross-model relations
 
-### Step 5: Offer the Reviews Charm
+### Step 5: Offer the reviews charm
 
 Make the `bookinfo-reviews-k8s` charm available to other models by [offering](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/offer/) it:
 
@@ -71,7 +86,7 @@ This command offers two relations:
 - **`reviews`**: The application-specific relation for connecting the frontend [`bookinfo-productpage-k8s`](https://charmhub.io/bookinfo-productpage-k8s) with the backend `bookinfo-reviews-k8s` charm
 - **`provide-cmr-mesh`**: A service mesh relation that allows applications in other Juju models to make HTTP calls to this charm via the service mesh
 
-### Step 6: Consume and Connect the Reviews Charm
+### Step 6: Consume and connect the reviews charm
 
 Switch back to the original `bookinfo` model, [consume](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/consume/) the `bookinfo-reviews-k8s` charm from the `bookinfo-2` Juju model and establish the cross-model connections:
 
@@ -88,7 +103,7 @@ The first integration establishes the service mesh connection, while the second 
 It is important to note that the asymmetric `provide-cmr-mesh` and `require-cmr-mesh` relations between two charms are required only when they need to be added to the mesh and they are in different models. For two charms in the same model, this relation is not required, as can be seen in the previous tutorial.
 ```
 
-### Step 7: Verify the Deployment
+### Step 7: Verify the deployment
 
 After the integrations are complete, refresh your `Bookinfo` webpage in your browser. The behavior of the web application itself should remain the same, and the app should successfully display the details and reviews of the book.
 
@@ -99,7 +114,7 @@ This time, you have:
 - Secured the traffic between services using mTLS across two Juju models
 - Restricted the traffic between the `bookinfo-productpage-k8s` and the `bookinfo-reviews-k8s` using [authorization policies](https://istio.io/latest/docs/reference/config/security/authorization-policy/) across two Juju models
 
-## Verify the Security Configuration
+## Verify the security configuration
 
 Similar to the security verification in the [previous tutorial](./getting-started-with-istio-mesh.md#verify-the-security-configuration), we can verify that authorization policies are properly enforced across model boundaries.
 
@@ -176,7 +191,7 @@ juju destroy-model bookinfo
 juju destroy-model istio-system
 ```
 
-## Next Steps
+## Next steps
 
 To further explore Charmed Istio capabilities:
 

@@ -1,9 +1,10 @@
+<!-- vale off -->
 # Service Mesh documentation
-
+<!-- vale on -->
 
 A service mesh manages communication between microservices, offering traffic control, security, and observability without changing application code. However, it can be complex to operate.
 
-Canonical Service Mesh uses Juju to automate and simplify service mesh setup and management. By leveraging charms and relations, it streamlines tasks like authorization, onboarding Kubernetes apps, and traffic routing, making service mesh technology more accessible and reducing operational overhead.
+Canonical Service Mesh uses Juju to automate and simplify service mesh setup and management. By leveraging charms and relations, it streamlines tasks like authorization, on-boarding Kubernetes apps, and traffic routing, making service mesh technology more accessible and reducing operational overhead.
 
 For Platform Engineers and DevOps teams, Canonical Service Mesh provides a turn-key, out-of-the-box solution for improved microservice communication, security, and observability.
 
