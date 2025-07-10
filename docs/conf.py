@@ -30,11 +30,6 @@ author = "Canonical Ltd."
 
 
 # Sidebar documentation title; best kept reasonably short
-#
-# TODO: To include a version number, add it here (hardcoded or automated).
-#
-# TODO: To disable the title, set to an empty string.
-
 html_title = project + " Documentation"
 
 
@@ -42,12 +37,6 @@ html_title = project + " Documentation"
 #
 # Now, the starter pack uses CC-BY-SA as the license
 # and the current year as the copyright year.
-#
-# TODO: If your docs need another license, specify it instead of 'CC-BY-SA'.
-#
-# TODO: If your documentation is a part of the code repository of your project,
-#       it inherits the code license instead; specify it instead of 'CC-BY-SA'.
-#
 # NOTE: For static works, it is common to provide the first publication year.
 #       Another option is to provide both the first year of publication
 #       and the current year, especially for docs that frequently change,
@@ -65,9 +54,6 @@ copyright = "%s CC-BY-SA, %s" % (datetime.date.today().year, author)
 
 
 # Documentation website URL
-#
-# TODO: Update with the official URL of your docs or leave empty if unsure.
-#
 # NOTE: The Open Graph Protocol (OGP) enhances page display in a social graph
 #       and is used by social media platforms; see https://ogp.me/
 
@@ -75,25 +61,12 @@ ogp_site_url = "https://documentation.ubuntu.com/service-mesh"
 
 
 # Preview name of the documentation website
-#
-# TODO: To use a different name for the project in previews, update as needed.
 
 ogp_site_name = project
 
 
 # Preview image URL
-#
-# TODO: To customise the preview image, update as needed.
-
 ogp_image = "https://assets.ubuntu.com/v1/253da317-image-document-ubuntudocs.svg"
-
-
-# Product favicon; shown in bookmarks, browser tabs, etc.
-
-# TODO: To customise the favicon, uncomment and update as needed.
-
-# html_favicon = '.sphinx/_static/favicon.png'
-
 
 # Dictionary of values to pass into the Sphinx context for all pages:
 # https://www.sphinx-doc.org/en/master/usage/configuration.html#confval-html_context
@@ -135,22 +108,11 @@ html_context = {
     #       and creating GitHub issues are added at the bottom of each page.
     "github_url": "https://github.com/canonical/service-mesh",
     # Docs branch in the repo; used in links for viewing the source files
-    #
-    # TODO: To customise the branch, uncomment and update as needed.
     'repo_default_branch': 'main',
     # Docs location in the repo; used in links for viewing the source files
     #
-
-
-    # TODO: To customise the directory, uncomment and update as needed.
     "repo_folder": "/docs/",
-    # TODO: To enable or disable the Previous / Next buttons at the bottom of pages
-    # Valid options: none, prev, next, both
-    # "sequential_nav": "both",
-    # TODO: To enable listing contributors on individual pages, set to True
     "display_contributors": False,
-
-    # Required for feedback button    
     'github_issues': 'enabled',
 }
 
