@@ -8,15 +8,15 @@ This tutorial demonstrates how to extend your Istio service mesh across multiple
 
 ## Introduction
 
-In this tutorial, we'll continue working with the charmed [`Bookinfo`](https://istio.io/latest/docs/examples/bookinfo/) application and extend the setup from the [previous tutorial](./getting-started-with-istio-mesh.md). 
+In this tutorial, we'll continue working with the charmed [`Bookinfo`](https://istio.io/latest/docs/examples/bookinfo/) application and extend the setup from the [previous tutorial](./get-started-with-the-charmed-istio-mesh.md). 
 
-We'll move a backend charm ([`bookinfo-reviews-k8s`](https://charmhub.io/bookinfo-reviews-k8s)) into a separate Juju model and [securely](./getting-started-with-istio-mesh.md#why-do-we-need-charmed-istio) connect it to the frontend charm across model boundaries.
+We'll move a backend charm ([`bookinfo-reviews-k8s`](https://charmhub.io/bookinfo-reviews-k8s)) into a separate Juju model and [securely](./get-started-with-the-charmed-istio-mesh.md#why-do-we-need-charmed-istio) connect it to the frontend charm across model boundaries.
 
 ## Prerequisites
 
 Before starting this tutorial, ensure you have:
 
-- Completed the [Getting Started with Charmed Istio Service Mesh](./getting-started-with-istio-mesh.md) tutorial
+- Completed the [Get started with Charmed Istio service mesh](./get-started-with-the-charmed-istio-mesh.md) tutorial
 - Basic familiarity with [Juju cross-model relations](https://documentation.ubuntu.com/juju/stable/reference/cross-model-integration/) (CMR)
 
 ## Deploy the reviews charm in a new model
@@ -116,7 +116,7 @@ This time, you have:
 
 ## Verify the security configuration
 
-Similar to the security verification in the [previous tutorial](./getting-started-with-istio-mesh.md#verify-the-security-configuration), we can verify that authorization policies are properly enforced across model boundaries.
+Similar to the security verification in the [previous tutorial](./get-started-with-the-charmed-istio-mesh.md#verify-the-security-configuration), we can verify that authorization policies are properly enforced across model boundaries.
 
 With Charmed Istio authorization policies in place, the `bookinfo-reviews-k8s` charm allows access only to `/health` and `/reviews/*` endpoints for `GET` requests via port `9080` from authorized services.
 
@@ -174,7 +174,7 @@ Congratulations! You've successfully:
 This demonstrates how Charmed Istio enables you to build distributed applications across multiple Juju models while maintaining strong security boundaries and simplified operations.
 
 ```{tip}
-If you're planning to continue with the [Getting Started with Kiali](./getting-started-with-kiali.md) tutorial, keep all models running as Kiali will observe the entire mesh topology.
+If you're planning to continue with the [Monitor the Istio Mesh using Kiali](./monitor-the-istio-mesh-using-kiali.md) tutorial, keep all models running as Kiali will observe the entire mesh topology.
 ```
 
 ## Teardown
@@ -195,5 +195,5 @@ juju destroy-model istio-system
 
 To further explore Charmed Istio capabilities:
 
-- Visualize your service mesh in the [Getting Started with Kiali](./getting-started-with-kiali.md) tutorial
+- Visualize your service mesh in the [Monitor the Istio Mesh using Kiali](./monitor-the-istio-mesh-using-kiali.md) tutorial
 

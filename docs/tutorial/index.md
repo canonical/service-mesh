@@ -7,7 +7,7 @@ some more advanced use cases, as well as how to get it operationally ready.
 ```{toctree}
 :maxdepth: 1
 
-1. Get started with the Charmed Istio Mesh <getting-started-with-istio-mesh>
-2. Use the Istio Mesh across different Juju models <getting-started-with-istio-cross-model-mesh>
-3. Monitor the Istio Mesh using Kiali <getting-started-with-kiali>
+1. Get started with the Charmed Istio Mesh <get-started-with-the-charmed-istio-mesh>
+2. Use the Istio Mesh across different Juju models <use-the-istio-mesh-across-different-juju-models>
+3. Monitor the Istio Mesh using Kiali <monitor-the-istio-mesh-using-kiali>
 ```

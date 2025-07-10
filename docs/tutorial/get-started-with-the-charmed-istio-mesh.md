@@ -249,7 +249,7 @@ Congratulations! You've successfully:
 - Configured fine-grained authorization policies
 
 ```{tip}
-If you're planning to continue with the [Getting Started with Charmed Istio: Cross-Model Mesh](./getting-started-with-istio-cross-model-mesh.md) tutorial, keep both models running as it builds upon this deployment.
+If you're planning to continue with the [Use the Istio Mesh across different Juju models](./use-the-istio-mesh-across-different-juju-models.md) tutorial, keep both models running as it builds upon this deployment.
 ```
 
 ## Teardown
@@ -265,5 +265,5 @@ juju destroy-model istio-system
 
 To further explore Charmed Istio capabilities:
 
-- Continue with [Getting Started with Charmed Istio: Cross-Model Mesh](./getting-started-with-istio-cross-model-mesh.md) to deploy part of the Bookinfo application in a separate model
-- Visualize your service mesh in the [Getting Started with Kiali](./getting-started-with-kiali.md) tutorial 
+- Continue with [Use the Istio Mesh across different Juju models](./use-the-istio-mesh-across-different-juju-models.md) to deploy part of the Bookinfo application in a separate model
+- Visualize your service mesh in the [Monitor the Istio Mesh using Kiali](./monitor-the-istio-mesh-using-kiali.md) tutorial 

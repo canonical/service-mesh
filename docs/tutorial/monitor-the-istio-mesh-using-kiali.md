@@ -6,14 +6,14 @@ This tutorial demonstrates how to deploy and configure [Kiali](https://kiali.io)
 
 ## Introduction
 
-Kiali is a management console for an [Istio](https://istio.io) service mesh that provides visualization through a modern web interface. The `kiali-k8s` charm simplifies the deployment and integration of Kiali with [Charmed Istio](./getting-started-with-istio-mesh.md), offering:
+Kiali is a management console for an [Istio](https://istio.io) service mesh that provides visualization through a modern web interface. The `kiali-k8s` charm simplifies the deployment and integration of Kiali with [Charmed Istio](./get-started-with-the-charmed-istio-mesh.md), offering:
 
 - Service mesh topology visualization
 - Traffic flow monitoring
 - Health status indicators
 - Configuration validation
 
-In this tutorial, you'll deploy Charmed Kiali to observe the Charmed Istio and the [Charmed Bookinfo](./getting-started-with-istio-mesh.md#deploy-charmed-bookinfo-application) application from the previous tutorials, enabling you to visualize and monitor your service mesh in real-time.
+In this tutorial, you'll deploy Charmed Kiali to observe the Charmed Istio and the [Charmed Bookinfo](./get-started-with-the-charmed-istio-mesh.md#deploy-charmed-bookinfo-application) application from the previous tutorials, enabling you to visualize and monitor your service mesh in real-time.
 
 ```{note}
 To keep this tutorial simple and provide an easy way to get started with Kiali, the focus here is majorly about using Kiali to collect and visualize metrics only from a single component of Istio (the istio-k8s charm). There are other types of Istio metrics that can also be visualized in Kiali which will be covered in the following tutorial.
@@ -24,7 +24,7 @@ To keep this tutorial simple and provide an easy way to get started with Kiali, 
 Before starting this tutorial, ensure you have:
 
 - **Completed Tutorials**:
-  - [Getting Started with Charmed Istio Service Mesh](./getting-started-with-istio-mesh.md)
+  - [Get started with Charmed Istio service mesh](./get-started-with-the-charmed-istio-mesh.md)
 - **Working Deployment**: Charmed Istio deployed in the `istio-system` model
 - **Juju Knowledge**: Basic familiarity with [Juju cross-model relations](https://documentation.ubuntu.com/juju/stable/reference/cross-model-integration/)
 
