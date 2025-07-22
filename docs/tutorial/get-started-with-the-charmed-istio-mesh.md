@@ -121,7 +121,23 @@ Open the URL in your browser. You'll see the book information page.
 
 ## Secure with Service Mesh
 
-Use Charmed Istio to secure your application.[^1]
+Your application now works, but it:
+
+* communicates over plain HTTP, meaning any sensitive data could be exposed if someone intercepts your traffic
+* can be accessed by anything in your Kubernetes cluster
+
+For example, we see `curl`ing from the productpage charm Pod succeeds in many situations, even ones that are not necessary for our application:
+```bash
+# All endpoints are accessible with any HTTP method
+juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/
+juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/health
+juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1
+
+# Even potentially dangerous methods like POST work
+juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s -X POST http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1 -d '{}'
+```
+
+These issues can be solved with a [service mesh](../explanation/service-mesh.md).  Below, we demonstrate this with [Charmed Istio](../explanation/istio.md)
 
 ### Step 6: Add Services to the Mesh
 
@@ -133,7 +149,7 @@ juju integrate bookinfo-details-k8s istio-beacon-k8s
 juju integrate bookinfo-reviews-k8s istio-beacon-k8s
 ```
 
-With the above two simple commands, the `istio-beacon-k8s` charm 
+With the above commands, the `istio-beacon-k8s` charm 
 
 - Adds the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms to the Istio service mesh
 - Applies [mTLS](https://istio.io/latest/blog/2023/secure-apps-with-istio/) for the traffic between the services in the mesh
@@ -149,7 +165,7 @@ Add the `bookinfo-productpage-k8s` charm to the mesh to enable secure communicat
 juju integrate bookinfo-productpage-k8s istio-beacon-k8s
 ```
 
-The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Check the [How-To](../how-to/index.md) section for details on how to add support for Charmed Istio in your own charm and define authorization policies.
+The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Read [How to Add Mesh Support to your Charms](../how-to/add-mesh-support-to-your-charm.md) for details on how to automate authroization policy creation in your own charms.
 
 Refresh the application - the missing sections should now be available again. With these few commands, you have:
 
@@ -228,5 +244,3 @@ To further explore Charmed Istio capabilities:
 
 - Continue with [Getting Started with Charmed Istio: Cross-Model Mesh](./getting-started-with-istio-cross-model-mesh.md) to deploy part of the Bookinfo application in a separate model
 - Visualize your service mesh in the [Getting Started with Kiali](./getting-started-with-kiali.md) tutorial 
-
-[^1]: Want to know more about why you want this?  Read about the [benefits of a service mesh](../explanation/service-mesh.md) and [Charmed Istio](../explanation/istio.md).

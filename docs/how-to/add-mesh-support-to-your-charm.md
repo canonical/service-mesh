@@ -35,16 +35,21 @@ class MyCharm(CharmBase):
     self._mesh = ServiceMeshConsumer(self)
 ```
 
-This integration allows for your Charm to be integrated with a Charmed Beacon and [individually added to a Juju service mesh](./add-juju-applications-and-models-to-the-service-mesh.md).  By default, Charmed Service Meshes deploy [hardening](../explanation/hardened-mode.md), meaning they block any unauthorized access to your workloads.  If your Charm is never accessed by other applications in the cluster (ex: a Wordpress server that simply provides a website), you're done!  But if your Charm may be accessed by other applications, such as a database that other applications will relate to or a workload that has scrapable metrics... 
+This integration allows for your Charm to be integrated with a Charmed Beacon and [individually added to a Juju service mesh](./add-juju-applications-and-models-to-the-service-mesh.md).  By default, Charmed Service Meshes deploy [hardening](../explanation/hardened-mode.md), meaning they block any unauthorized access to your workloads.  If your Charm is never accessed by other applications in the cluster (ex: a Wordpress server that simply provides a website), you're done!  But if other applications need to access your charm, such as if you've charmed a database that other applications will relate to or a workload that has scrapable metrics, then continue below to create access policies.  
 
 ## Enable Automatic, Fine-grained Access to other Charmed Applications via Policies
 
-If your Charm deploys workloads that other applications consume, for example:
+In a [hardened](../explanation/hardened-mode.md) service mesh, communication between applications must be explicitly allowed by policies.  If your Charm deploys workloads that other applications consume, for example:
 
-* your charm deploys a database as a Pebble service, and other applications consume this database by relating to your application
-* your charm deploys any workload which generates metrics, and provides the `prometheus_scrape` interface to allow for metrics scraping
+* your charm deploys a database and other applications consume this database by relating to your application
+* your charm deploys any workload which generates metrics, and uses the [`prometheus_scrape`](https://charmhub.io/integrations/prometheus_scrape) interface to allow for metrics scraping
 
-`ServiceMeshConsumer` policy definition can generate Authorization Policies for you automatically[^1].  For each integration your charm needs, you specify a policy that defines exactly what an application integrating to you for that purpose should have access to.  For example:
+you can use the `ServiceMeshConsumer` `policies` argument to automate this policy generation[^1].  Each `Policy` defines:
+
+* `relation`: the relation endpoint this policy applies to.  A policy will be generated for each application related via this relation
+* `endpoints`: a list of `Endpoint` objects, each defining the `paths`, `ports`, and `methods` that this policy allows traffic on
+
+For example:
 
 ```python
 class MyCharm(CharmBase):
@@ -92,5 +97,7 @@ juju deploy my-db-consumer
 juju relate my-db-provider:database my-db-consumer:database
 juju relate my-db-provider:provide-cmr-support my-db-consumer:require-cmr-support
 ```
+
+For a more detailed tutorial using cross-model integrations, follow the [Use the Istio Mesh across different Juju models](../tutorial/use-the-istio-mesh-across-different-juju-models.md) tutorial.
 
 [^1]: For a detailed explanation of exactly what is generated automatically, see [Authorization Policy Creation in Istio](../explanation/authorization-policy-creation-in-istio.md)

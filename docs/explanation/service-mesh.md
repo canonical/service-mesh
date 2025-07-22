@@ -10,6 +10,5 @@ Specific examples of how a service mesh can help your microservice application i
 
 Some examples of service meshes include:
 
-* [Istio](./istio.md)
-* Cilium
-* Consol
+* [Istio](https://istio.io) (see [Charmed Istio](./istio.md) for deploying with Juju)
+* [Cilium](https://cilium.io/use-cases/service-mesh/)

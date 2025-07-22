@@ -1,8 +1,11 @@
 # Add Juju Applications and Models to the Service Mesh
 
-Charmed Service Mesh makes it easy to add Juju applications, of even whole models, to your service mesh.  All Charmed service mesh produces include a beacon charm (for example, [istio-beacon-k8s](https://charmhub.io/istio-beacon-k8s/)) which offer the following ways to integrate your applications with the mesh:
+Charmed Service Mesh makes it easy to add Juju applications, or even whole models, to your service mesh.  All Charmed service mesh products include a beacon charm (for example, [istio-beacon-k8s](https://charmhub.io/istio-beacon-k8s/)) which provides a few ways to put your application on the mesh.
 
-* if [`model-on-mesh`](https://charmhub.io/istio-beacon-k8s/configurations#model-on-mesh) mode is on, the beacon puts the entire model that it is deployed to on the mesh.  This includes all charmed applications deployed to that model, as well as any Kubernetes workloads that are deployed in the Kubernetes namespace of that model
-* if an application relates to a beacon using the [`service-mesh` relation](https://charmhub.io/istio-beacon-k8s/integrations), that application puts itself on the mesh using the [`service_mesh`](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) library.
+For applications that have [added mesh support by implementing the `service-mesh` relation](../how-to/add-mesh-support-to-your-charm.md), relate them to the a beacon charm in the same model.  This will subscribe the charm to the mesh
 
-These two modes can coexist - there will be no configuration error if applications are related to a beacon via the `service-mesh` relation while beacon also has `model-on-mesh=` enabled.
+For applications that have not implemented the `service-mesh` relation, beacon charms also provide a [`model-on-mesh`](https://charmhub.io/istio-beacon-k8s/configurations#model-on-mesh) feature.  If `model-on-mesh` is `True`, the beacon puts the entire model it is deployed to on the mesh, including all charmed applications deployed to that model and any Kubernetes workloads deployed in the Kubernetes namespace of that model.  Any application added to the mesh in this way will then use mTLS to communicate with other applications on the service mesh, as well as receive [hardening](../explanation/hardened-mode.md) if it is enabled.  
+
+```{note}
+While `model-on-mesh=True` may put everything on the mesh, its usually important to still relate any applications that implement the `service-mesh` relation to a beacon charm.  This is because the `service-mesh` relation is also used to automate [policy creation for access control](../explanation/authorization-policy-creation-in-istio.md).
+```
