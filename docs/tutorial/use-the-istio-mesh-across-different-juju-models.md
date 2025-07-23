@@ -46,7 +46,7 @@ Let's create a separate model for the `bookinfo-reviews-k8s` charm and deploy it
 
 ```bash
 juju add-model bookinfo-2
-juju deploy bookinfo-reviews-k8s
+juju deploy bookinfo-reviews-k8s --trust
 ```
 <!-- vale off -->
 

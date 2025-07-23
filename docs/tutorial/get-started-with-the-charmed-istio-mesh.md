@@ -81,8 +81,8 @@ juju add-model bookinfo
 
 # Deploy the charms
 juju deploy bookinfo-productpage-k8s 
-juju deploy bookinfo-details-k8s
-juju deploy bookinfo-reviews-k8s
+juju deploy bookinfo-details-k8s --trust
+juju deploy bookinfo-reviews-k8s --trust
 
 # Connect the charms
 juju integrate bookinfo-productpage-k8s:details bookinfo-details-k8s:details
@@ -167,7 +167,7 @@ Let's secure our application with Charmed Istio.
 Deploy the `istio-beacon-k8s` charm and connect it to the bookinfo backend charms:
 
 ```bash
-juju deploy istio-beacon-k8s --channel 2/edge
+juju deploy istio-beacon-k8s --channel 2/edge --trust
 juju integrate bookinfo-details-k8s istio-beacon-k8s
 juju integrate bookinfo-reviews-k8s istio-beacon-k8s
 ```
