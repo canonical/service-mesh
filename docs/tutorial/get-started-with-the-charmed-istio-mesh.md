@@ -242,5 +242,5 @@ juju destroy-model istio-system
 
 To further explore Charmed Istio capabilities:
 
-- Continue with [Getting Started with Charmed Istio: Cross-Model Mesh](./getting-started-with-istio-cross-model-mesh.md) to deploy part of the Bookinfo application in a separate model
-- Visualize your service mesh in the [Getting Started with Kiali](./getting-started-with-kiali.md) tutorial 
+- Continue with [Getting Started with Charmed Istio: Cross-Model Mesh](../tutorial/use-the-istio-mesh-across-different-juju-models.md) to deploy part of the Bookinfo application in a separate model
+- Visualize your service mesh in the [Getting Started with Kiali](../tutorial/monitor-the-istio-mesh-using-kiali.md) tutorial 

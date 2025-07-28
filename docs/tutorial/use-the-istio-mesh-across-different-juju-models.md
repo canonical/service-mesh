@@ -10,7 +10,7 @@ This tutorial demonstrates how to extend your Istio service mesh across multiple
 
 In this tutorial, we'll continue working with the charmed [`Bookinfo`](https://istio.io/latest/docs/examples/bookinfo/) application and extend the setup from the [previous tutorial](./get-started-with-the-charmed-istio-mesh.md). 
 
-We'll move a backend charm ([`bookinfo-reviews-k8s`](https://charmhub.io/bookinfo-reviews-k8s)) into a separate Juju model and [securely](./get-started-with-the-charmed-istio-mesh.md#why-do-we-need-charmed-istio) connect it to the frontend charm across model boundaries.
+We'll move a backend charm ([`bookinfo-reviews-k8s`](https://charmhub.io/bookinfo-reviews-k8s)) into a separate Juju model and [securely](../explanation/service-mesh.md#why-do-i-need-a-service-mesh) connect it to the frontend charm across model boundaries.
 
 ## Prerequisites
 
