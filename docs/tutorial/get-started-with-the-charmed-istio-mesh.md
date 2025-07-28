@@ -165,7 +165,7 @@ Add the `bookinfo-productpage-k8s` charm to the mesh to enable secure communicat
 juju integrate bookinfo-productpage-k8s istio-beacon-k8s
 ```
 
-The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Read [How to Add Mesh Support to your Charms](../how-to/add-mesh-support-to-your-charm.md) for details on how to automate authroization policy creation in your own charms.
+The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Read [How to Add Mesh Support to your Charms](../how-to/add-mesh-support-to-your-charm.md) for details on how to automate authorization policy creation in your own charms.
 
 Refresh the application - the missing sections should now be available again. With these few commands, you have:
 

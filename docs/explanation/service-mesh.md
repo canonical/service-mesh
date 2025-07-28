@@ -13,7 +13,7 @@ Some examples of service meshes include:
 
 Kubernetes facilitates deploying resiliant and scalable microservice applications in multi-tenant environments, but these deployments also have specific operational concerns:
 
-* how do I protect against man-in-the-middle attacks?
+* how do I protect against person-in-the-middle attacks?
 * how do I enforce fine-grained access controls so that only applications who need to talk to each other can?
 * how do I gain visibility into the traffic flow of an application?
 

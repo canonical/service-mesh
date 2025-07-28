@@ -2,8 +2,8 @@
 
 [Istio](https://istio.io) is an implementation of a [service mesh](./service-mesh.md).  It helps you:
 
-* ensure all microservices in an application [communicate via TLS](https://istio.io/latest/docs/concepts/security/#mutual-tls-authentication) **without modifying my application**
-* implement fine-grained [authorization controls](https://istio.io/latest/docs/concepts/security/#mutual-tls-authentication) to control exactly which microservices can talk to each other, for example my blocking all incoming traffic to `MyApp-backend` except `GET` requests coming from `MyApp-frontend`
+* ensure all microservices in an application [communicate via TLS](https://istio.io/latest/docs/concepts/security/#mutual-tls-authentication) **without modifying the application**
+* implement fine-grained [authorization controls](https://istio.io/latest/docs/concepts/security/#mutual-tls-authentication) to control exactly which microservices can talk to each other, for example blocking all incoming traffic to `MyApp-backend` except `GET` requests coming from `MyApp-frontend`
 * gain visibility into the traffic flow of your microservice application via [automated telemetry collection](https://istio.io/latest/docs/concepts/observability/)
 
 Although Kubernetes natively provides facilities to do some of this, Istio implements richer solutions.  For example, Istio's [AuthorizationPolicy](https://istio.io/latest/docs/reference/config/security/authorization-policy/) object implements fine-grained authorization controls, and Istio can automate mutual TLS between all applications on the mesh.
@@ -12,7 +12,7 @@ Although Kubernetes natively provides facilities to do some of this, Istio imple
 
 Charmed Istio is an opinionated deployment of Istio using [Juju](http://juju.is/).  The goals of Charmed Istio are to:
 
-* provide a simple-to-deploy, easy-to-manage Istio experience to most Juju users and use cases, giving most of Istio's benefits without a need for advanced Istio experience
+* provide a simple-to-deploy, easy-to-manage Istio experience, giving most of Istio's benefits without a need for advanced Istio experience
 * be customizable for power users, so users can build advanced use cases on top of the standard Charmed Istio base
 
 Charmed Istio uses Istio's [Ambient Mode](https://istio.io/latest/docs/ambient/overview/) and is implemented through the following charms:

@@ -25,9 +25,10 @@ latexmk
 Multipass
 natively
 otf
-plantuml
 PNG
 Pygments
+plantuml
+productpage
 QEMU
 Rockcraft
 readthedocs

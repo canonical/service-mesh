@@ -9,7 +9,6 @@ service-mesh
 istio
 hardened-mode
 managed-mode
-traffic-authentication
 traffic-authorization
 ```
 
