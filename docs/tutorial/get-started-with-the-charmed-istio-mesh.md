@@ -126,7 +126,7 @@ Your application now works, but it:
 * communicates over plain HTTP, meaning any sensitive data could be exposed if someone intercepts your traffic
 * can be accessed by anything in your Kubernetes cluster
 
-For example, we see `curl`ing from the productpage charm Pod succeeds in many situations, even ones that are not necessary for our application:
+For example, if we `curl` from the productpage charm Pod we see it succeeds in many situations, even ones that are not necessary for our application:
 ```bash
 # All endpoints are accessible with any HTTP method
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/
