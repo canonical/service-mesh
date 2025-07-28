@@ -35,6 +35,7 @@ readthedocs
 rst
 ServiceMeshConsumer
 SVG
+scalable
 scrapable
 sitemapindex
 subproject
