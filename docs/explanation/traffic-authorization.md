@@ -61,7 +61,7 @@ This means that, when related to a Beacon charm via the `service_mesh` relation,
 
 ## Authorization Management in Charmed Istio
 
-Istio's [Authorization](https://istio.io/latest/docs/concepts/security/#authorization) model centers around the [`AuthorizationPolicy`](https://istio.io/latest/docs/reference/config/security/authorization-policy/).  This object is how service-to-service communication is opened in an Istio service mesh.  The [istio-beacon-k8s](https://charmhub.io/istio-beacon-k8s) charm manages `AuthorizationPolicies` for Charmed Istio.  It automatically creates policies for charms related to it via the [`service_mesh`](https://charmhub.io/istio-beacon-k8s/integrations#service-mesh) interface.  
+Istio's [Authorization](https://istio.io/latest/docs/concepts/security/#authorization) model centers around the [`AuthorizationPolicy`](https://istio.io/latest/docs/reference/config/security/authorization-policy/).  This object is how service-to-service communication is opened in an Istio service mesh.  The [istio-beacon-k8s](https://charmhub.io/istio-beacon-k8s) charm manages `AuthorizationPolicies` for Charmed Istio.  It automatically creates policies for charms related to it via the [`service_mesh`](https://charmhub.io/istio-beacon-k8s/integrations) interface.  
 
 Using the above example of `bookinfo-details-k8s` requesting a policy for applications integrated in its `details` integration, if `bookinfo-details-k8s` is related to `istio-beacon-k8s` then we'd see the following `AuthorizationPolicy` created:
 
