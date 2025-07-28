@@ -5,7 +5,7 @@ Traffic authorization is an important security feature in a Kubernetes cluster. 
 * the applications that should talk to each other, can
 * everything else, cannot
 
-Authorization controls like this help prevent unwanted access within your network and limit the consequences if there's ever an intrusion in your network.  Some conceptual examples of authoriztion are:
+Authorization controls like this help prevent unwanted access within your network and limit the consequences if there's ever an intrusion in your network.  Some conceptual examples of authorization are:
 
 * the `productpage` application can `GET` the `details` application at a specific path, like in [this tutorial](../tutorial/get-started-with-the-charmed-istio-mesh.md)
 * the `prometheus` application can `GET` the `/metrics` endpoint of all applications
