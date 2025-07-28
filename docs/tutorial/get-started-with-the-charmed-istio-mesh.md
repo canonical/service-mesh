@@ -81,8 +81,8 @@ juju add-model bookinfo
 
 # Deploy the charms
 juju deploy bookinfo-productpage-k8s 
-juju deploy bookinfo-details-k8s
-juju deploy bookinfo-reviews-k8s
+juju deploy bookinfo-details-k8s --trust
+juju deploy bookinfo-reviews-k8s --trust
 
 # Connect the charms
 juju integrate bookinfo-productpage-k8s:details bookinfo-details-k8s:details
@@ -119,20 +119,14 @@ Open the URL in your browser. You'll see the book information page.
 
 ![Bookinfo application](../assets/images/bookinfo-details-reviews.png)
 
-## Why do we need Charmed Istio?
+## Secure with Service Mesh
 
-While the application works, it has critical security vulnerabilities:
+Your application now works, but it:
 
-### Communication between workloads is not encrypted by default
+* communicates over plain HTTP, meaning any sensitive data could be exposed if someone intercepts your traffic
+* can be accessed by anything in your Kubernetes cluster
 
-All microservice communication happens over plain HTTP. This means sensitive data is exposed to anyone with network access and can be intercepted or modified.
-
-While Kubernetes supports [manual TLS configuration](https://kubernetes.io/docs/tasks/tls/), managing certificates for each microservice becomes exponentially complex as your architecture scales - requiring certificate generation, distribution, rotation, and troubleshooting across potentially hundreds of services.
-
-### Unrestricted service communication
-
-Every service can access every other service without restrictions. If an attacker compromises one service, they immediately gain access to your entire application. You can verify this unrestricted access:
-
+For example, if we `curl` from the productpage charm Pod we see it succeeds in many situations, even ones that are not necessary for our application:
 ```bash
 # All endpoints are accessible with any HTTP method
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/
@@ -143,36 +137,19 @@ juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-d
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s -X POST http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1 -d '{}'
 ```
 
-While Kubernetes provides some network controls to partly address this, Istio provides a richer [AuthorizationPolicy](https://istio.io/latest/docs/reference/config/security/authorization-policy/) object that lets you define:
-- Which workloads can communicate with which 
-- Specifically how they can communicate (what HTTP methods are allowed, endpoints can be accessed, etc)
+These issues can be solved with a [service mesh](../explanation/service-mesh.md).  Below, we demonstrate this with [Charmed Istio](../explanation/istio.md)
 
-So for example, through Istio we could say:
-- `PodA` is allowed to talk to `PodB` using `GET` and `POST` on port `1234`
-- nobody is allowed to talk to `PodC`
-
-### The Charmed Istio solution
-
-Charmed Istio automatically provides:
-- **mTLS encryption** between all charmed workloads on the mesh without manual certificate management
-- **Fine-grained authorization policies** defining exactly which services can communicate
-- **Simplified Day 2 operations** where most common authorization policies are created automatically just by establishing existing Juju relations
-
-Let's secure our application with Charmed Istio.
-
-## Secure with service mesh
-
-### Step 6: Add services to the mesh
+### Step 6: Add Services to the Mesh
 
 Deploy the `istio-beacon-k8s` charm and connect it to the bookinfo backend charms:
 
 ```bash
-juju deploy istio-beacon-k8s --channel 2/edge
+juju deploy istio-beacon-k8s --channel 2/edge --trust
 juju integrate bookinfo-details-k8s istio-beacon-k8s
 juju integrate bookinfo-reviews-k8s istio-beacon-k8s
 ```
 
-With the above two simple commands, the `istio-beacon-k8s` charm 
+With the above commands, the `istio-beacon-k8s` charm 
 
 - Adds the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms to the Istio service mesh
 - Applies [mTLS](https://istio.io/latest/blog/2023/secure-apps-with-istio/) for the traffic between the services in the mesh
@@ -188,7 +165,7 @@ Add the `bookinfo-productpage-k8s` charm to the mesh to enable secure communicat
 juju integrate bookinfo-productpage-k8s istio-beacon-k8s
 ```
 
-The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Check the [How-To](../how-to/index.md) section for details on how to add support for Charmed Istio in your own charm and define authorization policies.
+The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Read [How to Add Mesh Support to your Charms](../how-to/add-mesh-support-to-your-charm.md) for details on how to automate authorization policy creation in your own charms.
 
 Refresh the application - the missing sections should now be available again. With these few commands, you have:
 
@@ -265,5 +242,5 @@ juju destroy-model istio-system
 
 To further explore Charmed Istio capabilities:
 
-- Continue with [Use the Istio Mesh across different Juju models](./use-the-istio-mesh-across-different-juju-models.md) to deploy part of the Bookinfo application in a separate model
-- Visualize your service mesh in the [Monitor the Istio Mesh using Kiali](./monitor-the-istio-mesh-using-kiali.md) tutorial 
+- Continue with [Getting Started with Charmed Istio: Cross-Model Mesh](../tutorial/use-the-istio-mesh-across-different-juju-models.md) to deploy part of the Bookinfo application in a separate model
+- Visualize your service mesh in the [Getting Started with Kiali](../tutorial/monitor-the-istio-mesh-using-kiali.md) tutorial 

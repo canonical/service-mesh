@@ -4,4 +4,11 @@ These documents provide an explanation of key topics and concepts of the Canonic
 
 ```{toctree}
 :maxdepth: 1
+
+service-mesh
+istio
+hardened-mode
+managed-mode
+traffic-authorization
 ```
+
