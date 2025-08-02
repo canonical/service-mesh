@@ -11,7 +11,7 @@ Before starting this tutorial, ensure you have:
 - Completed the [Get started with Charmed Istio service mesh](./get-started-with-the-charmed-istio-mesh.md) tutorial, which will give you a deployment of Istio and the sample Bookinfo application ingressed through an istio-ingress
 - Deployed the Canonical Identity Platform following [this tutorial](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial).  Specifically , you must complete [Deploy the Identity Platform](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial#p-27742-deploy-the-identity-platform) and then [Set up a user with the built-in identity provider](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial#p-27742-use-the-built-in-identity-provider)
 
-```{warn}
+````{warning}
 Until [this issue](https://github.com/canonical/iam-bundle-integration/issues/66) is resolved, the Identity tutorial deploys an older version of [self-signed-certificates](https://github.com/canonical/self-signed-certificates-operator) that is incompatible with the [oauth2-proxy](https://github.com/canonical/oauth2-proxy-k8s-operator) charm used below.  
 
 To fix this, before doing `terraform apply` in the Identity Platform tutorial, edit the `certificates` variable in `examples/tutorial/variables.tf` to use a newer version:
@@ -46,13 +46,12 @@ variable "traefik" {
 }
 ```
 
-```
+````
 
 Applying This should yield a starting point similar to:
 
+````{dropdown} juju status --relations --model iam
 ```
-juju status --relations --model iam
-
 Model  Controller      Cloud/Region              Version  SLA          Timestamp
 iam    local-microk8s  local-microk8s/localhost  3.6.8    unsupported  16:50:58-04:00
 
@@ -89,10 +88,10 @@ login-ui:ui-endpoint-info            kratos:ui-endpoint-info              login_
 postgresql:database                  hydra:pg-database                    postgresql_client                 regular  
 postgresql:database                  kratos:pg-database                   postgresql_client                 regular
 ```
+````
 
+````{dropdown} juju status --relations --model core
 ```
-juju status --relations --model core
-
 Model  Controller      Cloud/Region              Version  SLA          Timestamp
 core   local-microk8s  local-microk8s/localhost  3.6.8    unsupported  16:51:56-04:00
 
@@ -119,10 +118,10 @@ postgresql-k8s:upgrade                 postgresql-k8s:upgrade         upgrade   
 self-signed-certificates:certificates  traefik-public:certificates    tls-certificates  regular  
 traefik-public:peers                   traefik-public:peers           traefik_peers     peer
 ```
+````
 
+````{dropdown} juju status --relations --model istio-system
 ```
-juju status --relations --model istio-system
-
 Model         Controller      Cloud/Region              Version  SLA          Timestamp
 istio-system  local-microk8s  local-microk8s/localhost  3.6.8    unsupported  16:52:40-04:00
 
@@ -142,10 +141,10 @@ Integration provider     Requirer                 Interface                Type 
 istio-ingress-k8s:peers  istio-ingress-k8s:peers  istio_ingress_k8s_peers  peer  
 istio-k8s:peers          istio-k8s:peers          istio_k8s_peers          peer
 ```
+````
 
+````{dropdown} juju status --relations --model bookinfo
 ```
-juju status --relations --model bookinfo
-
 Model     Controller      Cloud/Region              Version  SLA          Timestamp
 bookinfo  local-microk8s  local-microk8s/localhost  3.6.8    unsupported  16:53:08-04:00
 
@@ -173,10 +172,13 @@ istio-beacon-k8s:service-mesh  bookinfo-productpage-k8s:service-mesh  service_me
 istio-beacon-k8s:service-mesh  bookinfo-reviews-k8s:service-mesh      service_mesh            regular
 istio-ingress-k8s:ingress      bookinfo-productpage-k8s:ingress       ingress                 regular
 ```
+````
 
-Where we can:
+From this stage, we can:
 * browse to the Bookinfo application.  The URL is of the format `https://ISTIO_INGRESS_IP/bookinfo-bookinfo-productpage-k8s/productpage?u=normal` - use `juju run --model bookinfo bookinfo-productpage-k8s/leader get-url` to obtain the real URL.
 * log into the Identity login page (login ui).  The URL is of the format `https://TRAEFIK_IP/iam-login-ui/ui/login` - use `juju run --model core traefik-public/leader show-proxied-endpoints` to obtain the real URL.
+
+But browsing to the Bookinfo application did not require any authentication.  Next, we configure the Istio ingress to enforce authentication using the Identity Platform.
 
 ```{note}
 Throughout this tutorial you will log into the identity platform a few times.  While it works in any browser configuration, using incognito sessions is recommended because its easy to close the session to reset any login cookies.  Its recommended that every time you try to log in fresh, you close your incognito session and start a new one.
