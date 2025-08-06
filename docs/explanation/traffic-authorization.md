@@ -8,7 +8,7 @@ Traffic authorization is an important security feature in a Kubernetes cluster. 
 Authorization controls like this help prevent unwanted access within your network and limit the consequences if there's ever an intrusion in your network.  Some conceptual examples of authorization are:
 
 * the `productpage` application can `GET` the `details` application at a specific path, like in [this tutorial](../tutorial/get-started-with-the-charmed-istio-mesh.md)
-* the `prometheus` application can `GET` the `/metrics` endpoint of all applications
+* the `prometheus` application can `GET` the `/metrics` endpoint of all units of an application
 
 These are codified in concrete policies that differ between each service mesh.
 
@@ -43,7 +43,7 @@ class DetailsK8sCharm(CharmBase):
         self._mesh = ServiceMeshConsumer(
             self,
             policies=[
-                Policy(
+                AppPolicy(
                     relation="details",
                     endpoints=[
                         Endpoint(
