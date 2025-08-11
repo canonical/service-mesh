@@ -249,6 +249,7 @@ ZFS
 Anbox
 Ansible
 Appium
+AppPolicy
 Backports
 Ceph
 Changelog
@@ -327,6 +328,7 @@ Thruk
 Tigera
 TrilioVault
 TripleO
+UnitPolicy
 Vue
 WebRTC
 WoU

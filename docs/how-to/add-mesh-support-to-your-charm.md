@@ -44,21 +44,22 @@ In a [hardened](../explanation/hardened-mode.md) service mesh, communication bet
 * your charm deploys a database and other applications consume this database by relating to your application
 * your charm deploys any workload which generates metrics, and uses the [`prometheus_scrape`](https://charmhub.io/integrations/prometheus_scrape) interface to allow for metrics scraping
 
-you can use the `ServiceMeshConsumer` `policies` argument to automate this policy generation[^1]. The policies can either be an `AppPolicy` or an `UnitPolicy`.
+you can use the `ServiceMeshConsumer` `policies` argument to automate this policy generation[^1]. The policies can either be an `AppPolicy` or a `UnitPolicy`.
 
-An `AppPolicy` allows a fine-grained control of how a source application can access the target application through its app (or service) address. Each `AppPolicy` defines:
+An `AppPolicy` can be used to control access from a source application to the target **application** at its Kubernetes service address. Each `AppPolicy` defines:
 
 * `relation`: the relation endpoint this policy applies to.  A policy will be generated for each application related via this relation
 * `endpoints`: a list of `Endpoint` objects, each defining the `paths`, `ports`, and `methods` that this policy allows traffic on
 
-An `UnitPolicy` allows a less restrictive access from a source application to the target unit (or workload) through its unit address. Each `UnitPolicy` defines:
+A `UnitPolicy` can be used to control access from a source application to the target **unit** via at Kubernetes pod address. Each `UnitPolicy` defines:
 
 * `relation`: the relation endpoint this policy applies to.  A policy will be generated for each application related via this relation
+* `ports`: a list of port values that this policy allows traffic on
 
-`UnitPolicy` is useful when access to individual units (or workloads) from a source application is necessary. For example, `prometheus` scraping individual units of an application for metrics. Without an `UnitPolicy`, access to individual units of an application will be denied. Unlike `AppPolicy`, it is not possible to control which `endpoints` can be accessed by the source application. `UnitPolicy` will allow unrestricted communication between the source application and the target units. 
+`UnitPolicy` is useful when access to individual units (or workloads) from a source application is necessary. For example, `prometheus` scraping individual units of an application for metrics. Without a `UnitPolicy`, access to individual units of an application will be denied.
 
 ```{note}
-It is not possible provide fine-grained access control through `endpoints` while using `UnitPolicy` unlike `AppPolicy` because this is currently not supported in the upstream Istio Ambient service mesh.
+A UnitPolicy can control access by ports but not by paths and methods. Hence, it is not possible provide access control through `endpoints` while using `UnitPolicy` unlike `AppPolicy`. This limitation stems from the upstream service meshes (Istio) that are supported by Canonical Service Mesh.
 ```
 
 For example:
@@ -70,9 +71,6 @@ class MyCharm(CharmBase):
     self._mesh = ServiceMeshConsumer(
         self,
         policies=[
-            UnitPolicy(
-                relation="metrics-endpoint",  # On the metrics-endpoint relation, allow complete access to all the units of this charm
-            ),
             AppPolicy(
                 relation="database",          # On the database relation
                 endpoints=[                   # allow a related application to access...
@@ -82,6 +80,10 @@ class MyCharm(CharmBase):
                         methods=[Method.get, Method.Post], # using only these methods
                     ),
                 ],
+            ),
+            UnitPolicy(
+                relation="metrics-endpoint",  # On the metrics-endpoint relations
+                ports=[HTTP_PORT],  # allow a related application to access this charm's individual units on these specific ports
             ),
         ],
     )
