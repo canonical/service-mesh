@@ -44,10 +44,23 @@ In a [hardened](../explanation/hardened-mode.md) service mesh, communication bet
 * your charm deploys a database and other applications consume this database by relating to your application
 * your charm deploys any workload which generates metrics, and uses the [`prometheus_scrape`](https://charmhub.io/integrations/prometheus_scrape) interface to allow for metrics scraping
 
-you can use the `ServiceMeshConsumer` `policies` argument to automate this policy generation[^1].  Each `Policy` defines:
+you can use the `ServiceMeshConsumer` `policies` argument to automate this policy generation[^1]. The policies can either be an `AppPolicy` or a `UnitPolicy`.
+
+An `AppPolicy` can be used to control access from a source application to the target **application** at its Kubernetes service address. Each `AppPolicy` defines:
 
 * `relation`: the relation endpoint this policy applies to.  A policy will be generated for each application related via this relation
 * `endpoints`: a list of `Endpoint` objects, each defining the `paths`, `ports`, and `methods` that this policy allows traffic on
+
+A `UnitPolicy` can be used to control access from a source application to the target **unit** via at Kubernetes pod address. Each `UnitPolicy` defines:
+
+* `relation`: the relation endpoint this policy applies to.  A policy will be generated for each application related via this relation
+* `ports`: a list of port values that this policy allows traffic on
+
+`UnitPolicy` is useful when access to individual units (or workloads) from a source application is necessary. For example, `prometheus` scraping individual units of an application for metrics. Without a `UnitPolicy`, access to individual units of an application will be denied.
+
+```{note}
+A UnitPolicy can control access by ports but not by paths and methods. Hence, it is not possible provide access control through `endpoints` while using `UnitPolicy` unlike `AppPolicy`. This limitation stems from the upstream service meshes (Istio) that are supported by Canonical Service Mesh.
+```
 
 For example:
 
@@ -58,17 +71,7 @@ class MyCharm(CharmBase):
     self._mesh = ServiceMeshConsumer(
         self,
         policies=[
-            Policy(
-                relation="metrics-endpoint",  # On the metrics-endpoint relation
-                endpoints=[                   # allow a related application to access...
-                    Endpoint(
-                        paths=["/metrics"],        # these specific paths
-                        ports=[HTTP_LISTEN_PORT],  # on these specific ports
-                        methods=[Method.get],      # using only these methods
-                    ),
-                ],
-            ),
-            Policy(
+            AppPolicy(
                 relation="database",          # On the database relation
                 endpoints=[                   # allow a related application to access...
                     Endpoint(
@@ -77,6 +80,10 @@ class MyCharm(CharmBase):
                         methods=[Method.get, Method.Post], # using only these methods
                     ),
                 ],
+            ),
+            UnitPolicy(
+                relation="metrics-endpoint",  # On the metrics-endpoint relations
+                ports=[HTTP_PORT],  # allow a related application to access this charm's individual units on these specific ports
             ),
         ],
     )
