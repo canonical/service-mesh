@@ -52,7 +52,7 @@ The [`istio-ingress-k8s`](https://charmhub.io/istio-ingress-k8s) charm manages I
 As we've deployed a single central ingress for our applications, we must make that ingress accessible to other Juju models by [offering](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/offer/) it:
 
 ```bash
-juju offer istio-ingress-k8s:ingress
+juju offer istio-ingress-k8s:ingress,ingress-unauthenticated
 ```
 
 <! -- vale off -->
@@ -80,7 +80,7 @@ Create a model for the application and deploy the charms:
 juju add-model bookinfo
 
 # Deploy the charms
-juju deploy bookinfo-productpage-k8s 
+juju deploy bookinfo-productpage-k8s --trust
 juju deploy bookinfo-details-k8s --trust
 juju deploy bookinfo-reviews-k8s --trust
 
@@ -114,6 +114,8 @@ Get the application URL and verify it's working:
 ```bash
 juju run bookinfo-productpage-k8s/0 get-url
 ```
+
+The URL will be of the form `http://INGRESS_IP/bookinfo-bookinfo-productpage-k8s/productpage?u=normal`.
 
 Open the URL in your browser. You'll see the book information page.
 
@@ -225,11 +227,15 @@ Congratulations! You've successfully:
 - Secured the application with mesh integration
 - Configured fine-grained authorization policies
 
-```{tip}
-If you're planning to continue with the [Use the Istio Mesh across different Juju models](./use-the-istio-mesh-across-different-juju-models.md) tutorial, keep both models running as it builds upon this deployment.
-```
-
 ## Teardown
+
+```{tip}
+If you're planning to continue with other tutorials, such as:
+* [Use the Istio Mesh across different Juju models](./use-the-istio-mesh-across-different-juju-models.md)
+* [Authenticated Ingress with the Canonical Identity Platform](../tutorial/authenticated-ingress-with-the-canonical-identity-platform.md)
+
+don't tear anything down yet.  Those tutorials build on this one.  Keep everything deployed until you know you don't need it.
+```
 
 To clean up the resources created in this tutorial, run:
 
