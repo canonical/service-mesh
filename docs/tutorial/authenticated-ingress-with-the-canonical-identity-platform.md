@@ -253,7 +253,7 @@ Now when we browse to the Bookinfo application at `https://ISTIO_INGRESS_IP/book
 
 ## How to ingress some applications without authentication
 
-istio-ingress-k8s offers two `ingress` integration endpoints, `ingress` and `ingress-unauthenticated`.  These both support the same difference, but differ in how they handle authentication:
+istio-ingress-k8s offers two `ingress` integration endpoints, `ingress` and `ingress-unauthenticated`.  These both support the same interface, but differ in how they handle authentication:
  that differ in their authentication requirements:
 * `ingress`: traffic ingressed using this integration **will always be authenticated *if authentication is configured on this istio-ingress-k8s***, otherwise traffic will be unauthenticated
 * `ingress-unauthenticated`: traffic ingressed using this integration **will never be authenticated**
