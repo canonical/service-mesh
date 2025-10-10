@@ -279,7 +279,7 @@ Congratulations!  You've successfully:
 
 ## Teardown
 
-To clean up the resources create in this tutorial, run:
+To clean up the resources created in this tutorial, run:
 
 ```bash
 juju destroy-model iam
