@@ -16,7 +16,7 @@ on:
       istio-channel:
         type: string
         required: false
-        default: "latest/edge"
+        default: "latest/edge" # whats a good default here?
         description: "The channel to deploy Istio from"
 
 jobs:
@@ -86,7 +86,7 @@ jobs:
       - name: Generate matrix list
         id: suites
         run: |
-          list="$(find tests/integration/istio -name 'test_*.py' -printf '%f\n' | jq -r -ncR '[inputs]')"
+          list="$(find tests/integration/istio/tests -name 'test_*.py' -printf '%f\n' | jq -r -ncR '[inputs]')"
           echo "suites=$list"
           echo "suites=$list" >> "$GITHUB_OUTPUT"
 
@@ -117,9 +117,9 @@ jobs:
           if [[ "${{ runner.debug }}" == "1" ]]; then
             export KEEP_MODELS=true
             sudo snap install jhack --channel=latest/edge && sudo snap connect jhack:dot-local-share-juju snapd
-            uvx tox -e istio -- --keep-models -k "${{ matrix.suite }}"
+            uvx tox -e istio -- --gherkin-terminal-reporter --keep-models -k "${{ matrix.suite }}"
           else
-            uvx tox -e istio -- -k "${{ matrix.suite }}"
+            uvx tox -e istio -- --gherkin-terminal-reporter -k "${{ matrix.suite }}"
           fi
         env:
           ISTIO_CHANNEL: ${{ needs.snap-channels.outputs.istio-channel }}

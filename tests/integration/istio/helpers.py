@@ -69,8 +69,14 @@ def get_authorization_policies(juju: jubilant.Juju) -> List[str]:
     try:
         client = Client()
         policies = client.list(AuthorizationPolicy, namespace=juju.model)
-        policy_names = [policy.metadata.name for policy in policies]
-        logger.info(f"Found {len(policy_names)} authorization policies in {juju.model}: {policy_names}")
+        policy_names = [
+            policy.metadata.name
+            for policy in policies
+            if policy.metadata is not None and policy.metadata.name is not None
+        ]
+        logger.info(
+            f"Found {len(policy_names)} authorization policies in {juju.model}: {policy_names}"
+        )
         return policy_names
     except Exception as e:
         logger.error(f"Failed to get authorization policies: {e}")

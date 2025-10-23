@@ -75,5 +75,5 @@ override.tf.json
 .terraformrc
 terraform.rc
 
-# UV lock file
-uv.lock
+# Logs
+.logs/

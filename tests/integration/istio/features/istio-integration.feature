@@ -9,9 +9,9 @@ Feature: Istio service mesh integration
     Then all charms are active
 
     Examples:
-      | mesh_enabled |
-      | without istio|
-      | with istio   |
+      | mesh_enabled                          |
+      | without istio-beacon-k8s integration  |
+      | with istio-beacon-k8s integration     |
 
   Scenario Outline: Productpage can reach details
     Given the bookinfo services are deployed <mesh_enabled>
@@ -20,12 +20,12 @@ Feature: Istio service mesh integration
     And details returns valid book information
 
     Examples:
-      | mesh_enabled |
-      | without istio|
-      | with istio   |
+      | mesh_enabled                          |
+      | without istio-beacon-k8s integration  |
+      | with istio-beacon-k8s integration     |
 
   Scenario: Bookinfo services can be scaled without errors
-    Given the bookinfo services are deployed with istio
+    Given the bookinfo services are deployed with istio-beacon-k8s integration
     When you scale productpage to 2 units
     And you scale details to 2 units
     Then all charms are active

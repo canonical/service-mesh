@@ -3,7 +3,7 @@ name: Scheduled Tests
 on:
   schedule:
     # Run every Sunday at 12:00 UTC
-    - cron: '0 12 * * 0'
+    - cron: "0 12 * * 0"
   workflow_dispatch:
     # Allow manual trigger
 
@@ -17,4 +17,4 @@ jobs:
     with:
       juju-channel: "3.6/stable"
       microk8s-channel: "1.32-strict/stable"
-      istio-channel: "latest/edge"
+      istio-channel: "2/edge"

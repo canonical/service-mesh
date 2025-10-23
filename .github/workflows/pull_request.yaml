@@ -21,4 +21,4 @@ jobs:
     with:
       juju-channel: "3.6/stable"
       microk8s-channel: "1.32-strict/stable"
-      istio-channel: "latest/edge"
+      istio-channel: "2/edge"

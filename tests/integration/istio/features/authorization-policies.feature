@@ -3,7 +3,7 @@ Feature: Authorization policies
   Background:
     Given an istio-system model with istio-k8s deployed
     And a juju model with bookinfo services
-    And the bookinfo services are deployed with istio
+    And the bookinfo services are deployed with istio-beacon-k8s integration
 
   Scenario: Allowed paths and methods are permitted
     When productpage requests GET /health on details:9080
