@@ -1,0 +1,24 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'tox.ini'
+      - 'uv.lock'
+      - '.github/workflows/pull_request.yaml'
+      - '.github/workflows/_quality-checks.yaml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-checks:
+    uses: ./.github/workflows/_quality-checks.yaml
+    with:
+      juju-channel: "3.6/stable"
+      microk8s-channel: "1.32-strict/stable"
+      istio-channel: "latest/edge"

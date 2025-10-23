@@ -6,7 +6,11 @@ name: Test starter pack
 on:
   push:
     branches: [ main ]
+    paths:
+      - 'docs/**'   # Only run on changes to the docs directory
   pull_request:
+    paths:
+      - 'docs/**'   # Only run on changes to the docs directory
 
 jobs:
   test-docs:

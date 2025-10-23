@@ -1,0 +1,144 @@
+name: Quality Checks
+
+on:
+  workflow_call:
+    inputs:
+      juju-channel:
+        type: string
+        required: false
+        default: "3.6/stable"
+        description: "The snap channel from which to install Juju"
+      microk8s-channel:
+        type: string
+        required: false
+        default: "1.32-strict/stable"
+        description: "The snap channel from which to install MicroK8s"
+      istio-channel:
+        type: string
+        required: false
+        default: "latest/edge"
+        description: "The channel to deploy Istio from"
+
+jobs:
+  snap-channels:
+    name: Select snap channels
+    runs-on: ubuntu-latest
+    outputs:
+      juju-channel: ${{ steps.channels.outputs.juju-channel }}
+      microk8s-channel: ${{ steps.channels.outputs.microk8s-channel }}
+      istio-channel: ${{ steps.channels.outputs.istio-channel }}
+    steps:
+      - name: Determine channels
+        id: channels
+        run: |
+          echo "juju-channel=${{ inputs.juju-channel }}" >> "$GITHUB_OUTPUT"
+          echo "microk8s-channel=${{ inputs.microk8s-channel }}" >> "$GITHUB_OUTPUT"
+          echo "istio-channel=${{ inputs.istio-channel }}" >> "$GITHUB_OUTPUT"
+
+  linting:
+    name: Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Lint
+        run: |
+          sudo snap install astral-uv --classic
+          uvx tox -e lint
+
+  linting-terraform:
+    name: Validate Terraform files
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Install Terraform and validate modules
+        run: |
+          sudo snap install opentofu --classic
+          tofu fmt -check -recursive -diff
+          cd terraform/bookinfo
+          tofu init -backend=false
+          tofu validate
+          cd ../istio
+          tofu init -backend=false
+          tofu validate
+
+  static-analysis:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Static analysis
+        run: |
+          sudo snap install astral-uv --classic
+          uvx tox -e static
+
+  integration-matrix:
+    name: Define Integration tests matrix
+    runs-on: ubuntu-latest
+    needs: [linting, linting-terraform, static-analysis]
+    outputs:
+      suites: ${{ steps.suites.outputs.suites }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Generate matrix list
+        id: suites
+        run: |
+          list="$(find tests/integration/istio -name 'test_*.py' -printf '%f\n' | jq -r -ncR '[inputs]')"
+          echo "suites=$list"
+          echo "suites=$list" >> "$GITHUB_OUTPUT"
+
+  integration-test:
+    name: Integration Tests
+    runs-on: ubuntu-latest
+    needs: [snap-channels, integration-matrix]
+    strategy:
+      fail-fast: false
+      matrix:
+        suite: ${{ fromJSON(needs.integration-matrix.outputs.suites) }}
+    env:
+      CONCIERGE_JUJU_CHANNEL: ${{ needs.snap-channels.outputs.juju-channel }}
+      CONCIERGE_MICROK8S_CHANNEL: ${{ needs.snap-channels.outputs.microk8s-channel }}
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install dependencies
+        run: |
+          sudo snap install concierge --classic
+          sudo concierge prepare -p microk8s --extra-snaps=astral-uv,opentofu
+          sudo snap install kubectl --classic
+          juju model-defaults automatically-retry-hooks=true
+
+      - name: Run integration tests
+        run: |
+          if [[ "${{ runner.debug }}" == "1" ]]; then
+            export KEEP_MODELS=true
+            sudo snap install jhack --channel=latest/edge && sudo snap connect jhack:dot-local-share-juju snapd
+            uvx tox -e istio -- --keep-models -k "${{ matrix.suite }}"
+          else
+            uvx tox -e istio -- -k "${{ matrix.suite }}"
+          fi
+        env:
+          ISTIO_CHANNEL: ${{ needs.snap-channels.outputs.istio-channel }}
+        timeout-minutes: 90
+
+      - name: Dump logs on failure
+        if: failure()
+        run: |
+          juju models --all
+          for model in $(juju models --format json | jq -r '.models[].name' | grep -v "controller\|admin/controller"); do
+            echo "=== Juju status for model: $model ==="
+            juju status -m $model --format yaml || true
+            echo "=== Juju debug-log for model: $model ==="
+            juju debug-log -m $model --replay --no-tail || true
+          done
+
+      - name: Open SSH session on failure
+        if: ${{ failure() && (runner.debug == '1') }}
+        uses: mxschmitt/action-tmate@v3
+        with:
+          timeout-minutes: 30
+          limit-access-to-actor: true
