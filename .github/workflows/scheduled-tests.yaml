@@ -15,6 +15,4 @@ jobs:
   quality-checks:
     uses: ./.github/workflows/_quality-checks.yaml
     with:
-      juju-channel: "3.6/stable"
-      microk8s-channel: "1.32-strict/stable"
       istio-channel: "2/edge"

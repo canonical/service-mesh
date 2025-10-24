@@ -6,11 +6,13 @@ from typing import Dict
 import jubilant
 from pytest_bdd import given, parsers, then
 
+from tests.integration.helpers import (
+    wait_for_active_idle_without_error,
+)
 from tests.integration.istio.helpers import (
     deploy_bookinfo,
     deploy_istio_beacon,
     get_authorization_policies,
-    wait_for_active_idle_without_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -19,7 +21,7 @@ logger = logging.getLogger(__name__)
 # -------------- Given --------------
 
 
-@given(parsers.parse("istio-beacon has manage-authorization-policies set to {value}"))
+@given(parsers.parse("istio-beacon-k8s has manage-authorization-policies set to {value}"))
 def configure_beacon_managed_mode(value: str, juju: jubilant.Juju, beacon_info: Dict):
     """Configure istio-beacon's manage-authorization-policies setting."""
     managed_mode = value.lower() == "true"
@@ -35,7 +37,7 @@ def configure_beacon_managed_mode(value: str, juju: jubilant.Juju, beacon_info: 
 # -------------- Then --------------
 
 
-@then("istio-beacon has created authorization policies")
+@then("istio-beacon-k8s has created authorization policies")
 def istio_beacon_created_authorization_policies(juju: jubilant.Juju):
     """Verify that istio-beacon has created authorization policies in the namespace."""
     policies = get_authorization_policies(juju)
@@ -45,7 +47,7 @@ def istio_beacon_created_authorization_policies(juju: jubilant.Juju):
     logger.info(f"Confirmed istio-beacon created authorization policies: {policies}")
 
 
-@then("istio-beacon has not created authorization policies")
+@then("istio-beacon-k8s has not created authorization policies")
 def istio_beacon_not_created_authorization_policies(juju: jubilant.Juju):
     """Verify that istio-beacon has not created any authorization policies in the namespace."""
     policies = get_authorization_policies(juju)

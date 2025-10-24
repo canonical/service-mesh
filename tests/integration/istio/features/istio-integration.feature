@@ -1,10 +1,10 @@
 Feature: Istio service mesh integration
 
   Background:
-    Given an istio-system model with istio-k8s deployed
+    Given a juju model with istio-k8s deployed
     And a juju model with bookinfo services
 
-  Scenario Outline: Bookinfo services can be deployed successfully
+  Scenario Outline: Bookinfo services can be deployed successfully <mesh_enabled>
     When you deploy the bookinfo services <mesh_enabled>
     Then all charms are active
 
@@ -13,7 +13,7 @@ Feature: Istio service mesh integration
       | without istio-beacon-k8s integration  |
       | with istio-beacon-k8s integration     |
 
-  Scenario Outline: Productpage can reach details
+  Scenario Outline: Productpage can reach details <mesh_enabled>
     Given the bookinfo services are deployed <mesh_enabled>
     When productpage calls the details service
     Then the request succeeds

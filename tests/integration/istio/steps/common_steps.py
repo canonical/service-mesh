@@ -6,13 +6,15 @@ from typing import Dict
 import jubilant
 from pytest_bdd import given, parsers, then, when
 
+from tests.integration.helpers import (
+    curl_from_juju_unit,
+    verify_http_response,
+    wait_for_active_idle_without_error,
+)
 from tests.integration.istio.helpers import (
-    curl_service,
     deploy_bookinfo,
     deploy_istio,
     deploy_istio_beacon,
-    verify_http_response,
-    wait_for_active_idle_without_error,
 )
 
 logger = logging.getLogger(__name__)
@@ -21,7 +23,7 @@ logger = logging.getLogger(__name__)
 # -------------- Given --------------
 
 
-@given("an istio-system model with istio-k8s deployed")
+@given("a juju model with istio-k8s deployed")
 def istio_system_deployed(istio_system_juju: jubilant.Juju):
     """Ensure the istio-system model exists with istio-k8s deployed."""
     assert istio_system_juju.model is not None
@@ -59,7 +61,7 @@ def productpage_requests_service(
     service_url = f"http://{service}{path}"
     logger.info(f"Productpage -> {method} {service_url}")
 
-    result = curl_service(juju=juju, unit="productpage/0", service_url=service_url, method=method)
+    result = curl_from_juju_unit(juju=juju, unit="productpage/0", url=service_url, method=method)
     juju_run_output["last_request"] = result
     logger.info(f"Request result: HTTP_CODE in stdout: {result['stdout']}")
 

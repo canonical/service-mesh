@@ -6,12 +6,14 @@ from typing import Dict
 import jubilant
 from pytest_bdd import given, parsers, then, when
 
+from tests.integration.helpers import (
+    curl_from_juju_unit,
+    wait_for_active_idle_without_error,
+)
 from tests.integration.istio.helpers import (
-    curl_service,
     deploy_bookinfo,
     deploy_istio_beacon,
-    scale_application,
-    wait_for_active_idle_without_error,
+    scale_bookinfo_application,
 )
 
 logger = logging.getLogger(__name__)
@@ -56,8 +58,8 @@ def deploy_bookinfo_services(mesh_enabled: str, juju: jubilant.Juju, beacon_info
 @when("productpage calls the details service")
 def productpage_calls_details(juju: jubilant.Juju, juju_run_output: dict):
     """Test connectivity from productpage to details service using curl."""
-    result = curl_service(
-        juju=juju, unit="productpage/0", service_url="http://details:9080/details/0"
+    result = curl_from_juju_unit(
+        juju=juju, unit="productpage/0", url="http://details:9080/details/0"
     )
     juju_run_output["last_request"] = result
     logger.info(f"Productpage -> Details curl result: {result['stdout']}")
@@ -68,7 +70,7 @@ def productpage_calls_details(juju: jubilant.Juju, juju_run_output: dict):
 def scale_app(app_name: str, units: str, juju: jubilant.Juju, beacon_info: Dict):
     """Scale a bookinfo application to the specified number of units."""
     logger.info(f"Scaling {app_name} to {int(units)} units")
-    scale_application(
+    scale_bookinfo_application(
         juju,
         app_name,
         int(units),
