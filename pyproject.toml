@@ -1,0 +1,51 @@
+[project]
+name = "service-mesh"
+version = "0.0.0"
+requires-python = ">=3.11"
+
+dependencies = [
+  "jubilant",
+  "lightkube",
+  "pytest",
+  "pytest-bdd>=8.1.0",
+  "pytest-jubilant",
+]
+
+[project.optional-dependencies]
+dev = [
+  # Linting
+  "ruff",
+  # Static
+  "pyright",
+]
+
+# Linting tools configuration
+[tool.ruff]
+line-length = 99
+exclude = ["__pycache__", "*.egg_info"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "C", "N", "R", "D", "I001"]
+# Ignore E501 because using black creates errors with this
+# Ignore D107 Missing docstring in __init__
+ignore = ["C901", "E501", "D107", "RET504"]
+
+[tool.ruff.lint.per-file-ignores]
+# D100, D101, D102, D103: Ignore missing docstrings in tests
+"tests/*" = ["D100", "D101", "D102", "D103"]
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+# Static analysis tools configuration
+[tool.pyright]
+extraPaths = ["tests"]
+pythonVersion = "3.11"
+pythonPlatform = "All"
+typeCheckingMode = "basic"
+reportIncompatibleMethodOverride = false
+reportImportCycles = false
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+log_cli_level = "INFO"

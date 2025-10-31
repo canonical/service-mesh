@@ -1,0 +1,22 @@
+name: Pull Request Checks
+
+on:
+  pull_request:
+    paths:
+      - 'terraform/**'
+      - 'tests/**'
+      - 'pyproject.toml'
+      - 'tox.ini'
+      - 'uv.lock'
+      - '.github/workflows/pull_request.yaml'
+      - '.github/workflows/_quality-checks.yaml'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  quality-checks:
+    uses: ./.github/workflows/_quality-checks.yaml
+    with:
+      istio-channel: "2/edge"
