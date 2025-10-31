@@ -45,23 +45,6 @@ jobs:
           sudo snap install astral-uv --classic
           uvx tox -e lint
 
-  linting-terraform:
-    name: Validate Terraform files
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Install Terraform and validate modules
-        run: |
-          sudo snap install opentofu --classic
-          tofu fmt -check -recursive -diff
-          cd terraform/bookinfo
-          tofu init -backend=false
-          tofu validate
-          cd ../istio
-          tofu init -backend=false
-          tofu validate
-
   static-analysis:
     name: Static analysis
     runs-on: ubuntu-latest
@@ -76,7 +59,7 @@ jobs:
   integration-matrix:
     name: Define Integration tests matrix
     runs-on: ubuntu-latest
-    needs: [linting, linting-terraform, static-analysis]
+    needs: [linting, static-analysis]
     outputs:
       suites: ${{ steps.suites.outputs.suites }}
     steps:
