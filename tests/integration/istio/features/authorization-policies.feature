@@ -2,7 +2,7 @@ Feature: Authorization policies
 
   Background:
     Given a juju model with istio-k8s deployed
-    And a juju model with bookinfo services
+    And a juju model for bookinfo services
     And the bookinfo services are deployed with istio-beacon-k8s integration
 
   Scenario: Allowed paths and methods are permitted

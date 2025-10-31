@@ -32,7 +32,7 @@ def istio_system_deployed(istio_system_juju: jubilant.Juju):
     deploy_istio(istio_system_juju)
 
 
-@given("a juju model with bookinfo services")
+@given("a juju model for bookinfo services")
 def juju_model_bookinfo_services(juju: jubilant.Juju):
     """Ensure a Juju model exists for bookinfo services."""
     assert juju.model is not None

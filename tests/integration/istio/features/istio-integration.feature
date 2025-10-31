@@ -2,7 +2,7 @@ Feature: Istio service mesh integration
 
   Background:
     Given a juju model with istio-k8s deployed
-    And a juju model with bookinfo services
+    And a juju model for bookinfo services
 
   Scenario Outline: Bookinfo services can be deployed successfully <mesh_enabled>
     When you deploy the bookinfo services <mesh_enabled>

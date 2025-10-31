@@ -6,7 +6,7 @@ module "productpage" {
   channel            = var.channel
   config             = var.productpage.config
   constraints        = var.productpage.constraints
-  model              = var.model
+  model_uuid         = var.model_uuid
   revision           = var.productpage.revision
   storage_directives = var.productpage.storage_directives
   units              = var.productpage.units
@@ -18,7 +18,7 @@ module "details" {
   channel            = var.channel
   config             = var.details.config
   constraints        = var.details.constraints
-  model              = var.model
+  model_uuid         = var.model_uuid
   revision           = var.details.revision
   storage_directives = var.details.storage_directives
   units              = var.details.units

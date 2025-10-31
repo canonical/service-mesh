@@ -1,7 +1,7 @@
 # -------------- # Bookinfo microservice integrations --------------
 
 resource "juju_integration" "productpage_details" {
-  model = var.model
+  model_uuid = var.model_uuid
 
   application {
     name     = module.productpage.app_name
@@ -18,7 +18,7 @@ resource "juju_integration" "productpage_details" {
 
 resource "juju_integration" "productpage_beacon" {
   count = var.beacon_app_name != null ? 1 : 0
-  model = var.model
+  model_uuid = var.model_uuid
 
   application {
     name     = module.productpage.app_name
@@ -33,7 +33,7 @@ resource "juju_integration" "productpage_beacon" {
 
 resource "juju_integration" "details_beacon" {
   count = var.beacon_app_name != null ? 1 : 0
-  model = var.model
+  model_uuid = var.model_uuid
 
   application {
     name     = module.details.app_name

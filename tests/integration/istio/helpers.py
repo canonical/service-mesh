@@ -63,7 +63,7 @@ def deploy_istio(juju: jubilant.Juju) -> None:
     """
     assert juju.model is not None, "Juju model is not set"
 
-    terraform_dir = Path(__file__).parent.parent.parent.parent / "terraform" / "istio"
+    terraform_dir = Path(__file__).parent / "terraform" / "istio"
     state_file = Path(tempfile.gettempdir()) / f"istio-{juju.model}.tfstate"
 
     logger.info(f"Deploying istio-k8s to {juju.model} (channel={ISTIO_CHANNEL})")
@@ -95,7 +95,7 @@ def deploy_istio_beacon(juju: jubilant.Juju, managed_mode: bool = True) -> tuple
     """
     assert juju.model is not None, "Juju model is not set"
 
-    terraform_dir = Path(__file__).parent.parent.parent.parent / "terraform" / "istio-beacon"
+    terraform_dir = Path(__file__).parent / "terraform" / "istio-beacon"
     state_file = Path(tempfile.gettempdir()) / f"istio-beacon-{juju.model}.tfstate"
 
     logger.info(
@@ -142,7 +142,7 @@ def deploy_bookinfo(
     """
     assert juju.model is not None, "Juju model is not set"
 
-    terraform_dir = Path(__file__).parent.parent.parent.parent / "terraform" / "bookinfo"
+    terraform_dir = Path(__file__).parent / "terraform" / "bookinfo"
     state_file = Path(tempfile.gettempdir()) / f"bookinfo-{juju.model}.tfstate"
 
     logger.info(
@@ -188,7 +188,7 @@ def scale_bookinfo_application(
     """
     assert juju.model is not None, "Juju model is not set"
 
-    terraform_dir = Path(__file__).parent.parent.parent.parent / "terraform" / "bookinfo"
+    terraform_dir = Path(__file__).parent / "terraform" / "bookinfo"
     state_file = Path(tempfile.gettempdir()) / f"bookinfo-{juju.model}.tfstate"
 
     logger.info(f"Scaling {app_name} to {units} units")
