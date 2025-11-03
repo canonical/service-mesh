@@ -11,12 +11,12 @@ There is currently no documented way to configure Cilium using Canonical Kuberne
 ```
 
 ```{note}
-This documentation only convers the configuration changes required from the default state of Canonical Kubernetes. If a custom Cilium configuration is used, please refer to this [Cilium documentation](https://docs.cilium.io/en/stable/network/servicemesh/istio/) for compatibility with Istio.
+This documentation only covers the configuration changes required from the default state of Canonical Kubernetes. If a custom Cilium configuration is used, please refer to this [Cilium documentation](https://docs.cilium.io/en/stable/network/servicemesh/istio/) for compatibility with Istio.
 ```
 
 The following requirements must be met for Canonical Kubernetes to work with Charmed Istio
 
-- `socketLB.hostNamespaceOnly: true` (Helm) or `bpf-lb-sock-hostns-only: "true"` (Cilium cli)
+- `socketLB.hostNamespaceOnly: true` (Helm) or `bpf-lb-sock-hostns-only: "true"` (Cilium CLI)
 
 ## Configuring Charmed Istio
 
