@@ -8,4 +8,5 @@ maintaining, and operating the Canonical Service Mesh.
 
 add-mesh-support-to-your-charm
 add-juju-applications-and-models-to-the-service-mesh
+use-charmed-istio-with-canonical-kubernetes
 ```
