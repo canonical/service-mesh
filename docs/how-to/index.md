@@ -7,6 +7,8 @@ maintaining, and operating the Canonical Service Mesh.
 :maxdepth: 1
 
 add-mesh-support-to-your-charm
+add-service-mesh-support-to-coordinated-worker-charms
 add-juju-applications-and-models-to-the-service-mesh
+manage-custom-policies-with-policyresourcemanager
 use-charmed-istio-with-canonical-kubernetes
 ```

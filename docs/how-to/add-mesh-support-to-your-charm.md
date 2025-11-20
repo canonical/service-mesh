@@ -26,7 +26,28 @@ provides:
 
 ## Use the `ServiceMeshConsumer` library in your charm
 
-Fetch the [`service-mesh` library](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) and add the `ServiceMeshConsumer` to your Charm.  For example:
+### Fetch the library and add dependencies
+
+Fetch the [`service-mesh` library](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh):
+
+```bash
+charmcraft fetch-lib charms.istio_beacon_k8s.v0.service_mesh
+```
+
+The `service_mesh` library has dependencies that must be added to your charm's `requirements.txt`:
+
+```text
+charmed-service-mesh-helpers>=0.2.0
+lightkube-extensions
+```
+
+```{note}
+If you're using the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0+), you must add the `service_mesh` library and these dependencies to **both** your coordinator and worker charms, even if the worker doesn't use the library directly in code. See [Add Service Mesh Support to Coordinated-Worker Charms](./add-service-mesh-support-to-coordinated-worker-charms.md) for details.
+```
+
+### Add ServiceMeshConsumer to your charm
+
+Add the `ServiceMeshConsumer` to your Charm. For example:
 
 ```python
 class MyCharm(CharmBase):

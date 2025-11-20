@@ -10,5 +10,6 @@ istio
 hardened-mode
 managed-mode
 traffic-authorization
+service-mesh-in-coordinated-worker-charms
 ```
 
