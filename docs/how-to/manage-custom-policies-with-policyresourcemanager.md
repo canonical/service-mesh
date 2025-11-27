@@ -18,22 +18,6 @@ Before using `PolicyResourceManager`, it's important to understand how policy ma
 
 When you [add mesh support to your charm](./add-mesh-support-to-your-charm.md) using `ServiceMeshConsumer`, your charm integrates with a beacon charm (like `istio-beacon-k8s`) via the `service-mesh` relation. In [managed mode](../explanation/managed-mode.md), the beacon charm automatically generates authorization policies based on your Juju relations and the `AppPolicy` or `UnitPolicy` definitions you provide.
 
-For example, this creates automatic policies for all applications related via the `database` relation:
-
-```python
-self._mesh = ServiceMeshConsumer(
-    self,
-    policies=[
-        AppPolicy(
-            relation="database",  # Automatic policy for all apps related via this relation
-            endpoints=[
-                Endpoint(ports=[5432], methods=[Method.get, Method.post])
-            ]
-        )
-    ]
-)
-```
-
 The beacon charm manages these policies completely - creating, updating, and deleting them as relations change. This works well for typical charm-to-charm communication patterns.
 
 ### Custom policy management with PolicyResourceManager

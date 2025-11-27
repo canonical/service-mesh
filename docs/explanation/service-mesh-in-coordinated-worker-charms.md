@@ -126,6 +126,10 @@ The labels applied to coordinator pods include:
 - **Cluster membership label**: `app.kubernetes.io/part-of: <coordinator-app-name>` - identifies this pod as part of the coordinated-worker cluster
 - **Mesh labels**: Labels obtained from `ServiceMeshConsumer.labels()`, which come from the beacon charm and indicate the pod should be enrolled in the mesh (e.g., `istio.io/dataplane-mode: ambient` for Istio ambient mode)
 
+```{important}
+Mesh labels are added only when service mesh is enabled by integrating the coordinator with a beacon charm via `service-mesh` relation. But the cluster membership label is always applied, regardless of mesh status. It is a default coordinated-worker behavior.
+```
+
 ### How labels are distributed to workers
 
 Workers receive their labels from the coordinator via the `cluster` relation, then apply them to their own pods:
@@ -134,7 +138,7 @@ Workers receive their labels from the coordinator via the `cluster` relation, th
    ```python
    worker_labels = {
        "app.kubernetes.io/part-of": coordinator_app_name,
-       **mesh_labels,  # Labels from ServiceMeshConsumer
+       **mesh_labels,  # Labels from ServiceMeshConsumer (if mesh is enabled)
    }
    ```
 
@@ -299,9 +303,12 @@ Service mesh integration in coordinated-worker charms provides:
 - **Automatic cluster-internal policy management** via `PolicyResourceManager`
 - **Automatic label reconciliation** on coordinator and worker pods for mesh enrollment and cluster membership
 - **Charm-specific external policy support** via `ServiceMeshConsumer`
-- **Mandatory worker telemetry routing** through the coordinator for simplified policy management
 - **Dynamic policy reconciliation** that adapts to cluster topology changes
 - **Minimal worker charm changes** - most complexity handled by the `coordinated-workers` package
+
+Service mesh integration in coordinated-worker charms requires:
+
+- **Mandatory worker telemetry routing** through the coordinator for simplified policy management
 
 This architecture enables coordinated-worker charms to benefit from service mesh security without requiring extensive mesh-specific code in each charm implementation.
 
