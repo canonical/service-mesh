@@ -39,6 +39,7 @@ PNG
 PolicyResourceManager
 proxied
 proxying
+Pydantic
 Pygments
 plantuml
 productpage

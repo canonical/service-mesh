@@ -282,6 +282,121 @@ For **unit-targeted policies** (`PolicyTargetType.unit`):
 Unit-targeted policies provide Layer 4 (TCP) access control to individual pods. They cannot restrict by HTTP methods, paths, or hosts - only by ports. This limitation comes from the underlying Istio service mesh implementation. Use unit policies when you need to access individual units directly, such as for metrics scraping from each pod.
 ```
 
+## Using raw policy objects
+
+For advanced use cases where `MeshPolicy` doesn't provide enough flexibility, you can pass pre-built policy objects directly to the `PolicyResourceManager` using the `raw_policies` parameter.
+
+### When to use raw policies
+
+Use `raw_policies` when you need:
+- Mesh-specific features not exposed by the mesh-agnostic `MeshPolicy` abstraction
+- Full control over the native policy specification
+- Direct translation of existing mesh-specific policies to your charm
+
+```{note}
+`MeshPolicy` is designed to be mesh-agnostic. If your policy requirements are specific to a particular mesh implementation, `raw_policies` gives you direct access to the underlying policy format.
+```
+
+### Available policy types
+
+Currently, the following raw policy types are supported:
+
+**For Istio mesh:**
+- `AuthorizationPolicy` - available from `lightkube_extensions.types`
+
+### Building raw policies for Istio
+
+Import the `AuthorizationPolicy` type and spec models:
+
+```python
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube_extensions.types import AuthorizationPolicy
+from charmed_service_mesh_helpers.models import (
+    AuthorizationPolicySpec,
+    From,
+    Operation,
+    PolicyTargetReference,
+    Rule,
+    Source,
+    To,
+)
+```
+
+```{note}
+The `AuthorizationPolicy` resource type is provided by `lightkube_extensions`, while the spec data models (`AuthorizationPolicySpec`, `Rule`, etc.) are provided by `charmed_service_mesh_helpers`. There are ongoing plans to consolidate the service mesh library offerings into a single, unified Python package.
+```
+
+Create an `AuthorizationPolicy` using the data models:
+
+```python
+def _get_raw_policies(self) -> list[AuthorizationPolicy]:
+    """Return raw AuthorizationPolicy objects."""
+    policy = AuthorizationPolicy(
+        metadata=ObjectMeta(
+            name="my-custom-policy",
+            namespace=self.model.name,
+        ),
+        spec=AuthorizationPolicySpec(
+            targetRefs=[
+                PolicyTargetReference(
+                    kind="Service",
+                    group="",
+                    name="target-service",
+                )
+            ],
+            rules=[
+                Rule(
+                    from_=[
+                        From(
+                            source=Source(
+                                principals=[
+                                    f"cluster.local/ns/{self.model.name}/sa/source-app"
+                                ]
+                            )
+                        )
+                    ],
+                    to=[
+                        To(
+                            operation=Operation(
+                                ports=["8080"],
+                                methods=["GET", "POST"],
+                                paths=["/api/*"],
+                            )
+                        )
+                    ],
+                )
+            ],
+        ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+    )
+    return [policy]
+```
+
+```{note}
+The `AuthorizationPolicySpec` is a Pydantic model. Use `.model_dump(by_alias=True, exclude_unset=True, exclude_none=True)` to convert it to the dict format expected by `AuthorizationPolicy.spec`.
+```
+
+### Reconciling raw policies
+
+Pass `raw_policies` to `reconcile()` alongside or instead of `MeshPolicy` objects:
+
+```python
+def _reconcile_policies(self, event):
+    prm = self._get_policy_manager()
+    mesh_type = self._mesh.mesh_type()
+
+    # Use both MeshPolicy and raw policies together
+    prm.reconcile(
+        self._get_custom_policies(),
+        mesh_type,
+        raw_policies=self._get_raw_policies(),
+    )
+
+    # Or use only raw policies
+    prm.reconcile([], mesh_type, raw_policies=self._get_raw_policies())
+```
+
+The `PolicyResourceManager` will apply the configured labels to raw policies and manage them alongside any `MeshPolicy`-generated policies.
+
 ## Best practices
 
 ### Combining ServiceMeshConsumer and PolicyResourceManager
