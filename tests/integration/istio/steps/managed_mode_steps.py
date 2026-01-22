@@ -24,10 +24,9 @@ logger = logging.getLogger(__name__)
 @given(parsers.parse("istio-beacon-k8s has manage-authorization-policies set to {value}"))
 def configure_beacon_managed_mode(value: str, juju: jubilant.Juju, beacon_info: Dict):
     """Configure istio-beacon's manage-authorization-policies setting."""
-    managed_mode = value.lower() == "true"
-    logger.info(f"Redeploying beacon with manage-authorization-policies={managed_mode}")
+    logger.info(f"Redeploying beacon with manage-authorization-policies={value}")
 
-    app_name, endpoint = deploy_istio_beacon(juju, managed_mode=managed_mode)
+    app_name, endpoint = deploy_istio_beacon(juju, config={"manage-authorization-policies": value})
     beacon_info["app_name"] = app_name
     beacon_info["endpoint"] = endpoint
     deploy_bookinfo(juju, beacon_app_name=app_name, beacon_service_mesh_endpoint=endpoint)

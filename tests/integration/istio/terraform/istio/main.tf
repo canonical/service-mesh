@@ -18,4 +18,5 @@ module "istio" {
 
   model_uuid = data.juju_model.istio_model.uuid
   channel    = var.channel
+  config     = var.config
 }
