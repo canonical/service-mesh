@@ -55,7 +55,6 @@ Feature: Hardened mode
     When productpage requests GET /details/0 on details:9080
     Then the request is unavailable
 
-  @xfail:https://github.com/canonical/istio-k8s-operator/pull/104
   Scenario: External traffic via ingress with hardened mode
     Given istio-k8s has hardened-mode set to true
     And istio-k8s has auto-allow-waypoint-policy set to true
