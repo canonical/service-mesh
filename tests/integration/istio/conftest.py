@@ -14,6 +14,7 @@ def pytest_bdd_apply_tag(tag, function):
         return True
     return None
 
+
 # Register step definition modules as pytest plugins
 pytest_plugins = [
     "tests.integration.istio.steps.common_steps",

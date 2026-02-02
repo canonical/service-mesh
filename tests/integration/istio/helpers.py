@@ -10,10 +10,39 @@ from typing import List, Optional
 import jubilant
 from lightkube import Client
 from lightkube.generic_resource import create_namespaced_resource
+from lightkube.resources.core_v1 import Service
 
 from tests.integration.helpers import TFManager, wait_for_active_idle_without_error
 
 logger = logging.getLogger(__name__)
+
+ISTIO_INGRESS_K8S_SERVICE_NAME = "istio-ingress-k8s-istio"
+
+
+def get_gateway_address(namespace: str) -> str:
+    """Get the external address of the ingress gateway LoadBalancer Service.
+
+    Args:
+        namespace: The Kubernetes namespace (Juju model name)
+
+    Returns:
+        The LoadBalancer external IP address
+
+    Raises:
+        RuntimeError: If no external IP is found
+    """
+    client = Client()
+    svc = client.get(Service, name=ISTIO_INGRESS_K8S_SERVICE_NAME, namespace=namespace)
+    if (
+        svc.status is None
+        or svc.status.loadBalancer is None
+        or not svc.status.loadBalancer.ingress
+    ):
+        raise RuntimeError(
+            f"No external IP found for {ISTIO_INGRESS_K8S_SERVICE_NAME} in {namespace}"
+        )
+    return str(svc.status.loadBalancer.ingress[0].ip)
+
 
 _AuthorizationPolicy = create_namespaced_resource(
     group="security.istio.io",

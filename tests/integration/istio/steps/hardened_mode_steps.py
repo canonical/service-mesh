@@ -7,10 +7,10 @@ import jubilant
 from pytest_bdd import given, parsers, when
 
 from tests.integration.helpers import (
-    curl_from_juju_unit,
+    curl_from_host,
     wait_for_active_idle_without_error,
 )
-from tests.integration.istio.helpers import deploy_istio_ingress
+from tests.integration.istio.helpers import deploy_istio_ingress, get_gateway_address
 
 logger = logging.getLogger(__name__)
 
@@ -41,18 +41,14 @@ def productpage_exposed_via_ingress(juju: jubilant.Juju, ingress_info: Dict):
 
 @when(parsers.parse("external client requests {method} {path} on the ingress gateway"))
 def external_client_requests_ingress(
-    method: str, path: str, juju: jubilant.Juju, ingress_info: Dict, juju_run_output: dict
+    method: str, path: str, juju: jubilant.Juju, juju_run_output: dict
 ):
     """Test HTTP request from outside the cluster via ingress gateway."""
-    ingress_app = ingress_info["app_name"]
-    assert ingress_app is not None, "Ingress app not deployed"
-    # Get the ingress gateway URL from juju status
-    status = juju.status()
-    ingress_address = status.apps[ingress_app].address
-    url = f"http://{ingress_address}{path}"
+    assert juju.model is not None, "Juju model is not set"
+    ingress_address = get_gateway_address(juju.model)
+    url = f"http://{ingress_address}/{juju.model}-productpage{path}"
     logger.info(f"External client -> {method} {url}")
 
-    # Use curl from productpage unit to reach the ingress gateway
-    result = curl_from_juju_unit(juju=juju, unit="productpage/0", url=url, method=method)
+    result = curl_from_host(url=url, method=method)
     juju_run_output["last_request"] = result
     logger.info(f"Request result: HTTP_CODE in stdout: {result['stdout']}")
