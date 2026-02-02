@@ -53,3 +53,17 @@ Reference </reference/index>
       **Technical information** - specifications, APIs, architecture
    ```
 ````
+
+
+## Project and community
+
+The Canonical Service Mesh is a member of the Canonical family. It's an open source project
+that warmly welcomes community projects, contributions, suggestions, fixes
+and constructive feedback.
+
+* [Join the Discourse community forum](https://discourse.charmhub.io/c/charm/)
+* [Join the Matrix community chat](https://matrix.to/#/#cos:ubuntu.com)
+* [Contribute on GitHub](https://github.com/canonical/service-mesh)
+
+* [Code of conduct](https://ubuntu.com/community/ethos/code-of-conduct)
+* [Canonical contributor license agreement](https://canonical.com/legal/contributors)
