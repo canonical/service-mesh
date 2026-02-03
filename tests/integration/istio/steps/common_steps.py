@@ -15,6 +15,7 @@ from tests.integration.istio.helpers import (
     deploy_bookinfo,
     deploy_istio,
     deploy_istio_beacon,
+    deploy_istio_ingress,
 )
 
 logger = logging.getLogger(__name__)
@@ -40,28 +41,60 @@ def juju_model_bookinfo_services(juju: jubilant.Juju):
 
 
 @given("the bookinfo services are deployed with istio-beacon-k8s integration")
-def bookinfo_services_deployed_with_istio_beacon(juju: jubilant.Juju, beacon_info: Dict):
+def bookinfo_services_deployed_with_istio_beacon(
+    juju: jubilant.Juju, beacon_info: Dict, beacon_config: Dict
+):
     """Ensure the bookinfo services are deployed with istio-beacon-k8s integration enabled."""
-    logger.info("Deploying istio-beacon and bookinfo services")
-    app_name, endpoint = deploy_istio_beacon(juju)
+    logger.info(f"Deploying istio-beacon (config={beacon_config}) and bookinfo services")
+    app_name, endpoint = deploy_istio_beacon(juju, config=beacon_config if beacon_config else None)
     beacon_info["app_name"] = app_name
     beacon_info["endpoint"] = endpoint
     deploy_bookinfo(juju, beacon_app_name=app_name, beacon_service_mesh_endpoint=endpoint)
     wait_for_active_idle_without_error([juju], timeout=60 * 20)
 
 
+@given(parsers.parse("{charm} has {config} set to {value}"))
+def charm_has_config_set(
+    charm: str,
+    config: str,
+    value: str,
+    juju: jubilant.Juju,
+    istio_system_juju: jubilant.Juju,
+    beacon_info: Dict,
+    ingress_info: Dict,
+    istio_config: Dict,
+    beacon_config: Dict,
+    ingress_config: Dict,
+):
+    """Set a config option on a charm by redeploying with the new config via terraform."""
+    logger.info(f"Setting {charm} config: {config}={value}")
+
+    if charm == "istio-k8s":
+        istio_config[config] = value
+        deploy_istio(istio_system_juju, config=istio_config)
+    elif charm == "istio-beacon-k8s":
+        beacon_config[config] = value
+        app_name, endpoint = deploy_istio_beacon(juju, config=beacon_config)
+        beacon_info["app_name"] = app_name
+        beacon_info["endpoint"] = endpoint
+    elif charm == "istio-ingress-k8s":
+        ingress_config[config] = value
+        app_name = deploy_istio_ingress(juju, config=ingress_config)
+        ingress_info["app_name"] = app_name
+
+
 # -------------- When --------------
 
 
-@when(parsers.parse("productpage requests {method} {path} on {service}"))
-def productpage_requests_service(
-    method: str, path: str, service: str, juju: jubilant.Juju, juju_run_output: dict
+@when(parsers.parse("{app} requests {method} {path} on {service}"))
+def app_requests_service(
+    app: str, method: str, path: str, service: str, juju: jubilant.Juju, juju_run_output: dict
 ):
-    """Test HTTP request from productpage to a service with specified method and path."""
+    """Test HTTP request from an app to a service with specified method and path."""
     service_url = f"http://{service}{path}"
-    logger.info(f"Productpage -> {method} {service_url}")
+    logger.info(f"{app} -> {method} {service_url}")
 
-    result = curl_from_juju_unit(juju=juju, unit="productpage/0", url=service_url, method=method)
+    result = curl_from_juju_unit(juju=juju, unit=f"{app}/0", url=service_url, method=method)
     juju_run_output["last_request"] = result
     logger.info(f"Request result: HTTP_CODE in stdout: {result['stdout']}")
 
@@ -85,3 +118,12 @@ def request_is_rejected(juju_run_output: dict):
     assert result is not None, "No request result found"
 
     verify_http_response(result, expected_exit_code=1)
+
+
+@then("the request is unavailable")
+def request_is_unavailable(juju_run_output: dict):
+    """Verify the last request returned 503 Service Unavailable."""
+    result = juju_run_output.get("last_request")
+    assert result is not None, "No request result found"
+
+    verify_http_response(result, expected_http_code=503, expected_exit_code=0)

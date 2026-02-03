@@ -10,10 +10,39 @@ from typing import List, Optional
 import jubilant
 from lightkube import Client
 from lightkube.generic_resource import create_namespaced_resource
+from lightkube.resources.core_v1 import Service
 
 from tests.integration.helpers import TFManager, wait_for_active_idle_without_error
 
 logger = logging.getLogger(__name__)
+
+ISTIO_INGRESS_K8S_SERVICE_NAME = "istio-ingress-k8s-istio"
+
+
+def get_gateway_address(namespace: str) -> str:
+    """Get the external address of the ingress gateway LoadBalancer Service.
+
+    Args:
+        namespace: The Kubernetes namespace (Juju model name)
+
+    Returns:
+        The LoadBalancer external IP address
+
+    Raises:
+        RuntimeError: If no external IP is found
+    """
+    client = Client()
+    svc = client.get(Service, name=ISTIO_INGRESS_K8S_SERVICE_NAME, namespace=namespace)
+    if (
+        svc.status is None
+        or svc.status.loadBalancer is None
+        or not svc.status.loadBalancer.ingress
+    ):
+        raise RuntimeError(
+            f"No external IP found for {ISTIO_INGRESS_K8S_SERVICE_NAME} in {namespace}"
+        )
+    return str(svc.status.loadBalancer.ingress[0].ip)
+
 
 _AuthorizationPolicy = create_namespaced_resource(
     group="security.istio.io",
@@ -55,18 +84,19 @@ def get_authorization_policies(juju: jubilant.Juju) -> List[str]:
         return []
 
 
-def deploy_istio(juju: jubilant.Juju) -> None:
+def deploy_istio(juju: jubilant.Juju, config: Optional[dict] = None) -> None:
     """Deploy istio-k8s to a Juju model using terraform.
 
     Args:
         juju: The Juju model instance to deploy to
+        config: Optional configuration dict for the charm
     """
     assert juju.model is not None, "Juju model is not set"
 
     terraform_dir = Path(__file__).parent / "terraform" / "istio"
     state_file = Path(tempfile.gettempdir()) / f"istio-{juju.model}.tfstate"
 
-    logger.info(f"Deploying istio-k8s to {juju.model} (channel={ISTIO_CHANNEL})")
+    logger.info(f"Deploying istio-k8s to {juju.model} (channel={ISTIO_CHANNEL}, config={config})")
 
     terraform = TFManager(terraform_dir, state_file)
     terraform.init()
@@ -79,16 +109,18 @@ def deploy_istio(juju: jubilant.Juju) -> None:
             "TF_VAR_channel": ISTIO_CHANNEL,
         }
     )
+    if config:
+        env["TF_VAR_config"] = json.dumps(config)
     terraform.apply(env)
     wait_for_active_idle_without_error([juju], timeout=60 * 20)
 
 
-def deploy_istio_beacon(juju: jubilant.Juju, managed_mode: bool = True) -> tuple[str, str]:
+def deploy_istio_beacon(juju: jubilant.Juju, config: Optional[dict] = None) -> tuple[str, str]:
     """Deploy istio-beacon to a Juju model using terraform and return app name and endpoint.
 
     Args:
         juju: The Juju model instance to deploy to
-        managed_mode: Whether beacon should manage authorization policies (default: True)
+        config: Optional configuration dict for the charm
 
     Returns:
         Tuple of (app_name, service_mesh_endpoint)
@@ -99,7 +131,7 @@ def deploy_istio_beacon(juju: jubilant.Juju, managed_mode: bool = True) -> tuple
     state_file = Path(tempfile.gettempdir()) / f"istio-beacon-{juju.model}.tfstate"
 
     logger.info(
-        f"Deploying istio-beacon to {juju.model} (channel={ISTIO_CHANNEL}, managed_mode={managed_mode})"
+        f"Deploying istio-beacon to {juju.model} (channel={ISTIO_CHANNEL}, config={config})"
     )
 
     terraform = TFManager(terraform_dir, state_file)
@@ -111,13 +143,10 @@ def deploy_istio_beacon(juju: jubilant.Juju, managed_mode: bool = True) -> tuple
         {
             "TF_VAR_model": juju.model,
             "TF_VAR_channel": ISTIO_CHANNEL,
-            "TF_VAR_config": json.dumps(
-                {
-                    "manage-authorization-policies": str(managed_mode).lower(),
-                }
-            ),
         }
     )
+    if config:
+        env["TF_VAR_config"] = json.dumps(config)
     terraform.apply(env)
     wait_for_active_idle_without_error([juju], timeout=60 * 20)
     # Get the beacon app name and service mesh endpoint from terraform output
@@ -126,6 +155,47 @@ def deploy_istio_beacon(juju: jubilant.Juju, managed_mode: bool = True) -> tuple
     logger.info(f"Istio-beacon deployed: app={app_name}, endpoint={service_mesh_endpoint}")
 
     return app_name, service_mesh_endpoint
+
+
+def deploy_istio_ingress(juju: jubilant.Juju, config: Optional[dict] = None) -> str:
+    """Deploy istio-ingress-k8s to a Juju model using terraform.
+
+    Args:
+        juju: The Juju model instance to deploy to
+        config: Optional configuration dict for the charm
+
+    Returns:
+        The app name
+    """
+    assert juju.model is not None, "Juju model is not set"
+
+    terraform_dir = Path(__file__).parent / "terraform" / "istio-ingress"
+    state_file = Path(tempfile.gettempdir()) / f"istio-ingress-{juju.model}.tfstate"
+
+    logger.info(
+        f"Deploying istio-ingress-k8s to {juju.model} (channel={ISTIO_CHANNEL}, config={config})"
+    )
+
+    terraform = TFManager(terraform_dir, state_file)
+    terraform.init()
+
+    # Apply terraform configuration
+    env = os.environ.copy()
+    env.update(
+        {
+            "TF_VAR_model": juju.model,
+            "TF_VAR_channel": ISTIO_CHANNEL,
+        }
+    )
+    if config:
+        env["TF_VAR_config"] = json.dumps(config)
+    terraform.apply(env)
+    wait_for_active_idle_without_error([juju], timeout=60 * 20)
+
+    app_name = terraform.output("app_name")
+    logger.info(f"Istio-ingress deployed: app={app_name}")
+
+    return app_name
 
 
 def deploy_bookinfo(

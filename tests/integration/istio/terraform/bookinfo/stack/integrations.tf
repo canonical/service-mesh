@@ -17,7 +17,7 @@ resource "juju_integration" "productpage_details" {
 # -------------- # Service Mesh integrations (conditional) --------------
 
 resource "juju_integration" "productpage_beacon" {
-  count = var.beacon_app_name != null ? 1 : 0
+  count      = var.beacon_app_name != null ? 1 : 0
   model_uuid = var.model_uuid
 
   application {
@@ -32,7 +32,7 @@ resource "juju_integration" "productpage_beacon" {
 }
 
 resource "juju_integration" "details_beacon" {
-  count = var.beacon_app_name != null ? 1 : 0
+  count      = var.beacon_app_name != null ? 1 : 0
   model_uuid = var.model_uuid
 
   application {
