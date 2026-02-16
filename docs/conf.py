@@ -25,12 +25,12 @@ import yaml
 #
 # TODO: Update with the official name of your project or product
 
-project = "Service Mesh"
+project = "Canonical Service Mesh"
 author = "Canonical Ltd."
 
 
 # Sidebar documentation title; best kept reasonably short
-html_title = project + " Documentation"
+html_title = "Documentation"
 
 
 # Copyright string; shown at the bottom of the page
@@ -184,16 +184,20 @@ redirects = {}
 
 linkcheck_ignore = [
     "http://127.0.0.1:8000",
-    "https://github.com/canonical/ACME/*"
+    "https://github.com/canonical/ACME/*",
+    r"https://matrix\.to/.*",
     ]
 
 
 # A regex list of URLs where anchors are ignored by 'make linkcheck'
 
-linkcheck_anchors_ignore_for_url = [r"https://github\.com/.*"]
+linkcheck_anchors_ignore_for_url = [
+    r"https://github\.com/.*",
+    r"https://istio\.io/.*",
+    ]
 
 # give linkcheck multiple tries on failure
-# linkcheck_timeout = 30
+linkcheck_timeout = 60
 linkcheck_retries = 3
 
 ########################
@@ -236,6 +240,7 @@ extensions = [
     "sphinx_last_updated_by_git",
     "sphinx.ext.intersphinx",
     "sphinx_sitemap",
+    "sphinxcontrib.mermaid",
 ]
 
 # Excludes files or directories from processing
