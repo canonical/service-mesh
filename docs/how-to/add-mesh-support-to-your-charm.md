@@ -126,6 +126,6 @@ juju relate my-db-provider:database my-db-consumer:database
 juju relate my-db-provider:provide-cmr-support my-db-consumer:require-cmr-support
 ```
 
-For a more detailed tutorial using cross-model integrations, follow the [Use the Istio Mesh across different Juju models](../tutorial/use-the-istio-mesh-across-different-juju-models.md) tutorial.
+For a more detailed tutorial using cross-model integrations, follow the [Use Istio ambient across different Juju models](../tutorial/use-the-istio-mesh-across-different-juju-models.md) tutorial.
 
 [^1]: For a detailed explanation of exactly what is generated automatically, see [Authorization Policy Creation in Istio](../explanation/traffic-authorization.md)

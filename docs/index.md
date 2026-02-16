@@ -1,5 +1,5 @@
 <!-- vale off -->
-# Service Mesh documentation
+# Canonical Service Mesh
 <!-- vale on -->
 
 A service mesh manages communication between microservices, offering traffic control, security, and observability without changing application code. However, it can be complex to operate.

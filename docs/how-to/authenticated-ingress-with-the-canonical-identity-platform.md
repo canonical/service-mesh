@@ -2,14 +2,14 @@
 
 ## Introduction
 
-This tutorial demonstrates how to use the Canonical Identity Platform to add authentication to an Istio Ingress.
+This guide demonstrates how to use the Canonical Identity Platform to add authentication to an Istio Ingress.
 
 ## Prerequisites
 
-Before starting this tutorial, ensure you have:
+Before starting this guide, ensure you have:
 
-- Completed the [Get started with Charmed Istio service mesh](./get-started-with-the-charmed-istio-mesh.md) tutorial, which will give you a deployment of Istio and the sample Bookinfo application ingressed through an istio-ingress
-- Deployed the Canonical Identity Platform following [this tutorial](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial).  Specifically , you must complete [Deploy the Identity Platform](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial#p-27742-deploy-the-identity-platform) and then [Set up a user with the built-in identity provider](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial#p-27742-use-the-built-in-identity-provider)
+- Completed the [Get started with Charmed Istio ambient](../tutorial/get-started-with-the-charmed-istio-mesh.md) tutorial, which will give you a deployment of Istio ambient and the sample Bookinfo application ingressed through an istio-ingress
+- Deployed the Canonical Identity Platform following [this guide](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial).  Specifically , you must complete [Deploy the Identity Platform](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial#p-27742-deploy-the-identity-platform) and then [Set up a user with the built-in identity provider](https://charmhub.io/topics/canonical-identity-platform/tutorials/e2e-tutorial#p-27742-use-the-built-in-identity-provider)
 
 ````{warning}
 Until [this issue](https://github.com/canonical/iam-bundle-integration/issues/66) is resolved, the Identity tutorial deploys an older version of [self-signed-certificates](https://github.com/canonical/self-signed-certificates-operator) that is incompatible with the [oauth2-proxy](https://github.com/canonical/oauth2-proxy-k8s-operator) charm used below.  
@@ -181,7 +181,7 @@ From this stage, we can:
 But browsing to the Bookinfo application did not require any authentication.  Next, we configure the Istio ingress to enforce authentication using the Identity Platform.
 
 ```{note}
-Throughout this tutorial you will log into the identity platform a few times.  While it works in any browser configuration, using incognito sessions is recommended because its easy to close the session to reset any login cookies.  Its recommended that every time you try to log in fresh, you close your incognito session and start a new one.
+Throughout this guide you will log into the identity platform a few times.  While it works in any browser configuration, using incognito sessions is recommended because its easy to close the session to reset any login cookies.  Its recommended that every time you try to log in fresh, you close your incognito session and start a new one.
 ```
 
 ## Configure the Identity Platform to use the Istio Ingress
@@ -278,7 +278,7 @@ Congratulations!  You've successfully:
 
 ## Teardown
 
-To clean up the resources created in this tutorial, run:
+To clean up the resources created in this guide, run:
 
 ```bash
 juju destroy-model iam
