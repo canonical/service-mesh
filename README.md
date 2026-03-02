@@ -1,6 +1,6 @@
-# Canonical Service Mesh
+# Charmed Service Mesh
 
-The Canonical Service Mesh project consists of a set of charms that provide a low-ops 
+The Charmed Service Mesh project consists of a set of charms that provide a low-ops 
 service mesh deployed and operated using Juju.
 
 See the full documentation: https://documentation.ubuntu.com/service-mesh/

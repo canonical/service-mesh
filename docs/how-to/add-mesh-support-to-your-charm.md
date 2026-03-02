@@ -80,7 +80,7 @@ A `UnitPolicy` can be used to control access from a source application to the ta
 `UnitPolicy` is useful when access to individual units (or workloads) from a source application is necessary. For example, `prometheus` scraping individual units of an application for metrics. Without a `UnitPolicy`, access to individual units of an application will be denied.
 
 ```{note}
-A UnitPolicy can control access by ports but not by paths and methods. Hence, it is not possible provide access control through `endpoints` while using `UnitPolicy` unlike `AppPolicy`. This limitation stems from the upstream service meshes (Istio) that are supported by Canonical Service Mesh.
+A UnitPolicy can control access by ports but not by paths and methods. Hence, it is not possible provide access control through `endpoints` while using `UnitPolicy` unlike `AppPolicy`. This limitation stems from the upstream service meshes (Istio) that are supported by Charmed Service Mesh.
 ```
 
 For example:
@@ -126,6 +126,6 @@ juju relate my-db-provider:database my-db-consumer:database
 juju relate my-db-provider:provide-cmr-support my-db-consumer:require-cmr-support
 ```
 
-For a more detailed tutorial using cross-model integrations, follow the [Use the Istio Mesh across different Juju models](../tutorial/use-the-istio-mesh-across-different-juju-models.md) tutorial.
+For a more detailed tutorial using cross-model integrations, follow the [Use Istio ambient across different Juju models](../tutorial/use-the-istio-mesh-across-different-juju-models.md) tutorial.
 
 [^1]: For a detailed explanation of exactly what is generated automatically, see [Authorization Policy Creation in Istio](../explanation/traffic-authorization.md)

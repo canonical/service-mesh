@@ -1,6 +1,8 @@
 # Leave a blank line at the end of this file to support concatenation
+ambient's
 backend
 backends
+CIDR
 Charmcraft
 config
 Consol
@@ -20,6 +22,7 @@ http
 https
 html
 instantiation
+IPs
 Istio
 Istio's
 Intersphinx
@@ -63,8 +66,11 @@ toctree
 txt
 uncommenting
 ui
+ztunnel
 utils
 VMs
+waypoint
+waypoints
 Waypoint
 WCAG
 Wordpress

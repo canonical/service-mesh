@@ -279,7 +279,7 @@ For **unit-targeted policies** (`PolicyTargetType.unit`):
 - **`endpoints`**: List of `Endpoint` objects with only `ports` (methods, paths, and hosts are not supported)
 
 ```{note}
-Unit-targeted policies provide Layer 4 (TCP) access control to individual pods. They cannot restrict by HTTP methods, paths, or hosts - only by ports. This limitation comes from the underlying Istio service mesh implementation. Use unit policies when you need to access individual units directly, such as for metrics scraping from each pod.
+Unit-targeted policies provide Layer 4 (TCP) access control to individual pods. They cannot restrict by HTTP methods, paths, or hosts - only by ports. This limitation comes from the underlying Istio ambient implementation. Use unit policies when you need to access individual units directly, such as for metrics scraping from each pod.
 ```
 
 ## Using raw policy objects

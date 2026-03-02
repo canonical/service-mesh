@@ -50,6 +50,10 @@ jobs:
       working-directory: "docs"
       run: |
         set -ex
+        # --only-binary html5lib: html5lib's sdist has a broken build system
+        # that fails during get_requires_for_build_wheel. The universal wheel
+        # (py2.py3-none-any) is architecture-independent, so using it is safe.
+        # See https://github.com/canonical/service-mesh/issues/45
         make install \
-          PIPOPTS="--no-binary :all:" \
+          PIPOPTS="--no-binary :all: --only-binary html5lib" \
           || ( cat .sphinx/venv/pip_install.log && exit 1 )

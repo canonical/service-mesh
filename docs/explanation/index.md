@@ -1,15 +1,12 @@
 # Explanation
 
-These documents provide an explanation of key topics and concepts of the Canonical Service Mesh.
+These documents provide an explanation of key topics and concepts of the Charmed Service Mesh.
 
 ```{toctree}
-:maxdepth: 1
+:maxdepth: 2
 
 service-mesh
 istio
-hardened-mode
-managed-mode
-traffic-authorization
 service-mesh-in-coordinated-worker-charms
 ```
 

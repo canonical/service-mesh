@@ -1,10 +1,10 @@
 <!-- vale off -->
 
-# Use the Istio Mesh across different Juju models
+# Use Istio ambient across different Juju models
 
 <!-- vale on -->
 
-This tutorial demonstrates how to extend your Istio service mesh across multiple Juju models, enabling secure communication between charms deployed in different models. You'll learn how to create authorization policies and establish cross-model relations through Charmed Istio.
+This tutorial demonstrates how to extend your Istio ambient mesh across multiple Juju models, enabling secure communication between charms deployed in different models. You'll learn how to create authorization policies and establish cross-model relations through Charmed Istio.
 
 ## Introduction
 
@@ -16,7 +16,7 @@ We'll move a backend charm ([`bookinfo-reviews-k8s`](https://charmhub.io/bookinf
 
 Before starting this tutorial, ensure you have:
 
-- Completed the [Get started with Charmed Istio service mesh](./get-started-with-the-charmed-istio-mesh.md) tutorial
+- Completed the [Get started with Charmed Istio ambient](./get-started-with-the-charmed-istio-mesh.md) tutorial
 - Basic familiarity with [Juju cross-model relations](https://documentation.ubuntu.com/juju/stable/reference/cross-model-integration/) (CMR)
 
 ## Deploy the reviews charm in a new model
@@ -57,7 +57,7 @@ juju deploy bookinfo-reviews-k8s --trust
 Similar to the `bookinfo` model in the previous tutorial, let's deploy the `istio-beacon-k8s` charm into this model so the `bookinfo-reviews-k8s` charm can be added to the service mesh:
 
 ```bash
-juju deploy istio-beacon-k8s --trust --channel=2/edge
+juju deploy istio-beacon-k8s --trust --channel=2/stable
 ```
 
 ```{note}
@@ -174,7 +174,7 @@ Congratulations! You've successfully:
 This demonstrates how Charmed Istio enables you to build distributed applications across multiple Juju models while maintaining strong security boundaries and simplified operations.
 
 ```{tip}
-If you're planning to continue with the [Monitor the Istio Mesh using Kiali](./monitor-the-istio-mesh-using-kiali.md) tutorial, keep all models running as Kiali will observe the entire mesh topology.
+If you're planning to continue with the [Monitor Istio ambient using Kiali](../how-to/monitor-the-istio-mesh-using-kiali.md) guide, keep all models running as Kiali will observe the entire mesh topology.
 ```
 
 ## Teardown
@@ -195,5 +195,5 @@ juju destroy-model istio-system
 
 To further explore Charmed Istio capabilities:
 
-- Visualize your service mesh in the [Monitor the Istio Mesh using Kiali](./monitor-the-istio-mesh-using-kiali.md) tutorial
+- Visualize your service mesh with the [Monitor Istio ambient using Kiali](../how-to/monitor-the-istio-mesh-using-kiali.md) guide
 
