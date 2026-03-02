@@ -25,7 +25,7 @@ import yaml
 #
 # TODO: Update with the official name of your project or product
 
-project = "Canonical Service Mesh"
+project = "Charmed Service Mesh"
 author = "Canonical Ltd."
 
 

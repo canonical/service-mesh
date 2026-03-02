@@ -80,7 +80,7 @@ A `UnitPolicy` can be used to control access from a source application to the ta
 `UnitPolicy` is useful when access to individual units (or workloads) from a source application is necessary. For example, `prometheus` scraping individual units of an application for metrics. Without a `UnitPolicy`, access to individual units of an application will be denied.
 
 ```{note}
-A UnitPolicy can control access by ports but not by paths and methods. Hence, it is not possible provide access control through `endpoints` while using `UnitPolicy` unlike `AppPolicy`. This limitation stems from the upstream service meshes (Istio) that are supported by Canonical Service Mesh.
+A UnitPolicy can control access by ports but not by paths and methods. Hence, it is not possible provide access control through `endpoints` while using `UnitPolicy` unlike `AppPolicy`. This limitation stems from the upstream service meshes (Istio) that are supported by Charmed Service Mesh.
 ```
 
 For example:

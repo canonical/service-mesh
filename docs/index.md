@@ -1,12 +1,12 @@
 <!-- vale off -->
-# Canonical Service Mesh
+# Charmed Service Mesh
 <!-- vale on -->
 
 A service mesh manages communication between microservices, offering traffic control, security, and observability without changing application code. However, it can be complex to operate.
 
-Canonical Service Mesh uses Juju to automate and simplify service mesh setup and management. By leveraging charms and relations, it streamlines tasks like authorization, on-boarding Kubernetes apps, and traffic routing, making service mesh technology more accessible and reducing operational overhead.
+Charmed Service Mesh uses Juju to automate and simplify service mesh setup and management. By leveraging charms and relations, it streamlines tasks like authorization, on-boarding Kubernetes apps, and traffic routing, making service mesh technology more accessible and reducing operational overhead.
 
-For Platform Engineers and DevOps teams, Canonical Service Mesh provides a turn-key, out-of-the-box solution for improved microservice communication, security, and observability.
+For Platform Engineers and DevOps teams, Charmed Service Mesh provides a turn-key, out-of-the-box solution for improved microservice communication, security, and observability.
 
 ```{toctree}
 :hidden:
@@ -25,7 +25,7 @@ Reference </reference/index>
   ```{grid-item-card} Tutorial
       :link: /tutorial/index
       :link-type: doc
-  **Get started** - a hands-on introduction the Canonical Service Mesh.
+  **Get started** - a hands-on introduction the Charmed Service Mesh.
   ```
 
   ```{grid-item-card} How-to guides
@@ -57,7 +57,7 @@ Reference </reference/index>
 
 ## Project and community
 
-The Canonical Service Mesh is a member of the Canonical family. It's an open source project
+The Charmed Service Mesh is a member of the Canonical family. It's an open source project
 that warmly welcomes community projects, contributions, suggestions, fixes
 and constructive feedback.
 
