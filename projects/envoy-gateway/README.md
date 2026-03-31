@@ -114,7 +114,78 @@ spec:
 
 This is a L4 policy. All paths are accessible through the envoy gateway. Ingress controllers resolve service endpoints directly (pod IPs), bypassing the service VIP. Because of this, ztunnel treats the traffic as pod-to-pod and does not route it through the waypoint - L7 waypoint policies have no effect on ingress traffic.
 
+### Using with the Gateway API Integrator charm
+
+The [`gateway-api-integrator`](https://github.com/canonical/gateway-api-integrator-operator) charm can use the Envoy Gateway controller to create Gateways and HTTPRoutes. Since the charm creates its own Gateway resource, the Envoy Gateway controller spins up a separate proxy Deployment for it. The same two steps (mesh enrollment + L4 policy) are required.
+
+#### 1. Deploy the charm
+
+Assuming the Envoy Gateway controller and GatewayClass (`eg`) are already installed (see setup above):
+
+```bash
+juju deploy self-signed-certificates ssc
+juju deploy gateway-api-integrator gai --trust --config gateway-class=eg --config external-hostname=productpage.local
+juju integrate gai:certificates ssc:certificates
+juju integrate gai:gateway productpage:ingress
+```
+
+The GAI charm creates a Gateway with HTTP and HTTPS listeners (hostname-scoped to `productpage.local`), an HTTPRoute with path prefix `/istio-test-productpage` that rewrites to `/`, and a redirect from HTTP to HTTPS.
+
+#### 2. Enroll the GAI proxy pod in the mesh
+
+The controller creates a new proxy Deployment for the GAI Gateway. Find and enroll it:
+
+```bash
+DEPLOY=$(kubectl get deployment -n istio-test \
+    -l gateway.envoyproxy.io/owning-gateway-name=gai \
+    -o jsonpath='{.items[0].metadata.name}')
+kubectl patch deployment -n istio-test "${DEPLOY}" --type=merge \
+    -p '{"spec":{"template":{"metadata":{"labels":{"istio.io/dataplane-mode":"ambient"}}}}}'
+```
+
+#### 3. Add an L4 AuthorizationPolicy for the GAI proxy
+
+```bash
+SA=$(kubectl get deployment -n istio-test "${DEPLOY}" \
+    -o jsonpath='{.spec.template.spec.serviceAccountName}')
+kubectl apply -f - <<EOF
+apiVersion: security.istio.io/v1
+kind: AuthorizationPolicy
+metadata:
+  name: productpage-gai-l4
+  namespace: istio-test
+spec:
+  action: ALLOW
+  selector:
+    matchLabels:
+      app.kubernetes.io/name: productpage
+  rules:
+  - from:
+    - source:
+        principals:
+        - cluster.local/ns/istio-test/sa/${SA}
+    to:
+    - operation:
+        ports:
+        - "9080"
+EOF
+```
+
+#### 4. Verify
+
+The GAI Gateway sets up hostname-based routing with TLS termination, so `--resolve` is needed to set the correct SNI:
+
+```bash
+# HTTPS (path prefix is /istio-test-productpage, same as Istio ingress)
+curl -k --resolve productpage.local:443:<gai-gateway-ip> \
+    https://productpage.local/istio-test-productpage
+
+# HTTP redirects to HTTPS
+curl -H "Host: productpage.local" http://<gai-gateway-ip>/
+```
+
 ### Notes
 
 - **Policy management**: The `istio-ingress-k8s` charm self-manages its AuthorizationPolicy (it automatically creates the required policy for its own service account). For a vanilla Envoy Gateway, the policy must be created explicitly. If an Envoy Gateway charm were to exist, this could potentially be handled via the `service-mesh` relation.
-- **Other ingress controllers**: This approach may work with other ingress controllers (Traefik, nginx, Gateway API Integrator, etc.) - enroll the proxy in the mesh and add the L4 policy. If their respective charms were to integrate with the `service-mesh` relation, the policy creation could be automated. Needs research.
+- **Other ingress controllers**: This approach works with other ingress controllers (Traefik, Gateway API Integrator, etc.) - enroll the proxy in the mesh and add the L4 policy. Tested with both and confirmed the same waypoint bypass behavior.
+- **Service mesh library limitations**: The current `service_mesh` library (`ServiceMeshConsumer`) cannot automate mesh enrollment for Gateway API controllers. The library's `reconcile_charm_labels()` patches the charm's own StatefulSet and Service by app name - but the proxy pod is a Deployment dynamically created by the Gateway API controller (e.g. Envoy Gateway), with a generated name and its own service account. The charm has no ownership over it. If this could be solved (e.g. by having the charm discover and patch the controller-created proxy Deployment), the solution would be generic across all Gateway API implementations - any controller (Envoy Gateway, Traefik, nginx, etc.) could be used with the `gateway-api-integrator` charm, and mesh enrollment + policy creation would be automated via the `service-mesh` relation.
