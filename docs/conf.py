@@ -241,7 +241,25 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx_sitemap",
     "sphinxcontrib.mermaid",
+    "autoapi.extension",
 ]
+
+# sphinx-autoapi configuration for charmed-service-mesh API reference
+autoapi_dirs = ["../charmed-service-mesh/src/charmed_service_mesh"]
+autoapi_root = "reference/charmed-service-mesh"
+autoapi_type = "python"
+autoapi_options = [
+    "members",
+    "undoc-members",
+    "show-inheritance",
+    "show-module-summary",
+    "imported-members",
+]
+autoapi_ignore = ["*/_version*"]
+autoapi_keep_files = True
+autoapi_add_toctree_entry = False
+autoapi_python_class_content = "both"
+autoapi_member_order = "groupwise"
 
 # Excludes files or directories from processing
 

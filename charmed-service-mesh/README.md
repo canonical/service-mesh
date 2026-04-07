@@ -1,10 +1,35 @@
 # charmed-service-mesh
 
-Shared utilities for Charmed Service Mesh.
+A shared utility library for the Charmed Service Mesh ecosystem.
 
-## Modules
+## Purpose
 
-- `charmed_service_mesh.models`: Pydantic models for Kubernetes resources
-- `charmed_service_mesh.enums`: Shared enumerations
-- `charmed_service_mesh.utils`: Helper utilities
-- `charmed_service_mesh.k8s`: Kubernetes resource management
+The Charmed Service Mesh ecosystem will contain charms that integrate service mesh technologies into the Juju ecosystem. These charms and their interface libraries share a significant amount of common code: Pydantic models for Kubernetes resource creation and service mesh CRD resources, lightkube-based resource management, label generation and authorization policies etc.
+
+This package is the single home for all of that shared utility code. By centralizing it here, every charm and interface library depends on one well-maintained package instead of copying code between repositories or pulling from multiple helper packages.
+
+## Ecosystem
+
+The ecosystem has three layers:
+
+1. **This package (`charmed-service-mesh`)** provides models, resource managers, and helpers. It has no knowledge of Juju relations or charm lifecycle, which keeps it testable and reusable.
+2. **Interface libraries** (via the `charmlibs` monorepo) define the relation databag schemas and the interface classes. They import from this package.
+3. **Charms** contain purely the charm specifci logic and consume the interface and the charmed-service-mesh libraries.
+
+## Package structure
+
+### `enums`
+
+Shared enumerations used across the ecosystem.
+
+### `models`
+
+Pydantic models for Kubernetes and service mesh resources. The top-level `models` module contains generic Kubernetes Gateway API resource models. The `models.istio` subpackage contains Istio-specific CRD specs for authorization policies and request authentication.
+
+### `utils`
+
+Helper functions for Kubernetes label generation, Juju identity resolution, and service mesh specific operations like label ConfigMap reconciliation and policy resource construction.
+
+### `k8s`
+
+Kubernetes resource management built on lightkube. The `k8s.resource_manager` subpackage provides declarative resource lifecycle management with label-based ownership, policy resource management, and batch operations. The `k8s.types` subpackage defines lightkube type aliases and custom resource definitions.
