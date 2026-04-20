@@ -27,7 +27,6 @@ wheels = [
 
 [[package]]
 name = "canonical-service-mesh"
-version = "0.0.0.dev0"
 source = { editable = "." }
 dependencies = [
     { name = "httpx" },

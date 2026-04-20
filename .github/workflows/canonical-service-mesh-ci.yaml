@@ -1,0 +1,39 @@
+name: "canonical-service-mesh: CI"
+
+on:
+  pull_request:
+    paths:
+      - "canonical_service_mesh/**"
+      - ".github/workflows/canonical-service-mesh-ci.yaml"
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+defaults:
+  run:
+    working-directory: canonical_service_mesh
+
+jobs:
+  quality:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: astral-sh/setup-uv@v4
+        with:
+          enable-cache: true
+
+      - name: Set up Python
+        run: uv python install 3.12
+
+      - name: Install dependencies
+        run: uv sync --group dev
+
+      - name: Lint
+        run: uvx tox -e lint
+
+      - name: Type check
+        run: uvx tox -e static
+
+      - name: Run tests
+        run: uvx tox -e unit
