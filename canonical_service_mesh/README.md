@@ -1,4 +1,4 @@
-# charmed-service-mesh
+# canonical_service_mesh
 
 A shared utility library for the Charmed Service Mesh ecosystem.
 
@@ -12,9 +12,9 @@ This package is the single home for all of that shared utility code. By centrali
 
 The ecosystem has three layers:
 
-1. **This package (`charmed-service-mesh`)** provides models, resource managers, and helpers. It has no knowledge of Juju relations or charm lifecycle, which keeps it testable and reusable.
+1. **This package (`canonical_service_mesh`)** provides models, resource managers, and helpers. It has no knowledge of Juju relations or charm lifecycle, which keeps it testable and reusable.
 2. **Interface libraries** (via the `charmlibs` monorepo) define the relation databag schemas and the interface classes. They import from this package.
-3. **Charms** contain purely the charm specifci logic and consume the interface and the charmed-service-mesh libraries.
+3. **Charms** contain purely the charm specific logic and consume the interface and the canonical_service_mesh libraries.
 
 ## Package structure
 

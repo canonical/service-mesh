@@ -1,7 +1,7 @@
-charmed_service_mesh.models
+canonical_service_mesh.models
 ===========================
 
-.. py:module:: charmed_service_mesh.models
+.. py:module:: canonical_service_mesh.models
 
 .. autoapi-nested-parse::
 
@@ -15,7 +15,7 @@ Submodules
 .. toctree::
    :maxdepth: 1
 
-   /reference/charmed-service-mesh/charmed_service_mesh/models/istio/index
+   /reference/canonical_service_mesh/canonical_service_mesh/models/istio/index
 
 
 Classes
@@ -23,25 +23,25 @@ Classes
 
 .. autoapisummary::
 
-   charmed_service_mesh.models.AllowedRoutes
-   charmed_service_mesh.models.BackendRef
-   charmed_service_mesh.models.GRPCMethodMatch
-   charmed_service_mesh.models.GRPCRouteMatch
-   charmed_service_mesh.models.GRPCRouteResource
-   charmed_service_mesh.models.GRPCRouteResourceSpec
-   charmed_service_mesh.models.GRPCRouteRule
-   charmed_service_mesh.models.GatewayTLSConfig
-   charmed_service_mesh.models.HTTPPathMatch
-   charmed_service_mesh.models.HTTPRouteMatch
-   charmed_service_mesh.models.HTTPRouteResource
-   charmed_service_mesh.models.HTTPRouteResourceSpec
-   charmed_service_mesh.models.HTTPRouteRule
-   charmed_service_mesh.models.IstioGatewayResource
-   charmed_service_mesh.models.IstioGatewaySpec
-   charmed_service_mesh.models.Listener
-   charmed_service_mesh.models.Metadata
-   charmed_service_mesh.models.ParentRef
-   charmed_service_mesh.models.SecretObjectReference
+   canonical_service_mesh.models.AllowedRoutes
+   canonical_service_mesh.models.BackendRef
+   canonical_service_mesh.models.GRPCMethodMatch
+   canonical_service_mesh.models.GRPCRouteMatch
+   canonical_service_mesh.models.GRPCRouteResource
+   canonical_service_mesh.models.GRPCRouteResourceSpec
+   canonical_service_mesh.models.GRPCRouteRule
+   canonical_service_mesh.models.GatewayTLSConfig
+   canonical_service_mesh.models.HTTPPathMatch
+   canonical_service_mesh.models.HTTPRouteMatch
+   canonical_service_mesh.models.HTTPRouteResource
+   canonical_service_mesh.models.HTTPRouteResourceSpec
+   canonical_service_mesh.models.HTTPRouteRule
+   canonical_service_mesh.models.IstioGatewayResource
+   canonical_service_mesh.models.IstioGatewaySpec
+   canonical_service_mesh.models.Listener
+   canonical_service_mesh.models.Metadata
+   canonical_service_mesh.models.ParentRef
+   canonical_service_mesh.models.SecretObjectReference
 
 
 Package Contents
@@ -122,7 +122,7 @@ Package Contents
 
 
    .. py:attribute:: metadata
-      :type:  charmed_service_mesh.models._metadata.Metadata
+      :type:  canonical_service_mesh.models._metadata.Metadata
 
 
    .. py:attribute:: spec
@@ -224,7 +224,7 @@ Package Contents
 
 
    .. py:attribute:: metadata
-      :type:  charmed_service_mesh.models._metadata.Metadata
+      :type:  canonical_service_mesh.models._metadata.Metadata
 
 
    .. py:attribute:: spec
@@ -280,7 +280,7 @@ Package Contents
 
 
    .. py:attribute:: metadata
-      :type:  charmed_service_mesh.models._metadata.Metadata
+      :type:  canonical_service_mesh.models._metadata.Metadata
 
 
    .. py:attribute:: spec

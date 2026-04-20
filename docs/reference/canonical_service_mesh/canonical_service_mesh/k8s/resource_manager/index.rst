@@ -1,7 +1,7 @@
-charmed_service_mesh.k8s.resource_manager
+canonical_service_mesh.k8s.resource_manager
 =========================================
 
-.. py:module:: charmed_service_mesh.k8s.resource_manager
+.. py:module:: canonical_service_mesh.k8s.resource_manager
 
 .. autoapi-nested-parse::
 
@@ -14,7 +14,7 @@ Exceptions
 
 .. autoapisummary::
 
-   charmed_service_mesh.k8s.resource_manager.K8sApiError
+   canonical_service_mesh.k8s.resource_manager.K8sApiError
 
 
 Classes
@@ -22,9 +22,9 @@ Classes
 
 .. autoapisummary::
 
-   charmed_service_mesh.k8s.resource_manager.FakeApiError
-   charmed_service_mesh.k8s.resource_manager.KubernetesResourceManager
-   charmed_service_mesh.k8s.resource_manager.PolicyResourceManager
+   canonical_service_mesh.k8s.resource_manager.FakeApiError
+   canonical_service_mesh.k8s.resource_manager.KubernetesResourceManager
+   canonical_service_mesh.k8s.resource_manager.PolicyResourceManager
 
 
 Functions
@@ -32,10 +32,10 @@ Functions
 
 .. autoapisummary::
 
-   charmed_service_mesh.k8s.resource_manager.apply_many
-   charmed_service_mesh.k8s.resource_manager.create_charm_default_labels
-   charmed_service_mesh.k8s.resource_manager.delete_many
-   charmed_service_mesh.k8s.resource_manager.patch_many
+   canonical_service_mesh.k8s.resource_manager.apply_many
+   canonical_service_mesh.k8s.resource_manager.create_charm_default_labels
+   canonical_service_mesh.k8s.resource_manager.delete_many
+   canonical_service_mesh.k8s.resource_manager.patch_many
 
 
 Package Contents
@@ -59,7 +59,7 @@ Package Contents
    Used to simulate an ApiError during testing.
 
 
-.. py:class:: KubernetesResourceManager(labels: Optional[dict], resource_types: charmed_service_mesh.k8s.types.LightkubeResourceTypesSet, lightkube_client: lightkube.Client, logger: Optional[logging.Logger] = None)
+.. py:class:: KubernetesResourceManager(labels: Optional[dict], resource_types: canonical_service_mesh.k8s.types.LightkubeResourceTypesSet, lightkube_client: lightkube.Client, logger: Optional[logging.Logger] = None)
 
    Helper API to manage (create, update, delete) a manifest of Kubernetes resources.
 
@@ -72,7 +72,7 @@ Package Contents
        logger: Logger for log output.
 
 
-   .. py:method:: apply(resources: charmed_service_mesh.k8s.types.LightkubeResourcesList, force: bool = True)
+   .. py:method:: apply(resources: canonical_service_mesh.k8s.types.LightkubeResourcesList, force: bool = True)
 
       Apply the provided Kubernetes resources using server-side apply.
 
@@ -91,7 +91,7 @@ Package Contents
 
 
 
-   .. py:method:: get_deployed_resources() -> charmed_service_mesh.k8s.types.LightkubeResourcesList
+   .. py:method:: get_deployed_resources() -> canonical_service_mesh.k8s.types.LightkubeResourcesList
 
       Return a list of all deployed resources matching the label selector.
 
@@ -100,7 +100,7 @@ Package Contents
 
 
 
-   .. py:method:: patch(resources: charmed_service_mesh.k8s.types.LightkubeResourcesList, force: bool = True, patch_type: lightkube.types.PatchType = PatchType.APPLY)
+   .. py:method:: patch(resources: canonical_service_mesh.k8s.types.LightkubeResourcesList, force: bool = True, patch_type: lightkube.types.PatchType = PatchType.APPLY)
 
       Patch the provided Kubernetes resources.
 
@@ -111,7 +111,7 @@ Package Contents
 
 
 
-   .. py:method:: reconcile(resources: charmed_service_mesh.k8s.types.LightkubeResourcesList, force=True, ignore_missing=True, patch_type: lightkube.types.PatchType = PatchType.APPLY)
+   .. py:method:: reconcile(resources: canonical_service_mesh.k8s.types.LightkubeResourcesList, force=True, ignore_missing=True, patch_type: lightkube.types.PatchType = PatchType.APPLY)
 
       Reconcile the given resources, removing, updating, or creating objects as required.
 
@@ -156,7 +156,7 @@ Package Contents
 
 
 
-   .. py:method:: reconcile(policies: list, mesh_type: charmed_service_mesh.enums.MeshType, raw_policies: Optional[List[charmed_service_mesh.k8s.types.istio.AuthorizationPolicy]] = None, force: bool = True, ignore_missing: bool = True) -> None
+   .. py:method:: reconcile(policies: list, mesh_type: canonical_service_mesh.enums.MeshType, raw_policies: Optional[List[canonical_service_mesh.k8s.types.istio.AuthorizationPolicy]] = None, force: bool = True, ignore_missing: bool = True) -> None
 
       Reconcile the given policies, removing, updating, or creating objects as required.
 

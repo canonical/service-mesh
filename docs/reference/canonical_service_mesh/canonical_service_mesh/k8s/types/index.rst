@@ -1,7 +1,7 @@
-charmed_service_mesh.k8s.types
+canonical_service_mesh.k8s.types
 ==============================
 
-.. py:module:: charmed_service_mesh.k8s.types
+.. py:module:: canonical_service_mesh.k8s.types
 
 .. autoapi-nested-parse::
 
@@ -15,7 +15,7 @@ Submodules
 .. toctree::
    :maxdepth: 1
 
-   /reference/charmed-service-mesh/charmed_service_mesh/k8s/types/istio/index
+   /reference/canonical_service_mesh/canonical_service_mesh/k8s/types/istio/index
 
 
 Attributes
@@ -23,9 +23,9 @@ Attributes
 
 .. autoapisummary::
 
-   charmed_service_mesh.k8s.types.LightkubeResourceType
-   charmed_service_mesh.k8s.types.LightkubeResourceTypesSet
-   charmed_service_mesh.k8s.types.LightkubeResourcesList
+   canonical_service_mesh.k8s.types.LightkubeResourceType
+   canonical_service_mesh.k8s.types.LightkubeResourceTypesSet
+   canonical_service_mesh.k8s.types.LightkubeResourcesList
 
 
 Package Contents

@@ -6,7 +6,7 @@ requires = ["hatchling"]
 build-backend = "hatchling.build"
 
 [project]
-name = "charmed-service-mesh"
+name = "canonical-service-mesh"
 version = "0.0.1"
 description = "Shared utilities for Charmed Service Mesh."
 readme = "README.md"
@@ -36,7 +36,7 @@ dev = [
 "Issues" = "https://github.com/canonical/service-mesh/issues"
 
 [tool.hatch.build.targets.wheel]
-packages = ["src/charmed_service_mesh"]
+packages = ["src/canonical_service_mesh"]
 
 [tool.ruff]
 line-length = 99

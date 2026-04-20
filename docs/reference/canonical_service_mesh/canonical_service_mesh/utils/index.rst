@@ -1,7 +1,7 @@
-charmed_service_mesh.utils
+canonical_service_mesh.utils
 ==========================
 
-.. py:module:: charmed_service_mesh.utils
+.. py:module:: canonical_service_mesh.utils
 
 .. autoapi-nested-parse::
 
@@ -15,7 +15,7 @@ Submodules
 .. toctree::
    :maxdepth: 1
 
-   /reference/charmed-service-mesh/charmed_service_mesh/utils/istio/index
+   /reference/canonical_service_mesh/canonical_service_mesh/utils/istio/index
 
 
 Functions
@@ -23,10 +23,10 @@ Functions
 
 .. autoapisummary::
 
-   charmed_service_mesh.utils.charm_kubernetes_label
-   charmed_service_mesh.utils.generate_telemetry_labels
-   charmed_service_mesh.utils.get_peer_identity_for_juju_application
-   charmed_service_mesh.utils.get_peer_identity_for_service_account
+   canonical_service_mesh.utils.charm_kubernetes_label
+   canonical_service_mesh.utils.generate_telemetry_labels
+   canonical_service_mesh.utils.get_peer_identity_for_juju_application
+   canonical_service_mesh.utils.get_peer_identity_for_service_account
 
 
 Package Contents

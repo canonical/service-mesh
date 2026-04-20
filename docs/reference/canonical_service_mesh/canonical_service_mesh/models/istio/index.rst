@@ -1,7 +1,7 @@
-charmed_service_mesh.models.istio
+canonical_service_mesh.models.istio
 =================================
 
-.. py:module:: charmed_service_mesh.models.istio
+.. py:module:: canonical_service_mesh.models.istio
 
 .. autoapi-nested-parse::
 
@@ -14,20 +14,20 @@ Classes
 
 .. autoapisummary::
 
-   charmed_service_mesh.models.istio.AuthorizationPolicySpec
-   charmed_service_mesh.models.istio.ClaimToHeader
-   charmed_service_mesh.models.istio.Condition
-   charmed_service_mesh.models.istio.From
-   charmed_service_mesh.models.istio.FromHeader
-   charmed_service_mesh.models.istio.JWTRule
-   charmed_service_mesh.models.istio.Operation
-   charmed_service_mesh.models.istio.PolicyTargetReference
-   charmed_service_mesh.models.istio.Provider
-   charmed_service_mesh.models.istio.RequestAuthenticationSpec
-   charmed_service_mesh.models.istio.Rule
-   charmed_service_mesh.models.istio.Source
-   charmed_service_mesh.models.istio.To
-   charmed_service_mesh.models.istio.WorkloadSelector
+   canonical_service_mesh.models.istio.AuthorizationPolicySpec
+   canonical_service_mesh.models.istio.ClaimToHeader
+   canonical_service_mesh.models.istio.Condition
+   canonical_service_mesh.models.istio.From
+   canonical_service_mesh.models.istio.FromHeader
+   canonical_service_mesh.models.istio.JWTRule
+   canonical_service_mesh.models.istio.Operation
+   canonical_service_mesh.models.istio.PolicyTargetReference
+   canonical_service_mesh.models.istio.Provider
+   canonical_service_mesh.models.istio.RequestAuthenticationSpec
+   canonical_service_mesh.models.istio.Rule
+   canonical_service_mesh.models.istio.Source
+   canonical_service_mesh.models.istio.To
+   canonical_service_mesh.models.istio.WorkloadSelector
 
 
 Package Contents
@@ -54,7 +54,7 @@ Package Contents
 
 
    .. py:attribute:: action
-      :type:  charmed_service_mesh.enums.Action
+      :type:  canonical_service_mesh.enums.Action
 
 
    .. py:attribute:: provider
@@ -202,7 +202,7 @@ Package Contents
 
 
    .. py:attribute:: methods
-      :type:  Optional[List[charmed_service_mesh.enums.Method]]
+      :type:  Optional[List[canonical_service_mesh.enums.Method]]
       :value: None
 
 
@@ -214,7 +214,7 @@ Package Contents
 
 
    .. py:attribute:: notMethods
-      :type:  Optional[List[charmed_service_mesh.enums.Method]]
+      :type:  Optional[List[canonical_service_mesh.enums.Method]]
       :value: None
 
 
@@ -298,11 +298,11 @@ Package Contents
 
 
    .. py:attribute:: selector
-      :type:  Optional[charmed_service_mesh.models.istio._policy.WorkloadSelector]
+      :type:  Optional[canonical_service_mesh.models.istio._policy.WorkloadSelector]
 
 
    .. py:attribute:: targetRefs
-      :type:  Optional[List[charmed_service_mesh.models.istio._policy.PolicyTargetReference]]
+      :type:  Optional[List[canonical_service_mesh.models.istio._policy.PolicyTargetReference]]
 
 
 .. py:class:: Rule

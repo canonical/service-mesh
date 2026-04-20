@@ -1,7 +1,7 @@
-charmed_service_mesh.k8s.types.istio
+canonical_service_mesh.k8s.types.istio
 ====================================
 
-.. py:module:: charmed_service_mesh.k8s.types.istio
+.. py:module:: canonical_service_mesh.k8s.types.istio
 
 .. autoapi-nested-parse::
 
@@ -14,7 +14,7 @@ Attributes
 
 .. autoapisummary::
 
-   charmed_service_mesh.k8s.types.istio.AuthorizationPolicy
+   canonical_service_mesh.k8s.types.istio.AuthorizationPolicy
 
 
 Package Contents

@@ -1,7 +1,7 @@
-charmed_service_mesh.utils.istio
+canonical_service_mesh.utils.istio
 ================================
 
-.. py:module:: charmed_service_mesh.utils.istio
+.. py:module:: canonical_service_mesh.utils.istio
 
 .. autoapi-nested-parse::
 
@@ -14,8 +14,8 @@ Attributes
 
 .. autoapisummary::
 
-   charmed_service_mesh.utils.istio.POLICY_RESOURCE_TYPES
-   charmed_service_mesh.utils.istio.label_configmap_name_template
+   canonical_service_mesh.utils.istio.POLICY_RESOURCE_TYPES
+   canonical_service_mesh.utils.istio.label_configmap_name_template
 
 
 Functions
@@ -23,14 +23,14 @@ Functions
 
 .. autoapisummary::
 
-   charmed_service_mesh.utils.istio.build_policy_resources_istio
-   charmed_service_mesh.utils.istio.reconcile_charm_labels
+   canonical_service_mesh.utils.istio.build_policy_resources_istio
+   canonical_service_mesh.utils.istio.reconcile_charm_labels
 
 
 Package Contents
 ----------------
 
-.. py:function:: build_policy_resources_istio(app_name: str, model_name: str, policies: list) -> Union[charmed_service_mesh.k8s.types.LightkubeResourcesList, List[None]]
+.. py:function:: build_policy_resources_istio(app_name: str, model_name: str, policies: list) -> Union[canonical_service_mesh.k8s.types.LightkubeResourcesList, List[None]]
 
    Build the required authorization policy resources for Istio service mesh.
 

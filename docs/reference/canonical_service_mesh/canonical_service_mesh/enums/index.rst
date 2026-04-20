@@ -1,7 +1,7 @@
-charmed_service_mesh.enums
+canonical_service_mesh.enums
 ==========================
 
-.. py:module:: charmed_service_mesh.enums
+.. py:module:: canonical_service_mesh.enums
 
 .. autoapi-nested-parse::
 
@@ -14,10 +14,10 @@ Classes
 
 .. autoapisummary::
 
-   charmed_service_mesh.enums.Action
-   charmed_service_mesh.enums.MeshType
-   charmed_service_mesh.enums.Method
-   charmed_service_mesh.enums.PolicyTargetType
+   canonical_service_mesh.enums.Action
+   canonical_service_mesh.enums.MeshType
+   canonical_service_mesh.enums.Method
+   canonical_service_mesh.enums.PolicyTargetType
 
 
 Module Contents
