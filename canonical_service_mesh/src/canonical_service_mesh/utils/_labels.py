@@ -45,9 +45,9 @@ def _truncate_charm_kubernetes_label(
             f"and app_name to fit within the {max_length} character limit."
         )
 
-    hash_digest = hashlib.sha1(
-        f"{model_name}{separator}{app_name}".encode()
-    ).hexdigest()[:hash_length]
+    hash_digest = hashlib.sha1(f"{model_name}{separator}{app_name}".encode()).hexdigest()[
+        :hash_length
+    ]
 
     available = max_length - fixed_length
     total = len(model_name) + len(app_name)

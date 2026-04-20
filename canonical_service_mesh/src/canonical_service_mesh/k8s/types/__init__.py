@@ -3,7 +3,7 @@
 
 """Generic Kubernetes type aliases."""
 
-from ._types import LightkubeResourceType, LightkubeResourcesList, LightkubeResourceTypesSet
+from ._types import LightkubeResourcesList, LightkubeResourceType, LightkubeResourceTypesSet
 
 __all__ = [
     "LightkubeResourceType",

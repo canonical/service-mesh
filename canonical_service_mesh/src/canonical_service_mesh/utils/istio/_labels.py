@@ -51,12 +51,12 @@ def reconcile_charm_labels(
             if label not in patch_labels:
                 patch_labels[label] = None
 
-    client.patch(res=StatefulSet, name=app_name, obj={
-        "spec": {"template": {"metadata": {"labels": patch_labels}}}
-    })
-    client.patch(res=Service, name=app_name, obj={
-        "metadata": {"labels": patch_labels}
-    })
+    client.patch(
+        res=StatefulSet,
+        name=app_name,
+        obj={"spec": {"template": {"metadata": {"labels": patch_labels}}}},
+    )
+    client.patch(res=Service, name=app_name, obj={"metadata": {"labels": patch_labels}})
 
     config_map_labels = {k: v for k, v in patch_labels.items() if v is not None}
     config_map.data = {"labels": json.dumps(config_map_labels)}

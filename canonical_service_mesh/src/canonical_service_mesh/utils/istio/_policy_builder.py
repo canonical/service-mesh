@@ -1,6 +1,9 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+# pyright: reportInvalidTypeForm=false, reportCallIssue=false
+# AuthorizationPolicy is created via create_namespaced_resource(); pydantic from_ alias.
+
 """Istio policy resource builder."""
 
 import hashlib
@@ -79,9 +82,7 @@ def _build_source_rule(source_app_name: str, source_namespace: str) -> From:
     """Build a From rule with the source application's identity."""
     return From(
         source=Source(
-            principals=[
-                get_peer_identity_for_juju_application(source_app_name, source_namespace)
-            ]
+            principals=[get_peer_identity_for_juju_application(source_app_name, source_namespace)]
         )
     )
 
@@ -89,8 +90,7 @@ def _build_source_rule(source_app_name: str, source_namespace: str) -> From:
 def _build_unit_policy(app_name, model_name, policy) -> AuthorizationPolicy:
     """Build an L4 authorization policy for a unit-targeted MeshPolicy."""
     valid_unit_policy = not any(
-        endpoint.methods or endpoint.paths or endpoint.hosts
-        for endpoint in policy.endpoints
+        endpoint.methods or endpoint.paths or endpoint.hosts for endpoint in policy.endpoints
     )
     if not valid_unit_policy:
         logger.error(
@@ -122,9 +122,7 @@ def _build_unit_policy(app_name, model_name, policy) -> AuthorizationPolicy:
                     to=[
                         To(
                             operation=Operation(
-                                ports=[str(p) for p in endpoint.ports]
-                                if endpoint.ports
-                                else [],
+                                ports=[str(p) for p in endpoint.ports] if endpoint.ports else [],
                             )
                         )
                         for endpoint in policy.endpoints
@@ -156,18 +154,14 @@ def _build_app_policy(app_name, model_name, policy) -> AuthorizationPolicy:
             namespace=policy.target_namespace,
         ),
         spec=AuthorizationPolicySpec(
-            targetRefs=[
-                PolicyTargetReference(kind="Service", group="", name=target_service)
-            ],
+            targetRefs=[PolicyTargetReference(kind="Service", group="", name=target_service)],
             rules=[
                 Rule(
                     from_=[_build_source_rule(policy.source_app_name, policy.source_namespace)],
                     to=[
                         To(
                             operation=Operation(
-                                ports=[str(p) for p in endpoint.ports]
-                                if endpoint.ports
-                                else [],
+                                ports=[str(p) for p in endpoint.ports] if endpoint.ports else [],
                                 hosts=endpoint.hosts,
                                 methods=endpoint.methods,
                                 paths=endpoint.paths,

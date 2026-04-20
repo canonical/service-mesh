@@ -1,6 +1,11 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+# pyright: reportAttributeAccessIssue=false, reportOptionalIterable=false
+# pyright: reportOperatorIssue=false, reportReturnType=false
+# pyright: reportInvalidTypeForm=false, reportArgumentType=false
+# Lightkube generic resource types and create_namespaced_resource() lack proper type stubs.
+
 """Resource managers for Kubernetes manifests and mesh policies."""
 
 import copy
@@ -10,7 +15,7 @@ from typing import Callable, Dict, List, Optional, Set, Tuple, Type
 
 import httpx
 from lightkube import ApiError, Client
-from lightkube.core.resource import GlobalResource, NamespacedResource, Resource, api_info
+from lightkube.core.resource import NamespacedResource, Resource, api_info
 from lightkube.types import PatchType
 from ops import CharmBase
 
@@ -19,13 +24,13 @@ from ...utils.istio._policy_builder import (
     POLICY_RESOURCE_TYPES,
     build_policy_resources_istio,
 )
-from ._batch_operations import apply_many, delete_many, patch_many
 from ..types import (
     LightkubeResourcesList,
     LightkubeResourceType,
     LightkubeResourceTypesSet,
 )
 from ..types.istio import AuthorizationPolicy
+from ._batch_operations import apply_many, delete_many, patch_many
 
 
 def _k8s_api_call(func):

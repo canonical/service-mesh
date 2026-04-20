@@ -1,6 +1,11 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+# pyright: reportGeneralTypeIssues=false, reportAttributeAccessIssue=false
+# pyright: reportArgumentType=false, reportCallIssue=false
+# pyright: reportAssignmentType=false, reportReturnType=false
+# Lightkube generic resource types (GlobalResource, NamespacedResource) lack proper type stubs.
+
 """Batch operations for applying, patching, and deleting Kubernetes resources."""
 
 import logging

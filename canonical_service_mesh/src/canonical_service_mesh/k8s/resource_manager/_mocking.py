@@ -1,6 +1,9 @@
 # Copyright 2025 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+# pyright: reportArgumentType=false
+# _FakeResponse is a duck-type stand-in for httpx.Response.
+
 """Tools for mocking with Lightkube."""
 
 from lightkube.core.exceptions import ApiError
