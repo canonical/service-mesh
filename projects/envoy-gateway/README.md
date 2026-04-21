@@ -6,7 +6,7 @@
 
 ### Requirements
 
-- MicroK8s with addons: `metallb`, `rbac`, `dns`, `hostpath-storage`
+- MicroK8s with addons: `metallb`, `dns`
 - Juju 3.x bootstrapped on the MicroK8s cluster
 - `just` command runner
 
@@ -112,7 +112,7 @@ spec:
         - "9080"
 ```
 
-This is a L4 policy. All paths are accessible through the envoy gateway. Ingress controllers resolve service endpoints directly (pod IPs), bypassing the service VIP. Because of this, ztunnel treats the traffic as pod-to-pod and does not route it through the waypoint - L7 waypoint policies have no effect on ingress traffic.
+This is an L4 policy. All paths are accessible through the envoy gateway. Ingress controllers resolve service endpoints directly (pod IPs), bypassing the service VIP. Because of this, ztunnel treats the traffic as pod-to-pod and does not route it through the waypoint - L7 waypoint policies have no effect on ingress traffic.
 
 ### Using with the Gateway API Integrator charm
 
