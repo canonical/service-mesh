@@ -6,7 +6,7 @@ variable "model" {
 variable "channel" {
   description = "Channel to deploy istio from"
   type        = string
-  default     = "2/edge"
+  default     = "dev/edge"
 }
 
 variable "config" {
