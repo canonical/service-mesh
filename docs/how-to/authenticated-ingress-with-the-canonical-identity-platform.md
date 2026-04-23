@@ -1,15 +1,5 @@
 # Authenticated Ingress with the Canonical Identity Platform
 
-
-
-This tutorial uses three Juju models:
-
-- `iam` for the Canonical Identity Platform
-- `istio-system` for Istio control-plane and ingress components
-- `bookinfo` for the sample workload and oauth2 proxy
-
-Keeping these in separate models makes cross-model integration explicit and easier to debug.
-
 ## Requirements
 
 * A [microk8s cluster cluster](https://canonical.com/microk8s/docs/getting-started#1-overview)
