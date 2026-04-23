@@ -12,8 +12,6 @@ This tutorial requires you to have 2 IP addresses available to your k8s cluster.
 * A [bootstrapped juju controller](https://documentation.ubuntu.com/juju/3.6/tutorial/)
 * [Terraform](https://snapcraft.io/terraform) (For the identity tutorial)
 
-For a smoother run, make sure your cluster has enough resources (at least 4 vCPU and 8 GB RAM is recommended), and that DNS and load balancer support are enabled in your Kubernetes environment.
-
 ## Set up the prerequisites
 
 * Deploy the [Canonical Identity Platform](https://canonical-identity.readthedocs-hosted.com/tutorial/canonical-identity-platform/)
