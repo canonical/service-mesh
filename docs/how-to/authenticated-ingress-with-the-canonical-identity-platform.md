@@ -36,6 +36,10 @@ For a smoother run, make sure your cluster has enough resources (at least 4 vCPU
 * `juju offer istio:istio-ingress-config ingress-config`
 * Wait for istio to reach active/idle
 
+> **Note**
+> We need to use the `dev` track for the Istio charms currently as the 2 track has an old Istio version.
+> Any release track newer than 2 should work just fine.
+
 ## Deploy Authenticated Bookinfo
 
 ### Deploy the Charms
