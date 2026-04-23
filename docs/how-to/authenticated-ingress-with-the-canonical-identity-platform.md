@@ -2,7 +2,7 @@
 
 ## Requirements
 
-* A [microk8s cluster cluster](https://canonical.com/microk8s/docs/getting-started#1-overview)
+* A [MicroK8s cluster](https://canonical.com/microk8s/docs/getting-started#1-overview)
 
 > **Note**
 > This tutorial requires you to have 2 IP addresses available to your k8s cluster. One for the traefik deployed with the identity bundle and one for istio-ingress-k8s. This can be done by enabling metallb with an IP range. For example:
