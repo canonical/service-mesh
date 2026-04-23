@@ -13,7 +13,7 @@
 
 For a smoother run, make sure your cluster has enough resources (at least 4 vCPU and 8 GB RAM is recommended), and that DNS and load balancer support are enabled in your Kubernetes environment.
 
-## Setup the prerequisites
+## Set up the prerequisites
 
 * Deploy the [Canonical Identity Platform](https://canonical-identity.readthedocs-hosted.com/tutorial/canonical-identity-platform/)
 
