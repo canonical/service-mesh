@@ -72,5 +72,5 @@ For a smoother run, make sure your cluster has enough resources (at least 4 vCPU
 
 ### Test your deployment
 
-* Navigate to `http://<ingress-address>/bookinfo-bookinfo` in your browser. You should be prompted to log in.
+* Run `juju run bookinfo/leader get-url` and navigate to the returned URL in your browser. You should be prompted to log in.
 * Log in and access the bookinfo page!
