@@ -3,4 +3,4 @@
 
 """Version information for canonical-service-mesh."""
 
-__version__ = "0.0.1.dev0"  # x-release-please-version
+__version__ = "0.0.1"  # x-release-please-version
