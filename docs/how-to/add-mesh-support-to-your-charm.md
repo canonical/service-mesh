@@ -112,6 +112,40 @@ class MyCharm(CharmBase):
 
 Exactly what should be defined for your `Endpoint`s depends on the application you've charmed.  Generally, you can look at your applications API reference or typical usage and include exactly what is needed, exposing only the necessary attack surface.  
 
+When a charm that is on the mesh is scaled to have more than one unit, by default all the units of the charm are not allowed to communicate with each other. To allow communication between the peers, you must explicitly add another `UnitPolicy` for the peers relation endpoint allowing access to the required ports.
+
+For example:
+
+```python
+class MyCharm(CharmBase):
+    def __init__(self, *args):
+        super().__init__(*args)
+    self._mesh = ServiceMeshConsumer(
+        self,
+        policies=[
+            AppPolicy(
+                relation="database",          # On the database relation
+                endpoints=[                   # allow a related application to access...
+                    Endpoint(
+                        paths=["/db"],                     # these specific paths
+                        ports=[DB_PORT],                   # on these specific ports
+                        methods=[Method.get, Method.Post], # using only these methods
+                    ),
+                ],
+            ),
+            UnitPolicy(
+                relation="metrics-endpoint",  # On the metrics-endpoint relations
+                ports=[HTTP_PORT],  # allow a related application to access this charm's individual units on these specific ports
+            ),
+            UnitPolicy(
+                relation="charm-peers",  # On the peers relation. FYI: use the name of the peers endpoint used in your charm.
+                ports=[HTTP_PORT],  # allow the peer units to access each other on the HTTP_PORT
+            )
+        ],
+    )
+```
+
+
 ## Cross-model Integrations (Optional)
 
 If your Charm provides integrations that can be used cross-model, the `ServiceMeshConsumer` library offers the additional `provide-cmr-mesh` and `require-cmr-mesh` integrations to ensure these generate policies properly.  These additional integrations are required because Juju cross-model relations do not natively provide all the information needed for a service mesh authorization policy to be generated.  
