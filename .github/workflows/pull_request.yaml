@@ -19,4 +19,4 @@ jobs:
   quality-checks:
     uses: ./.github/workflows/_quality-checks.yaml
     with:
-      istio-channel: "2/edge"
+      istio-channel: "dev/edge"

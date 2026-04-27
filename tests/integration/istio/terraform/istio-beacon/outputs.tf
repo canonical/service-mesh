@@ -5,5 +5,5 @@ output "app_name" {
 
 output "service_mesh_endpoint" {
   description = "Service mesh endpoint name"
-  value       = module.istio_beacon.endpoints.service_mesh
+  value       = module.istio_beacon.provides.service_mesh
 }
