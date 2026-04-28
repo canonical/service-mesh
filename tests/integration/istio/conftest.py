@@ -3,7 +3,7 @@
 import logging
 import tempfile
 from pathlib import Path
-from typing import Dict
+from typing import Dict, Generator
 
 import jubilant
 import pytest
@@ -60,12 +60,12 @@ def ingress_info() -> Dict:
 
 
 @pytest.fixture(scope="module")
-def iam_info() -> Dict:
+def iam_info() -> Generator[Dict[str, object], None, None]:
     """Store IAM deployment state and offer URLs for the test module.
 
     On teardown, destroy the core and iam models and remove the terraform state file.
     """
-    info: Dict = {"deployed": False}
+    info: Dict[str, object] = {"deployed": False}
     yield info
 
     if not info.get("deployed"):
