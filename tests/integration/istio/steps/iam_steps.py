@@ -28,11 +28,10 @@ logger = logging.getLogger(__name__)
 def istio_offers_ingress_config(istio_system_juju: jubilant.Juju):
     """Create a cross-model offer for istio-ingress-config."""
     logger.info("Creating offer for istio:istio-ingress-config")
-    istio_system_juju.cli(
-        "offer",
-        f"{istio_system_juju.model}.istio:istio-ingress-config",
-        "ingress-config",
-        include_model=False,
+    istio_system_juju.offer(
+        f"{istio_system_juju.model}.istio",
+        endpoint="istio-ingress-config",
+        name="ingress-config",
     )
 
 
@@ -75,21 +74,21 @@ def bookinfo_with_authenticated_ingress(
     oauth2_info["app_name"] = oauth2_app
 
     # Consume cross-model offers from IAM
-    juju.cli("consume", iam_info["oauth_offer_url"])
-    juju.cli("consume", iam_info["send_ca_cert_offer_url"])
-    juju.cli("consume", iam_info["certificates_offer_url"])
+    juju.consume(iam_info["oauth_offer_url"])
+    juju.consume(iam_info["send_ca_cert_offer_url"])
+    juju.consume(iam_info["certificates_offer_url"])
 
     # Consume istio ingress config offer
-    juju.cli("consume", f"{istio_system_juju.model}.ingress-config")
+    juju.consume(f"{istio_system_juju.model}.ingress-config")
 
     # Integrate charms
-    juju.cli("integrate", "productpage:ingress", f"{ingress_app}:ingress")
-    juju.cli("integrate", oauth2_app, "oauth-offer")
-    juju.cli("integrate", f"{oauth2_app}:forward-auth", f"{ingress_app}:forward-auth")
-    juju.cli("integrate", f"{oauth2_app}:receive-ca-cert", "send-ca-cert")
-    juju.cli("integrate", ingress_app, "ingress-config")
-    juju.cli("integrate", f"{ingress_app}:certificates", "certificates")
-    juju.cli("integrate", f"{oauth2_app}:ingress", f"{ingress_app}:ingress-unauthenticated")
+    juju.integrate("productpage:ingress", f"{ingress_app}:ingress")
+    juju.integrate(oauth2_app, "oauth-offer")
+    juju.integrate(f"{oauth2_app}:forward-auth", f"{ingress_app}:forward-auth")
+    juju.integrate(f"{oauth2_app}:receive-ca-cert", "send-ca-cert")
+    juju.integrate(ingress_app, "ingress-config")
+    juju.integrate(f"{ingress_app}:certificates", "certificates")
+    juju.integrate(f"{oauth2_app}:ingress", f"{ingress_app}:ingress-unauthenticated")
 
     wait_for_active_idle_without_error([juju], timeout=60 * 20)
     ingress_info["integrated"] = True
@@ -122,13 +121,13 @@ def integrate_model_with_iam(juju: jubilant.Juju, iam_info: Dict, oauth2_info: D
     """Consume IAM offers and integrate oauth2-proxy with the identity platform."""
     logger.info("Integrating model with IAM")
 
-    juju.cli("consume", iam_info["oauth_offer_url"])
-    juju.cli("consume", iam_info["send_ca_cert_offer_url"])
-    juju.cli("consume", iam_info["certificates_offer_url"])
+    juju.consume(iam_info["oauth_offer_url"])
+    juju.consume(iam_info["send_ca_cert_offer_url"])
+    juju.consume(iam_info["certificates_offer_url"])
 
     oauth2_app = oauth2_info["app_name"]
-    juju.cli("integrate", oauth2_app, "oauth-offer")
-    juju.cli("integrate", f"{oauth2_app}:receive-ca-cert", "send-ca-cert")
+    juju.integrate(oauth2_app, "oauth-offer")
+    juju.integrate(f"{oauth2_app}:receive-ca-cert", "send-ca-cert")
 
 
 @when("you integrate the ingress with istio")
@@ -144,13 +143,13 @@ def integrate_ingress_with_istio(
     ingress_app = ingress_info["app_name"]
     oauth2_app = oauth2_info["app_name"]
 
-    juju.cli("consume", f"{istio_system_juju.model}.ingress-config")
+    juju.consume(f"{istio_system_juju.model}.ingress-config")
 
-    juju.cli("integrate", "productpage:ingress", f"{ingress_app}:ingress")
-    juju.cli("integrate", f"{oauth2_app}:forward-auth", f"{ingress_app}:forward-auth")
-    juju.cli("integrate", ingress_app, "ingress-config")
-    juju.cli("integrate", f"{ingress_app}:certificates", "certificates")
-    juju.cli("integrate", f"{oauth2_app}:ingress", f"{ingress_app}:ingress-unauthenticated")
+    juju.integrate("productpage:ingress", f"{ingress_app}:ingress")
+    juju.integrate(f"{oauth2_app}:forward-auth", f"{ingress_app}:forward-auth")
+    juju.integrate(ingress_app, "ingress-config")
+    juju.integrate(f"{ingress_app}:certificates", "certificates")
+    juju.integrate(f"{oauth2_app}:ingress", f"{ingress_app}:ingress-unauthenticated")
 
     wait_for_active_idle_without_error([juju], timeout=60 * 20)
     ingress_info["integrated"] = True

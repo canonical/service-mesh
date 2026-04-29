@@ -232,7 +232,7 @@ def _ensure_iam_postgresql_relations() -> None:
         if not has_relation:
             logger.info(f"Creating missing integration {app}:{endpoint} <-> postgresql:database")
             try:
-                iam_juju.cli("integrate", f"{app}:{endpoint}", "postgresql:database")
+                iam_juju.integrate(f"{app}:{endpoint}", "postgresql:database")
             except jubilant.CLIError as e:
                 if "already exists" in str(e):
                     logger.info(f"Integration {app}:{endpoint} already exists (race condition)")
