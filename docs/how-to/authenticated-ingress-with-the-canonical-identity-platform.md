@@ -23,7 +23,7 @@ See [the docs](https://canonical.com/microk8s/docs/addon-metallb) for more info.
 
 ````{note}
 If you see hydra and kratos in blocked state with "Missing integration pg-database", run the following:
-```{bash}
+```{code} bash
 juju switch iam
 juju integrate hydra postgresql
 juju integrate kratos postgresql
@@ -32,13 +32,13 @@ juju integrate kratos postgresql
 
 ````{note}
 If you do not want to bother with 2 factor authentication for the tutorial, you can run:
-```{bash}
+```{code} bash
 juju config kratos enforce_mfa=false
 ```
 ````
 
 * Next we deploy istio to the cluster, enabling it to manage network traffic.
-  ```{bash}
+  ```{code} bash
   juju add-model istio-system
   juju deploy istio-k8s istio --trust --channel dev/edge
   juju offer istio:istio-ingress-config ingress-config
@@ -53,14 +53,14 @@ Any release track newer than 2 should work just fine.
 ## Deploy Authenticated Bookinfo
 
 * Deploy the bookinfo application
-  ```{bash}
+  ```{code} bash
   juju add-model bookinfo
   juju deploy bookinfo-productpage-k8s bookinfo
   juju deploy bookinfo-details-k8s bookinfo-details
   juju integrate bookinfo:details bookinfo-details:details
   ```
 * Deploy oauth2-proxy and integrate it with the Identity Platform
-  ```{bash}
+  ```{code} bash
   juju deploy oauth2-proxy-k8s oauth2
   juju config oauth2 dev=true  # dev=true is required since the certificates we will be using are self-signed.
   juju consume core.send-ca-cert
@@ -69,7 +69,7 @@ Any release track newer than 2 should work just fine.
   juju integrate oauth2 oauth-offer
   ```
 * Deploy istio-ingress and use it to route traffic to bookinfo and oauth2-proxy
-  ```{bash}
+  ```{code} bash
   juju deploy istio-ingress-k8s ingress --trust --channel dev/edge
   juju consume core.certificates
   juju integrate ingress:certificates certificates
@@ -79,13 +79,16 @@ Any release track newer than 2 should work just fine.
 At this point, after waiting for everything to settle, you should be able to run `juju run bookinfo/leader get-url` and it should return an https url. If you navigate to the returned url in your browser, you should reach the bookinfo app.
 
 * Enable authentication
-  ```{bash}
+  ```{code} bash
   juju integrate oauth2:forward-auth ingress:forward-auth
   juju consume istio-system.ingress-config
   juju integrate ingress ingress-config
   ```
-Wait for all charms to reach active/idle
+Wait for all charms to reach active/idle then run `juju run bookinfo/leader get-url` and navigate to the returned URL in your browser. You should be prompted to log in. Log in and access the bookinfo page!
 
-### Test your deployment
-
-* Run `juju run bookinfo/leader get-url` and navigate to the returned URL in your browser. You should be prompted to log in. Log in and access the bookinfo page!
+````{note}
+There is currently a bug in istio-ingress which may cause the url return by `juju run bookinfo/leader get-url` to be an http url (non TLS). If so you need to recreate the relation to certificates and it should work
+```{code} bash
+juju remove-relation ingress certificates
+juju integrate ingress certificates
+```
