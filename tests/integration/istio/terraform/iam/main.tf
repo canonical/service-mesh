@@ -97,36 +97,3 @@ module "iam" {
 
   depends_on = [juju_model.iam]
 }
-
-# The IAM bundle sometimes fails to create the hydra/kratos <-> postgresql
-# integrations. Add them explicitly to ensure they exist.
-# See: iam.md note about "Missing integration pg-database"
-resource "juju_integration" "hydra_postgresql" {
-  model_uuid = juju_model.iam.uuid
-
-  application {
-    name     = "hydra"
-    endpoint = "pg-database"
-  }
-
-  application {
-    offer_url = juju_offer.postgresql.url
-  }
-
-  depends_on = [module.iam]
-}
-
-resource "juju_integration" "kratos_postgresql" {
-  model_uuid = juju_model.iam.uuid
-
-  application {
-    name     = "kratos"
-    endpoint = "pg-database"
-  }
-
-  application {
-    offer_url = juju_offer.postgresql.url
-  }
-
-  depends_on = [module.iam]
-}

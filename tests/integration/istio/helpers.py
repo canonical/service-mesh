@@ -214,6 +214,34 @@ def deploy_istio_ingress(juju: jubilant.Juju, config: Optional[dict] = None) -> 
     return app_name
 
 
+def _ensure_iam_postgresql_relations() -> None:
+    """Ensure hydra and kratos have their postgresql relations in the IAM model.
+
+    The IAM bundle module sometimes creates these integrations and sometimes does
+    not.  We cannot manage them in Terraform because ``juju_integration`` fails
+    with "already exists" when the bundle *did* create them.  This helper checks
+    each relation and creates it only when it is missing.
+    """
+    iam_juju = jubilant.Juju(model="iam")
+    status = iam_juju.status()
+
+    for app, endpoint in [("hydra", "pg-database"), ("kratos", "pg-database")]:
+        app_status = status.apps.get(app)
+        has_relation = bool(app_status and app_status.relations.get(endpoint))
+
+        if not has_relation:
+            logger.info(f"Creating missing integration {app}:{endpoint} <-> postgresql:database")
+            try:
+                iam_juju.cli("integrate", f"{app}:{endpoint}", "postgresql:database")
+            except jubilant.CLIError as e:
+                if "already exists" in str(e):
+                    logger.info(f"Integration {app}:{endpoint} already exists (race condition)")
+                else:
+                    raise
+        else:
+            logger.info(f"Integration {app}:{endpoint} <-> postgresql already exists, skipping")
+
+
 def deploy_iam() -> dict:
     """Deploy the Canonical Identity Platform using terraform.
 
@@ -240,6 +268,12 @@ def deploy_iam() -> dict:
 
     env = os.environ.copy()
     terraform.apply(env)
+
+    # The IAM bundle module sometimes creates the hydra/kratos <-> postgresql
+    # integrations and sometimes does not.  We cannot add them in Terraform because
+    # `juju_integration` fails with "already exists" when the bundle *did* create
+    # them.  Instead, check here and create them only when missing.
+    _ensure_iam_postgresql_relations()
 
     return {
         "oauth_offer_url": terraform.output("oauth_offer_url"),
