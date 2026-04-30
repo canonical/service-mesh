@@ -214,64 +214,29 @@ def deploy_istio_ingress(juju: jubilant.Juju, config: Optional[dict] = None) -> 
     return app_name
 
 
-def _ensure_iam_postgresql_relations() -> None:
-    """Ensure hydra and kratos have their postgresql relations in the IAM model.
-
-    The IAM bundle module sometimes creates these integrations and sometimes does
-    not.  We cannot manage them in Terraform because ``juju_integration`` fails
-    with "already exists" when the bundle *did* create them.  This helper checks
-    each relation and creates it only when it is missing.
-    """
-    iam_juju = jubilant.Juju(model="iam")
-    status = iam_juju.status()
-
-    for app, endpoint in [("hydra", "pg-database"), ("kratos", "pg-database")]:
-        app_status = status.apps.get(app)
-        has_relation = bool(app_status and app_status.relations.get(endpoint))
-
-        if not has_relation:
-            logger.info(f"Creating missing integration {app}:{endpoint} <-> postgresql:database")
-            try:
-                iam_juju.integrate(f"{app}:{endpoint}", "postgresql:database")
-            except jubilant.CLIError as e:
-                if "already exists" in str(e):
-                    logger.info(f"Integration {app}:{endpoint} already exists (race condition)")
-                else:
-                    raise
-        else:
-            logger.info(f"Integration {app}:{endpoint} <-> postgresql already exists, skipping")
-
-
-def deploy_iam() -> dict:
+def deploy_iam(juju: jubilant.Juju) -> dict:
     """Deploy the Canonical Identity Platform using terraform.
+
+    Args:
+        juju: The Juju model instance to deploy into
 
     Returns:
         Dictionary with offer URLs: oauth_offer_url, send_ca_cert_offer_url, certificates_offer_url
     """
+    assert juju.model is not None, "Juju model is not set"
+
     terraform_dir = Path(__file__).parent / "terraform" / "iam"
-    state_file = Path(tempfile.gettempdir()) / "iam.tfstate"
+    state_file = Path(tempfile.gettempdir()) / f"iam-{juju.model}.tfstate"
 
-    # If the state file exists but the models were destroyed externally,
-    # remove the stale state so terraform can recreate everything.
-    if state_file.exists():
-        result = subprocess.run(["juju", "show-model", "core"], capture_output=True, text=True)
-        if result.returncode != 0:
-            logger.info("Stale IAM terraform state detected, removing")
-            state_file.unlink()
-
-    logger.info("Deploying the Canonical Identity Platform")
+    logger.info(f"Deploying the Canonical Identity Platform to model {juju.model}")
 
     terraform = TFManager(terraform_dir, state_file)
     terraform.init()
 
     env = os.environ.copy()
+    env["TF_VAR_model"] = juju.model
     terraform.apply(env)
-
-    # The IAM bundle module sometimes creates the hydra/kratos <-> postgresql
-    # integrations and sometimes does not.  We cannot add them in Terraform because
-    # `juju_integration` fails with "already exists" when the bundle *did* create
-    # them.  Instead, check here and create them only when missing.
-    _ensure_iam_postgresql_relations()
+    wait_for_active_idle_without_error([juju], timeout=60 * 20)
 
     return {
         "oauth_offer_url": terraform.output("oauth_offer_url"),

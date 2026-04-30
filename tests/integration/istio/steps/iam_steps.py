@@ -32,14 +32,14 @@ def istio_offers_ingress_config(istio_system_juju: jubilant.Juju):
 
 
 @given("the Canonical Identity Platform is deployed")
-def identity_platform_deployed(iam_info: Dict):
+def identity_platform_deployed(iam_info: Dict, iam_juju: jubilant.Juju):
     """Deploy the Canonical Identity Platform and store offer URLs."""
     if iam_info.get("deployed"):
         logger.info("Identity Platform already deployed, skipping")
         return
 
     logger.info("Deploying the Canonical Identity Platform")
-    offers = deploy_iam()
+    offers = deploy_iam(iam_juju)
     iam_info["oauth_offer_url"] = offers["oauth_offer_url"]
     iam_info["send_ca_cert_offer_url"] = offers["send_ca_cert_offer_url"]
     iam_info["certificates_offer_url"] = offers["certificates_offer_url"]

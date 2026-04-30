@@ -1,6 +1,6 @@
 output "oauth_offer_url" {
   description = "The Hydra OAuth Juju offer URL"
-  value       = module.iam.oauth_offer_url
+  value       = module.hydra.oauth_offer_url
 }
 
 output "send_ca_cert_offer_url" {

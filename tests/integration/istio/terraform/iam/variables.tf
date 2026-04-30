@@ -1,13 +1,6 @@
-variable "core_model" {
-  description = "Name of the Juju model for core dependencies"
+variable "model" {
+  description = "Name of the Juju model for IAM deployment"
   type        = string
-  default     = "core"
-}
-
-variable "iam_model" {
-  description = "Name of the Juju model for the Identity Platform"
-  type        = string
-  default     = "iam"
 }
 
 variable "certificates_channel" {

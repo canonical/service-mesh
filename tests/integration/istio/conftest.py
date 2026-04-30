@@ -1,11 +1,8 @@
 """Pytest configuration for Service Mesh integration tests."""
 
 import logging
-import tempfile
-from pathlib import Path
-from typing import Dict, Generator
+from typing import Dict
 
-import jubilant
 import pytest
 
 logger = logging.getLogger(__name__)
@@ -60,29 +57,15 @@ def ingress_info() -> Dict:
 
 
 @pytest.fixture(scope="module")
-def iam_info() -> Generator[Dict[str, object], None, None]:
-    """Store IAM deployment state and offer URLs for the test module.
+def iam_juju(temp_model_factory):
+    """Create a temporary Juju model for IAM deployment."""
+    yield temp_model_factory.get_juju(suffix="iam")
 
-    On teardown, destroy the core and iam models and remove the terraform state file.
-    """
-    info: Dict[str, object] = {"deployed": False}
-    yield info
 
-    if not info.get("deployed"):
-        return
-
-    state_file = Path(tempfile.gettempdir()) / "iam.tfstate"
-    if state_file.exists():
-        state_file.unlink()
-        logger.info("Removed IAM terraform state file")
-
-    juju = jubilant.Juju()
-    for model in ("iam", "core"):
-        try:
-            juju.destroy_model(model, destroy_storage=True, force=True)
-            logger.info(f"Destroyed model {model}")
-        except jubilant.CLIError as e:
-            logger.warning(f"Failed to destroy model {model}: {e}")
+@pytest.fixture(scope="module")
+def iam_info() -> Dict:
+    """Store IAM deployment state and offer URLs for the test module."""
+    return {"deployed": False}
 
 
 @pytest.fixture(scope="module")
