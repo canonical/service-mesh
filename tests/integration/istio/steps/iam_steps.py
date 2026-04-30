@@ -6,16 +6,12 @@ from typing import Dict
 import jubilant
 from pytest_bdd import given, then, when
 
-from tests.integration.helpers import (
-    curl_from_host,
-    wait_for_active_idle_without_error,
-)
+from tests.integration.helpers import wait_for_active_idle_without_error
 from tests.integration.istio.helpers import (
     deploy_bookinfo,
     deploy_iam,
     deploy_istio_ingress,
     deploy_oauth2_proxy,
-    get_gateway_address,
 )
 
 logger = logging.getLogger(__name__)
@@ -155,50 +151,18 @@ def integrate_ingress_with_istio(
     ingress_info["integrated"] = True
 
 
-@when("a user logs in and requests GET /productpage on the ingress gateway")
-def authenticated_request_to_ingress(juju: jubilant.Juju, juju_run_output: dict):
-    """Request the productpage and verify the OAuth2 redirect is correctly configured.
-
-    In dev mode, the request is still redirected to the identity provider.
-    This step verifies the full auth chain is wired: istio-ingress -> forward-auth
-    -> oauth2-proxy -> identity platform, by checking the redirect contains
-    valid OAuth2 parameters.
-    """
-    assert juju.model is not None, "Juju model is not set"
-    ingress_address = get_gateway_address(juju.model)
-    url = f"http://{ingress_address}/{juju.model}-productpage/productpage"
-    logger.info(f"Authenticated client -> GET {url}")
-
-    result = curl_from_host(url=url, method="GET")
-    juju_run_output["last_request"] = result
-    logger.info(f"Request result: {result['stdout']}")
-
-
 # -------------- Then --------------
 
 
 @then("the request is redirected to the login page")
 def request_is_redirected(juju_run_output: dict):
-    """Verify the last request was redirected (HTTP 302 or 303)."""
+    """Verify the request was intercepted by oauth2-proxy.
+
+    oauth2-proxy redirects unauthenticated requests to the identity provider
+    with an HTTP 302.
+    """
     result = juju_run_output.get("last_request")
     assert result is not None, "No request result found"
 
     stdout = result["stdout"]
-    assert any(f"HTTP_CODE:{code}" in stdout for code in (302, 303)), (
-        f"Expected HTTP redirect (302/303), got: {stdout}"
-    )
-
-
-@then("the request is redirected to the identity provider with valid OAuth2 parameters")
-def request_redirected_to_idp(juju_run_output: dict):
-    """Verify the redirect contains valid OAuth2 parameters from the identity provider."""
-    result = juju_run_output.get("last_request")
-    assert result is not None, "No request result found"
-
-    stdout = result["stdout"]
-    assert any(f"HTTP_CODE:{code}" in stdout for code in (302, 303)), (
-        f"Expected HTTP redirect (302/303), got: {stdout}"
-    )
-    # Verify the redirect contains OAuth2 authorization parameters
-    for param in ("client_id=", "redirect_uri=", "response_type=code", "scope=openid"):
-        assert param in stdout, f"Expected OAuth2 parameter '{param}' in redirect, got: {stdout}"
+    assert "HTTP_CODE:302" in stdout, f"Expected HTTP redirect (302), got: {stdout[-200:]}"

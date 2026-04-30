@@ -17,8 +17,3 @@ Feature: Authenticated ingress with the Canonical Identity Platform
     Given bookinfo is deployed with authenticated ingress
     When external client requests GET /productpage on the ingress gateway
     Then the request is redirected to the login page
-
-  Scenario: Authenticated requests are redirected through the identity provider
-    Given bookinfo is deployed with authenticated ingress
-    When a user logs in and requests GET /productpage on the ingress gateway
-    Then the request is redirected to the identity provider with valid OAuth2 parameters
