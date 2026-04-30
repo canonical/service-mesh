@@ -28,10 +28,12 @@ Istio's
 Intersphinx
 iam
 io
+kratos
 lang
 LaTeX
 latexmk
 MeshPolicy
+metallb
 Mimir
 Multipass
 natively
@@ -63,9 +65,11 @@ TOC
 tex
 texlive
 toctree
+traefik
 txt
 uncommenting
 ui
+url
 ztunnel
 utils
 VMs
