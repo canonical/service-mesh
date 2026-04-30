@@ -90,5 +90,6 @@ Wait for all charms to reach active/idle then run `juju run bookinfo/leader get-
 There is currently a bug in istio-ingress which may cause the url return by `juju run bookinfo/leader get-url` to be an http url (non TLS). If so you need to recreate the relation to certificates and it should work
 ```{code} bash
 juju remove-relation ingress certificates
+sleep 5
 juju integrate ingress certificates
 ```
