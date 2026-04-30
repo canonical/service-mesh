@@ -254,8 +254,6 @@ def deploy_iam() -> dict:
     # If the state file exists but the models were destroyed externally,
     # remove the stale state so terraform can recreate everything.
     if state_file.exists():
-        import subprocess
-
         result = subprocess.run(["juju", "show-model", "core"], capture_output=True, text=True)
         if result.returncode != 0:
             logger.info("Stale IAM terraform state detected, removing")
