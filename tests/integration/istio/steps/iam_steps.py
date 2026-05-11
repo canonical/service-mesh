@@ -59,35 +59,10 @@ def bookinfo_with_authenticated_ingress(
         logger.info("Authenticated ingress already set up, skipping")
         return
 
-    # Deploy bookinfo
-    deploy_bookinfo(juju)
-
-    # Deploy istio-ingress and oauth2-proxy
-    ingress_app = deploy_istio_ingress(juju)
-    ingress_info["app_name"] = ingress_app
-
-    oauth2_app = deploy_oauth2_proxy(juju, config={"dev": "true"})
-    oauth2_info["app_name"] = oauth2_app
-
-    # Consume cross-model offers from IAM
-    juju.consume(iam_info["oauth_offer_url"])
-    juju.consume(iam_info["send_ca_cert_offer_url"])
-    juju.consume(iam_info["certificates_offer_url"])
-
-    # Consume istio ingress config offer
-    juju.consume(f"{istio_system_juju.model}.ingress-config")
-
-    # Integrate charms
-    juju.integrate("productpage:ingress", f"{ingress_app}:ingress")
-    juju.integrate(oauth2_app, "oauth-offer")
-    juju.integrate(f"{oauth2_app}:forward-auth", f"{ingress_app}:forward-auth")
-    juju.integrate(f"{oauth2_app}:receive-ca-cert", "send-ca-cert")
-    juju.integrate(ingress_app, "ingress-config")
-    juju.integrate(f"{ingress_app}:certificates", "certificates")
-    juju.integrate(f"{oauth2_app}:ingress", f"{ingress_app}:ingress-unauthenticated")
-
-    wait_for_active_idle_without_error([juju], timeout=60 * 20)
-    ingress_info["integrated"] = True
+    deploy_bookinfo_step(juju)
+    add_istio_ingress_with_oauth2(juju, ingress_info, oauth2_info)
+    integrate_model_with_iam(juju, iam_info, oauth2_info)
+    integrate_ingress_with_istio(juju, istio_system_juju, ingress_info, oauth2_info)
 
 
 # -------------- When --------------
@@ -108,6 +83,8 @@ def add_istio_ingress_with_oauth2(juju: jubilant.Juju, ingress_info: Dict, oauth
     ingress_app = deploy_istio_ingress(juju)
     ingress_info["app_name"] = ingress_app
 
+    # dev=true allows oauth2-proxy to accept TLS certs from unverified providers
+    # (required because the test setup uses self-signed certificates)
     oauth2_app = deploy_oauth2_proxy(juju, config={"dev": "true"})
     oauth2_info["app_name"] = oauth2_app
 

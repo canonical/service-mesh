@@ -59,33 +59,33 @@ resource "juju_integration" "traefik_certs" {
 # --- IAM applications ---
 
 module "hydra" {
-  source = "github.com/canonical/hydra-operator//terraform?ref=v2.0.0"
+  source = "github.com/canonical/hydra-operator//terraform?ref=v1.0.2"
 
   model    = data.juju_model.iam.uuid
   app_name = "hydra"
-  channel  = "latest/edge"
+  channel  = "1.0/stable"
   base     = "ubuntu@22.04"
 
   depends_on = [module.postgresql]
 }
 
 module "kratos" {
-  source = "github.com/canonical/kratos-operator//terraform?ref=v2.0.0"
+  source = "github.com/canonical/kratos-operator//terraform?ref=v1.0.2"
 
   model    = data.juju_model.iam.uuid
   app_name = "kratos"
-  channel  = "latest/edge"
+  channel  = "1.0/stable"
   base     = "ubuntu@22.04"
 
   depends_on = [module.postgresql]
 }
 
 module "login_ui" {
-  source = "github.com/canonical/identity-platform-login-ui-operator//terraform?ref=v2.1.0"
+  source = "github.com/canonical/identity-platform-login-ui-operator//terraform?ref=v1.0.2"
 
   model    = data.juju_model.iam.uuid
   app_name = "login-ui"
-  channel  = "latest/edge"
+  channel  = "1.0/stable"
   base     = "ubuntu@22.04"
 
   depends_on = [module.hydra, module.kratos]

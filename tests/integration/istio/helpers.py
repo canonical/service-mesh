@@ -45,6 +45,7 @@ def get_gateway_address(namespace: str) -> str:
         ],
         capture_output=True,
         text=True,
+        timeout=30,
     )
     if result.returncode != 0 or not result.stdout.strip():
         raise RuntimeError(
@@ -86,6 +87,7 @@ def get_authorization_policies(juju: jubilant.Juju) -> List[str]:
             ],
             capture_output=True,
             text=True,
+            timeout=30,
         )
         if result.returncode != 0:
             logger.error(f"Failed to get authorization policies: {result.stderr}")
