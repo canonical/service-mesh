@@ -17,8 +17,9 @@ Attributes
    canonical_service_mesh.k8s.types.istio.AuthorizationPolicy
 
 
-Package contents
+Package Contents
 ----------------
 
 .. py:data:: AuthorizationPolicy
    :type:  Type[lightkube.generic_resource.GenericNamespacedResource]
+

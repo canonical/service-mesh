@@ -13,15 +13,15 @@ To demonstrate this, we'll use the Istio [`Bookinfo`](https://istio.io/latest/do
 ## Prerequisites
 
 This tutorial assumes you have a [Juju](https://juju.is) controller bootstrapped on a 
-[Microk8s](https://microk8s.io/) cloud that is ready to use, on a 4 CPU, 8 GB node or better, with at least 40 GB disk space.
-Typical setup using [Snaps](https://snapcraft.io/) 
+[MicroK8s](https://microk8s.io/) cloud that is ready to use, on a 4 CPU, 8 GB node or better, with at least 40 GB disk space.
+Typical setup using [snaps](https://snapcraft.io/) 
 can be found in the [Juju docs](https://documentation.ubuntu.com/juju/3.6/howto/manage-your-deployment/).
 
 This tutorial also assumes you have a basic knowledge of Juju.
 
-## Configure microk8s
+## Configure MicroK8s
 
-For this tutorial to go smoothly, make sure the following MicroK8s [Addons](https://microk8s.io/docs/addons) are enabled: `dns`, `hostpath-storage`, and `metallb`.
+For this tutorial to go smoothly, make sure the following MicroK8s [addons](https://microk8s.io/docs/addons) are enabled: `dns`, `hostpath-storage`, and `metallb`.
 
 You can check this with `microk8s status` and enable any missing addons.
 
@@ -29,7 +29,7 @@ You can check this with `microk8s status` and enable any missing addons.
 ## Deploy Charmed Istio
 <!-- vale on -->
 
-### Step 1: set up the Istio system
+### Step 1: Set up the Istio system
 
 Create a dedicated model for Istio components and deploy the core charms:
 
@@ -39,20 +39,20 @@ juju deploy istio-k8s --trust --channel 2/stable
 juju deploy istio-ingress-k8s --trust --channel 2/stable
 ```
 
-The [`Istio-k8s`](https://charmhub.io/istio-k8s) charm deploys and manages the control plane of Istio ambient on Kubernetes, enabling you to configure and manage Istio through Juju.
+The [`istio-k8s`](https://charmhub.io/istio-k8s) charm deploys and manages the control plane of Istio ambient on Kubernetes, enabling you to configure and manage Istio through Juju.
 
-The [`Istio-ingress-k8s`](https://charmhub.io/istio-ingress-k8s) charm manages Istio ingress gateways in Kubernetes clusters and provides an ingress endpoint for charms that use it. 
+The [`istio-ingress-k8s`](https://charmhub.io/istio-ingress-k8s) charm manages Istio ingress gateways in Kubernetes clusters and provides an ingress endpoint for charms that use it. 
 
-### Step 2: offer Istio ingress
+### Step 2: Offer Istio ingress
 
-As we've deployed a single central ingress for our applications, we must make that ingress accessible to other Juju models by [Offering](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/offer/) it:
+As we've deployed a single central ingress for our applications, we must make that ingress accessible to other Juju models by [offering](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/offer/) it:
 
 ```bash
 juju offer istio-ingress-k8s:ingress,ingress-unauthenticated
 ```
 
 <!-- vale off -->
-## Deploy Charmed bookinfo application
+## Deploy Charmed Bookinfo application
 <!-- vale on -->
 
 The Bookinfo application consists of three charms:
@@ -73,7 +73,7 @@ flowchart LR
     productpage --> reviews[bookinfo-reviews-k8s]
 ```
 
-### Step 3: deploy application components
+### Step 3: Deploy application components
 
 Create a model for the application and deploy the charms:
 
@@ -97,9 +97,9 @@ Now you can sit back and watch the deployment take place:
 juju status --integrations --watch=5s
 ```
 
-### Step 4: configure external access
+### Step 4: Configure external access
 
-Expose the `bookinfo-productpage-k8s` using the `istio-ingress-k8s` ingress gateway. It is necessary to [Consume](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/consume/) `istio-ingress-k8s` from the `istio-system` model into the `bookinfo` model before adding the ingress relation.
+Expose the `bookinfo-productpage-k8s` using the `istio-ingress-k8s` ingress gateway. It is necessary to [consume](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/consume/) `istio-ingress-k8s` from the `istio-system` model into the `bookinfo` model before adding the ingress relation.
 
 ```bash
 juju consume istio-system.istio-ingress-k8s
@@ -108,7 +108,7 @@ juju integrate bookinfo-productpage-k8s istio-ingress-k8s:ingress
 
 This ingress relation would allow the `bookinfo-productpage-k8s` charm to be accessed from outside the cluster, for example, your browser.
 
-### Step 5: access the application
+### Step 5: Access the application
 
 Get the application URL and verify it's working:
 
@@ -122,7 +122,7 @@ Open the URL in your browser. You'll see the book information page.
 
 ![Bookinfo application](../assets/images/bookinfo-details-reviews.png)
 
-## Secure with service mesh
+## Secure with Service Mesh
 
 Your application now works, but it:
 
@@ -136,13 +136,13 @@ juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-d
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/health
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1
 
-# Even potentially dangerous methods like post work
+# Even potentially dangerous methods like POST work
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s -X POST http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1 -d '{}'
 ```
 
-These issues can be solved with a [Service mesh](../explanation/service-mesh.md).  Below, we demonstrate this with [Charmed Istio](../explanation/istio.md)
+These issues can be solved with a [service mesh](../explanation/service-mesh.md).  Below, we demonstrate this with [Charmed Istio](../explanation/istio.md)
 
-### Step 6: add services to the mesh
+### Step 6: Add Services to the Mesh
 
 Deploy the `istio-beacon-k8s` charm and connect it to the bookinfo backend charms:
 
@@ -155,8 +155,8 @@ juju integrate bookinfo-reviews-k8s istio-beacon-k8s
 With the above commands, the `istio-beacon-k8s` charm 
 
 - Adds the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms to the Istio ambient mesh
-- Applies [Mtls](https://istio.io/latest/blog/2023/secure-apps-with-istio/) for the traffic between the services in the mesh
-- Applies a **deny-by-default** [Authorization policy](https://istio.io/latest/docs/reference/config/security/authorization-policy/) which means traffic to anything on the mesh is denied unless explicitly allowed
+- Applies [mTLS](https://istio.io/latest/blog/2023/secure-apps-with-istio/) for the traffic between the services in the mesh
+- Applies a **deny-by-default** [authorization policy](https://istio.io/latest/docs/reference/config/security/authorization-policy/) which means traffic to anything on the mesh is denied unless explicitly allowed
 
 With the mesh in place, all traffic between services flows through Istio ambient's **ztunnel** and **waypoint** components, which encrypt communication with mTLS and enforce authorization policies:
 
@@ -181,7 +181,7 @@ Add the `bookinfo-productpage-k8s` charm to the mesh to enable secure communicat
 juju integrate bookinfo-productpage-k8s istio-beacon-k8s
 ```
 
-The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Read [How to add mesh support to your charms](../how-to/add-mesh-support-to-your-charm.md) for details on how to automate authorization policy creation in your own charms.
+The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Read [How to Add Mesh Support to your Charms](../how-to/add-mesh-support-to-your-charm.md) for details on how to automate authorization policy creation in your own charms.
 
 Refresh the application - the missing sections should now be available again. With these few commands, you have:
 
@@ -197,7 +197,7 @@ With Charmed Istio authorization policies in place, access is now restricted.
 Verify the security restrictions:
 
 ```bash
-# These still work - authorized endpoints with get method
+# These still work - authorized endpoints with GET method
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/health
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1
 
@@ -246,7 +246,7 @@ Congratulations! You've successfully:
 ```{tip}
 If you're planning to continue with other tutorials, such as:
 * [Use Istio ambient across different Juju models](./use-the-istio-mesh-across-different-juju-models.md)
-* [Authenticated ingress with the Canonical Identity Platform](../how-to/authenticated-ingress-with-the-canonical-identity-platform.md)
+* [Authenticated Ingress with the Canonical Identity Platform](../how-to/authenticated-ingress-with-the-canonical-identity-platform.md)
 
 don't tear anything down yet.  Those tutorials build on this one.  Keep everything deployed until you know you don't need it.
 ```
@@ -262,5 +262,5 @@ juju destroy-model istio-system
 
 To further explore Charmed Istio capabilities:
 
-- Continue with [Getting started with Charmed Istio ambient: cross-model](../tutorial/use-the-istio-mesh-across-different-juju-models.md) to deploy part of the Bookinfo application in a separate model
+- Continue with [Getting Started with Charmed Istio ambient: Cross-Model](../tutorial/use-the-istio-mesh-across-different-juju-models.md) to deploy part of the Bookinfo application in a separate model
 - Visualize your service mesh with the [Monitor Istio ambient using Kiali](../how-to/monitor-the-istio-mesh-using-kiali.md) guide

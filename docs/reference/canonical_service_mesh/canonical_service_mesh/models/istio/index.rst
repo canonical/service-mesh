@@ -30,7 +30,7 @@ Classes
    canonical_service_mesh.models.istio.WorkloadSelector
 
 
-Package contents
+Package Contents
 ----------------
 
 .. py:class:: AuthorizationPolicySpec
@@ -406,4 +406,5 @@ Package contents
 
    .. py:attribute:: matchLabels
       :type:  Dict[str, str]
+
 

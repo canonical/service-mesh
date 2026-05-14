@@ -29,7 +29,7 @@ Functions
    canonical_service_mesh.utils.get_peer_identity_for_service_account
 
 
-Package contents
+Package Contents
 ----------------
 
 .. py:function:: charm_kubernetes_label(model_name: str, app_name: str, prefix: str = '', suffix: str = '', max_length: int = 63, separator: str = '.') -> str
@@ -99,4 +99,5 @@ Package contents
 
    Returns:
        The SPIFFE identity string for the service account.
+
 

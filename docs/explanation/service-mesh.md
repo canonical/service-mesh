@@ -1,4 +1,4 @@
-# Service mesh
+# Service Mesh
 
 ## What is a service mesh?
 
@@ -9,7 +9,7 @@ Some examples of service meshes include:
 * [Istio](https://istio.io) (see [Charmed Istio](./istio.md) for deploying with Juju)
 * [Cilium](https://cilium.io/use-cases/service-mesh/)
 
-## Why do i need a service mesh?
+## Why do I need a service mesh?
 
 Kubernetes facilitates deploying resilient and scalable microservice applications in multi-tenant environments, but these deployments also have specific operational concerns:
 
@@ -19,5 +19,5 @@ Kubernetes facilitates deploying resilient and scalable microservice application
 
 Service meshes address these problems through:
 * authentication: strong identity enforcement in service-to-service communication, including mTLS encryption
-* [Authorization](../explanation/traffic-authorization.md): explicit service-to-service authorization controls
+* [authorization](../explanation/traffic-authorization.md): explicit service-to-service authorization controls
 * observability: automatic observability throughout the mesh

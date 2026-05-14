@@ -27,7 +27,7 @@ Functions
    canonical_service_mesh.utils.istio.reconcile_charm_labels
 
 
-Package contents
+Package Contents
 ----------------
 
 .. py:function:: build_policy_resources_istio(app_name: str, model_name: str, policies: list) -> Union[canonical_service_mesh.k8s.types.LightkubeResourcesList, List[None]]
@@ -54,4 +54,5 @@ Package contents
 
 .. py:data:: label_configmap_name_template
    :value: 'juju-service-mesh-{app_name}-labels'
+
 

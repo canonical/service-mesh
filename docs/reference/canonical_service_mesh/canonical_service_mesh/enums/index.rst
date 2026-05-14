@@ -20,7 +20,7 @@ Classes
    canonical_service_mesh.enums.PolicyTargetType
 
 
-Module contents
+Module Contents
 ---------------
 
 .. py:class:: Action
@@ -135,5 +135,6 @@ Module contents
 
    .. py:attribute:: unit
       :value: 'unit'
+
 
 

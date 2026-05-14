@@ -1,4 +1,4 @@
-# Charmed Istio ambient
+# Charmed Istio Ambient
 
 Guides specific to operating and extending Charmed Istio ambient.
 

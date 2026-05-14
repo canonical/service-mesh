@@ -1,10 +1,10 @@
-# Managed mode
+# Managed Mode
 
-Managed mode refers to a set of configuration options that together control how authorization policies are automatically created and enforced on the mesh.  When fully enabled, the beacon charm automatically generates `AuthorizationPolicies` based on what charm authors define via the [`Servicemeshconsumer` library](../how-to/add-mesh-support-to-your-charm.md), so administrators do not need to create policies manually.
+Managed mode refers to a set of configuration options that together control how authorization policies are automatically created and enforced on the mesh.  When fully enabled, the beacon charm automatically generates `AuthorizationPolicies` based on what charm authors define via the [`ServiceMeshConsumer` library](../how-to/add-mesh-support-to-your-charm.md), so administrators do not need to create policies manually.
 
-## Manage-authorization-policies
+## manage-authorization-policies
 
-The [`Manage-authorization-policies`](https://charmhub.io/istio-beacon-k8s/configure#manage-authorization-policies) option on the beacon charm is the core of managed mode.  When set to `true` (the default), the beacon charm reads the policies defined by each charm via the `ServiceMeshConsumer` library and creates the corresponding Istio `AuthorizationPolicies` automatically.
+The [`manage-authorization-policies`](https://charmhub.io/istio-beacon-k8s/configure#manage-authorization-policies) option on the beacon charm is the core of managed mode.  When set to `true` (the default), the beacon charm reads the policies defined by each charm via the `ServiceMeshConsumer` library and creates the corresponding Istio `AuthorizationPolicies` automatically.
 
 For example, using the [Get started with Charmed Istio ambient](../tutorial/get-started-with-the-charmed-istio-mesh.md) tutorial, the `bookinfo-details-k8s` charm defines a policy allowing `GET` requests to `/health` and `/details/*` on port `9080`.  When `bookinfo-productpage-k8s` is related to `bookinfo-details-k8s` and both are on the mesh, the beacon charm creates an `AuthorizationPolicy` like the following:
 
@@ -44,15 +44,15 @@ When `manage-authorization-policies` is set to `false`, the beacon charm will no
 
 ## Related configuration options
 
-Managed mode works alongside two configuration options on the [`Istio-k8s`](https://charmhub.io/istio-k8s) charm that affect how the automatically created policies behave:
+Managed mode works alongside two configuration options on the [`istio-k8s`](https://charmhub.io/istio-k8s) charm that affect how the automatically created policies behave:
 
-### Hardened-mode
+### hardened-mode
 
-When [Hardened mode](./hardened-mode.md) is enabled, global allow-nothing policies ensure that all traffic is denied unless an explicit `ALLOW` policy exists.  Without hardened mode, the policies created by managed mode only restrict traffic to workloads that are explicitly targeted.  Workloads without any policy still accept all traffic.  Enabling both managed mode and hardened mode together provides full zero-trust enforcement: managed mode creates the allow rules, and hardened mode ensures everything else is denied.
+When [hardened mode](./hardened-mode.md) is enabled, global allow-nothing policies ensure that all traffic is denied unless an explicit `ALLOW` policy exists.  Without hardened mode, the policies created by managed mode only restrict traffic to workloads that are explicitly targeted.  Workloads without any policy still accept all traffic.  Enabling both managed mode and hardened mode together provides full zero-trust enforcement: managed mode creates the allow rules, and hardened mode ensures everything else is denied.
 
-### Auto-allow-waypoint-policy
+### auto-allow-waypoint-policy
 
-The [`Auto-allow-waypoint-policy`](https://charmhub.io/istio-k8s/configure#auto-allow-waypoint-policy) option (enabled by default) tells Istio ambient to automatically create synthetic L4 authorization policies that allow waypoints to forward traffic to their workloads.  Without this, the policies created by managed mode would be evaluated at the waypoint but the traffic from the waypoint to the destination workload would be blocked at the ztunnel layer unless a separate L4 policy exists.  Keeping this option enabled means administrators only need to think about the application level policies that managed mode handles.
+The [`auto-allow-waypoint-policy`](https://charmhub.io/istio-k8s/configure#auto-allow-waypoint-policy) option (enabled by default) tells Istio ambient to automatically create synthetic L4 authorization policies that allow waypoints to forward traffic to their workloads.  Without this, the policies created by managed mode would be evaluated at the waypoint but the traffic from the waypoint to the destination workload would be blocked at the ztunnel layer unless a separate L4 policy exists.  Keeping this option enabled means administrators only need to think about the application level policies that managed mode handles.
 
 ## Disabling managed mode
 

@@ -1,6 +1,6 @@
-# Service mesh in coordinated-worker charms
+# Service Mesh in Coordinated-Worker Charms
 
-This document explains how service mesh integration works in charms that use the [`Coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (available from v2.1.0). It covers the architecture, policy management, and worker telemetry routing that enable secure, controlled communication in coordinator-worker deployments.
+This document explains how service mesh integration works in charms that use the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (available from v2.1.0). It covers the architecture, policy management, and worker telemetry routing that enable secure, controlled communication in coordinator-worker deployments.
 
 ## Overview
 
@@ -18,19 +18,19 @@ The `coordinated-workers` package handles both categories automatically while al
 
 The service mesh integration in coordinated-worker charms uses two complementary approaches:
 
-### Servicemeshconsumer for external policies
+### ServiceMeshConsumer for external policies
 
-The coordinator uses [`Servicemeshconsumer`](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) to manage policies for **external** communication - that is, traffic between the coordinator and applications that relate to it via Juju relations. See [How traffic authorization works](./traffic-authorization.md) for details on `ServiceMeshConsumer`.
+The coordinator uses [`ServiceMeshConsumer`](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) to manage policies for **external** communication - that is, traffic between the coordinator and applications that relate to it via Juju relations. See [how traffic authorization works](./traffic-authorization.md) for details on `ServiceMeshConsumer`.
 
 When the coordinator instantiates `ServiceMeshConsumer`, it provides:
 - **Default policies**: Automatically created policies for common coordinator endpoints (e.g., allowing metrics scraping from the coordinator units)
 - **Charm-specific policies**: Policies defined by the charm author for charm-specific relations (e.g., allowing API access from related applications)
 
-These policies are passed to the beacon charm, which creates the corresponding authorization policy resources (such as Istio `AuthorizationPolicy` objects) in [Managed mode](./managed-mode.md).
+These policies are passed to the beacon charm, which creates the corresponding authorization policy resources (such as Istio `AuthorizationPolicy` objects) in [managed mode](./managed-mode.md).
 
-### Policyresourcemanager for cluster-internal policies
+### PolicyResourceManager for cluster-internal policies
 
-The coordinator uses [`Policyresourcemanager`](../how-to/manage-custom-policies-with-policyresourcemanager.md) to manage policies for **cluster-internal** communication - that is, traffic within the coordinated-worker cluster itself. This is necessary because:
+The coordinator uses [`PolicyResourceManager`](../how-to/manage-custom-policies-with-policyresourcemanager.md) to manage policies for **cluster-internal** communication - that is, traffic within the coordinated-worker cluster itself. This is necessary because:
 - Cluster-internal communication patterns don't follow standard Juju relation-based patterns
 - Worker-to-worker communication must be allowed dynamically as workers join/leave the cluster
 
@@ -117,7 +117,7 @@ reconcile_charm_labels(
     namespace=model_name,
     labels={
         "app.kubernetes.io/part-of": coordinator_app_name,
-        # Plus any mesh labels from servicemeshconsumer
+        # Plus any mesh labels from ServiceMeshConsumer
     }
 )
 ```
@@ -176,12 +176,12 @@ Charm authors define additional policies for their charm's specific relations. F
 
 ```python
 charm_mesh_policies = [
-    # Allow applications related via "tempo-API" to access API ports
+    # Allow applications related via "tempo-api" to access API ports
     AppPolicy(
         relation="tempo-api",
         endpoints=[Endpoint(ports=[HTTP_PORT, GRPC_PORT])],
     ),
-    # Allow grafana to access the datasource API
+    # Allow Grafana to access the datasource API
     AppPolicy(
         relation="grafana-source",
         endpoints=[Endpoint(ports=[HTTP_PORT])],
@@ -189,7 +189,7 @@ charm_mesh_policies = [
 ]
 ```
 
-See the [Implementation guide](../how-to/add-service-mesh-support-to-coordinated-worker-charms.md) for details on defining these policies.
+See the [implementation guide](../how-to/add-service-mesh-support-to-coordinated-worker-charms.md) for details on defining these policies.
 
 ### Policy combination
 
@@ -227,7 +227,7 @@ Worker → Coordinator (proxy) → Loki
 
 ### Why is telemetry routing mandatory?
 
-In a service mesh with [Hardened mode](./hardened-mode.md) enabled, every network connection requires an explicit authorization policy. If workers communicated directly with telemetry backends, you would need:
+In a service mesh with [hardened mode](./hardened-mode.md) enabled, every network connection requires an explicit authorization policy. If workers communicated directly with telemetry backends, you would need:
 
 1. **Per-worker policies to telemetry backends**: A separate policy for each worker unit to reach each telemetry backend unit
 2. **Per-backend policies from workers**: Policies that dynamically update as workers or backends scale
@@ -261,7 +261,7 @@ The `Coordinator` then:
 2. Provides workers with coordinator proxy URLs instead of direct backend URLs
 3. Creates appropriate authorization policies for the proxy paths
 
-See the [How-to guide](../how-to/add-service-mesh-support-to-coordinated-worker-charms.md) for implementation details.
+See the [how-to guide](../how-to/add-service-mesh-support-to-coordinated-worker-charms.md) for implementation details.
 
 ## Policy reconciliation
 
@@ -269,7 +269,7 @@ The `coordinated-workers` package reconciles both types of policies during the c
 
 ### External policy reconciliation
 
-External policies are managed by `ServiceMeshConsumer`, which updates policies in the relation databag whenever relations change. The beacon charm then creates, updates, or deletes the corresponding authorization policy resources. This follows the standard [Managed mode](./managed-mode.md) pattern for automatic policy generation.
+External policies are managed by `ServiceMeshConsumer`, which updates policies in the relation databag whenever relations change. The beacon charm then creates, updates, or deletes the corresponding authorization policy resources. This follows the standard [managed mode](./managed-mode.md) pattern for automatic policy generation.
 
 ### Cluster-internal policy reconciliation
 
@@ -294,7 +294,7 @@ The `Worker` class from `coordinated-workers` automatically:
 - Uses proxied telemetry URLs when available
 - Handles the transition when service mesh is added or removed
 
-See the [How-to guide](../how-to/add-service-mesh-support-to-coordinated-worker-charms.md) for setup instructions.
+See the [how-to guide](../how-to/add-service-mesh-support-to-coordinated-worker-charms.md) for setup instructions.
 
 ## Summary
 
@@ -315,6 +315,6 @@ This architecture enables coordinated-worker charms to benefit from service mesh
 ## Further reading
 
 - [Add service mesh support to coordinated-worker charms](../how-to/add-service-mesh-support-to-coordinated-worker-charms.md) - Implementation guide
-- [Manage custom policies with policyresourcemanager](../how-to/manage-custom-policies-with-policyresourcemanager.md) - Details on direct policy management
+- [Manage custom policies with PolicyResourceManager](../how-to/manage-custom-policies-with-policyresourcemanager.md) - Details on direct policy management
 - [Traffic authorization](./traffic-authorization.md) - General authorization concepts in service meshes
 - [Managed mode](./managed-mode.md) - How beacon charms manage policies automatically

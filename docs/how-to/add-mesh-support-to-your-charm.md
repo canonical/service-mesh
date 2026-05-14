@@ -1,8 +1,8 @@
-# Add mesh support to your charm
+# Add Mesh Support to your Charm
 
-This guide explains how to add service mesh support to your charm using the [Servicemeshconsumer](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) library.  This library enables your charm to join a service mesh and automatically generate traffic authorization policies.
+This guide explains how to add service mesh support to your charm using the [ServiceMeshConsumer](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) library.  This library enables your charm to join a service mesh and automatically generate traffic authorization policies.
 
-## Add required relations to `charmcraft.yaml`
+## Add Required Relations to `charmcraft.yaml`
 
 To use the `ServiceMeshConsumer` library, add the following relations to your charm's `charmcraft.yaml`:
 
@@ -24,11 +24,11 @@ provides:
       If this app is generating polciies to provide access to related applications that are cross-model, relate that app to this additional relation to retrieve additional data required for these policies.  This is required because Juju does not natively provide all information required to build these policies when related cross-model.
 ```
 
-## Use the `servicemeshconsumer` library in your charm
+## Use the `ServiceMeshConsumer` library in your charm
 
 ### Fetch the library and add dependencies
 
-Fetch the [`Service-mesh` library](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh):
+Fetch the [`service-mesh` library](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh):
 
 ```bash
 charmcraft fetch-lib charms.istio_beacon_k8s.v0.service_mesh
@@ -42,10 +42,10 @@ lightkube-extensions
 ```
 
 ```{note}
-If you're using the [`Coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0+), you must add the `service_mesh` library and these dependencies to **both** your coordinator and worker charms, even if the worker doesn't use the library directly in code. See [Add service mesh support to coordinated-worker charms](./add-service-mesh-support-to-coordinated-worker-charms.md) for details.
+If you're using the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0+), you must add the `service_mesh` library and these dependencies to **both** your coordinator and worker charms, even if the worker doesn't use the library directly in code. See [Add Service Mesh Support to Coordinated-Worker Charms](./add-service-mesh-support-to-coordinated-worker-charms.md) for details.
 ```
 
-### Add servicemeshconsumer to your charm
+### Add ServiceMeshConsumer to your charm
 
 Add the `ServiceMeshConsumer` to your Charm. For example:
 
@@ -56,14 +56,14 @@ class MyCharm(CharmBase):
     self._mesh = ServiceMeshConsumer(self)
 ```
 
-This integration allows for your Charm to be integrated with a Charmed Beacon and [Individually added to a Juju service mesh](./add-juju-applications-and-models-to-the-service-mesh.md).  By default, Charmed Service Meshes deploy [Hardening](../explanation/hardened-mode.md), meaning they block any unauthorized access to your workloads.  If your Charm is never accessed by other applications in the cluster (ex: a Wordpress server that simply provides a website), you're done!  But if other applications need to access your charm, such as if you've charmed a database that other applications will relate to or a workload that has scrapable metrics, then continue below to create access policies.  
+This integration allows for your Charm to be integrated with a Charmed Beacon and [individually added to a Juju service mesh](./add-juju-applications-and-models-to-the-service-mesh.md).  By default, Charmed Service Meshes deploy [hardening](../explanation/hardened-mode.md), meaning they block any unauthorized access to your workloads.  If your Charm is never accessed by other applications in the cluster (ex: a Wordpress server that simply provides a website), you're done!  But if other applications need to access your charm, such as if you've charmed a database that other applications will relate to or a workload that has scrapable metrics, then continue below to create access policies.  
 
-## Enable automatic, fine-grained access to other Charmed applications via policies
+## Enable Automatic, Fine-grained Access to other Charmed Applications via Policies
 
-In a [Hardened](../explanation/hardened-mode.md) service mesh, communication between applications must be explicitly allowed by policies.  If your Charm deploys workloads that other applications consume, for example:
+In a [hardened](../explanation/hardened-mode.md) service mesh, communication between applications must be explicitly allowed by policies.  If your Charm deploys workloads that other applications consume, for example:
 
 * your charm deploys a database and other applications consume this database by relating to your application
-* your charm deploys any workload which generates metrics, and uses the [`Prometheus_scrape`](https://charmhub.io/integrations/prometheus_scrape) interface to allow for metrics scraping
+* your charm deploys any workload which generates metrics, and uses the [`prometheus_scrape`](https://charmhub.io/integrations/prometheus_scrape) interface to allow for metrics scraping
 
 you can use the `ServiceMeshConsumer` `policies` argument to automate this policy generation[^1]. The policies can either be an `AppPolicy` or a `UnitPolicy`.
 
@@ -112,7 +112,7 @@ class MyCharm(CharmBase):
 
 Exactly what should be defined for your `Endpoint`s depends on the application you've charmed.  Generally, you can look at your applications API reference or typical usage and include exactly what is needed, exposing only the necessary attack surface.  
 
-## Cross-model integrations (optional)
+## Cross-model Integrations (Optional)
 
 If your Charm provides integrations that can be used cross-model, the `ServiceMeshConsumer` library offers the additional `provide-cmr-mesh` and `require-cmr-mesh` integrations to ensure these generate policies properly.  These additional integrations are required because Juju cross-model relations do not natively provide all the information needed for a service mesh authorization policy to be generated.  
 
@@ -128,4 +128,4 @@ juju relate my-db-provider:provide-cmr-support my-db-consumer:require-cmr-suppor
 
 For a more detailed tutorial using cross-model integrations, follow the [Use Istio ambient across different Juju models](../tutorial/use-the-istio-mesh-across-different-juju-models.md) tutorial.
 
-[^1]: For a detailed explanation of exactly what is generated automatically, see [Authorization policy creation in Istio](../explanation/traffic-authorization.md)
+[^1]: For a detailed explanation of exactly what is generated automatically, see [Authorization Policy Creation in Istio](../explanation/traffic-authorization.md)
