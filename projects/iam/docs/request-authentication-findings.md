@@ -1,4 +1,4 @@
-# Requestauthentication findings
+# RequestAuthentication findings
 
 Findings from investigating how to add JWT validation via Istio's
 RequestAuthentication to the existing ext_authz setup, and what charm
@@ -99,7 +99,7 @@ spec:
 
 Source: https://github.com/kubeflow/manifests/tree/v1.11-branch/common/oauth2-proxy/components/istio-external-auth
 
-## The critical detail: oauth2-proxy injects the jwt
+## The critical detail: oauth2-proxy injects the JWT
 
 The key insight from the Kubeflow DENY policy comment:
 
@@ -199,7 +199,7 @@ bypass both, same as today.
 Based on how upstream Kubeflow solves this, with three changes needed
 across two charms:
 
-### 1. Oauth2-proxy charm: inject jwt on allow
+### 1. oauth2-proxy charm: inject JWT on allow
 
 Enable `OAUTH2_PROXY_SET_AUTHORIZATION_HEADER=true` so that browser-flow
 requests get the id_token injected as a Bearer token. This is what makes
@@ -209,7 +209,7 @@ This could be a new config option on the oauth2-proxy charm, or always-on
 when forward-auth is active. Without this, RequestAuthentication only
 works for the API/JWT flow.
 
-### 2. Istio-ingress charm: requestauthentication resource
+### 2. istio-ingress charm: RequestAuthentication resource
 
 A new `request-auth` relation on istio-ingress-k8s where the consuming
 app provides its claim-to-header mappings. Only the app knows what
@@ -235,14 +235,14 @@ The `request-auth` relation is optional. Without it, everything works
 exactly as it does today. The `ingress` and `ingress-unauthenticated`
 endpoints are unchanged.
 
-### 3. Forward-auth lib: pass oidc discovery info
+### 3. Forward-auth lib: pass OIDC discovery info
 
 The forward-auth lib would need to also pass `issuer_url` and
 `jwks_uri`, which it currently does not. RequestAuthentication needs
 these to validate JWTs. oauth2-proxy already has them from its `oauth`
 relation with Hydra.
 
-## Jwks endpoint and tls trust
+## JWKS endpoint and TLS trust
 
 RequestAuthentication needs to fetch JWKS from the OIDC provider.
 In this setup, the JWKS endpoint is behind Traefik with a self-signed

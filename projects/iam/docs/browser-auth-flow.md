@@ -17,7 +17,7 @@ Reference setup: `justfiles/setup.just`
 | login-ui | iam | web frontend for login/consent, brokers Hydra + Kratos |
 | kratos | iam | identity store, validates credentials |
 
-## Why traefik?
+## Why Traefik?
 
 The IAM charms (hydra, kratos, login-ui) dropped support for the generic `ingress`
 interface (IPA) in mid-2025 and now only expose a `public-route` relation using the
@@ -82,7 +82,7 @@ Login UI advertises `https://TRAEFIK_IP/ui/login`. The HTTPS is
 hardcoded by `normalise_url` in the login-ui charm, which is why
 Traefik must have TLS.
 
-## Step 3: login ui authenticates the user via kratos
+## Step 3: login UI authenticates the user via Kratos
 
 Login UI receives the login challenge, checks with Hydra what's being
 requested, then runs the user through Kratos authentication.
@@ -126,7 +126,7 @@ sequenceDiagram
     Kratos-->>LoginUI: MFA passed
 ```
 
-## Step 4: login accepted, csrf check, consent
+## Step 4: login accepted, CSRF check, consent
 
 Login UI tells Hydra the user is authenticated. The browser is redirected
 back to Hydra, which validates the CSRF cookie and moves to consent.

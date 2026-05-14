@@ -1,5 +1,5 @@
 <!-- vale off -->
-# Monitor istio ambient using kiali
+# Monitor istio ambient using Kiali
 
 <!-- vale on -->
 
@@ -30,12 +30,12 @@ Before starting, ensure you have:
 - **Juju Knowledge**: Basic familiarity with [Juju cross-model relations](https://documentation.ubuntu.com/juju/stable/reference/cross-model-integration/)
 
 <!-- vale off -->
-## Prepare the istio system
+## Prepare the Istio system
 
 <!-- vale on -->
 
 <!-- vale off -->
-### Step 1: collect metrics from istio
+### Step 1: collect metrics from Istio
 
 <!-- vale on -->
 
@@ -53,7 +53,7 @@ This metrics store doesn't need to be dedicated to Istio - it could also be the 
 ```
 
 <!-- vale off -->
-### Step 2: offer istio metadata and metrics
+### Step 2: offer Istio metadata and metrics
 
 <!-- vale on -->
 
@@ -65,12 +65,12 @@ juju offer prometheus-k8s:prometheus-api
 ```
 
 <!-- vale off -->
-## Deploy charmed kiali
+## Deploy charmed Kiali
 
 <!-- vale on -->
 
 <!-- vale off -->
-### Step 3: create a model for kiali
+### Step 3: create a model for Kiali
 
 <!-- vale on -->
 
@@ -82,7 +82,7 @@ juju deploy kiali-k8s --trust --channel=2/edge
 ```
 
 <!-- vale off -->
-### Step 4: connect kiali to istio
+### Step 4: connect kiali to Istio
 
 <!-- vale on -->
 
@@ -97,7 +97,7 @@ juju integrate kiali-k8s:prometheus prometheus-k8s
 ```
 
 <!-- vale off -->
-### Step 5: expose kiali via ingress
+### Step 5: expose Kiali via ingress
 
 <!-- vale on -->
 
@@ -115,7 +115,7 @@ juju status --integrations --watch=5s
 ```
 
 <!-- vale off -->
-## Access the kiali dashboard
+## Access the Kiali dashboard
 
 <!-- vale on -->
 

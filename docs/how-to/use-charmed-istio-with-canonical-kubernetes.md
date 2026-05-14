@@ -18,7 +18,7 @@ The following requirements must be met for Canonical Kubernetes to work with Cha
 
 - `socketLB.hostNamespaceOnly: true` (Helm) or `bpf-lb-sock-hostns-only: "true"` (Cilium CLI)
 
-## Configuring charmed istio
+## Configuring charmed Istio
 
 For Charmed Istio to work together with Cilium (given Cilium has the recommended configuration), the `platform` configuration of the [`istio-k8s`](https://charmhub.io/istio-k8s/configurations) charm must be unset. This can, for example, be done using
 

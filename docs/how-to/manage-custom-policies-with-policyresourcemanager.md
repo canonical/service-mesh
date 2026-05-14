@@ -1,4 +1,4 @@
-# Manage custom service mesh policies with policyresourcemanager
+# Manage custom service mesh policies with PolicyResourceManager
 
 This guide explains how to use the `PolicyResourceManager` class to create and manage custom service mesh authorization policies directly from your charm. This is an advanced feature for scenarios where the automatic policy generation provided by `ServiceMeshConsumer` is not sufficient.
 
@@ -14,13 +14,13 @@ This guide assumes you have:
 
 Before using `PolicyResourceManager`, it's important to understand how policy management works in Charmed Service Mesh:
 
-### Automatic policy management with servicemeshconsumer
+### Automatic policy management with ServiceMeshConsumer
 
 When you [add mesh support to your charm](./add-mesh-support-to-your-charm.md) using `ServiceMeshConsumer`, your charm integrates with a beacon charm (like `istio-beacon-k8s`) via the `service-mesh` relation. In [managed mode](../explanation/managed-mode.md), the beacon charm automatically generates authorization policies based on your Juju relations and the `AppPolicy` or `UnitPolicy` definitions you provide.
 
 The beacon charm manages these policies completely - creating, updating, and deleting them as relations change. This works well for typical charm-to-charm communication patterns.
 
-### Custom policy management with policyresourcemanager
+### Custom policy management with PolicyResourceManager
 
 `PolicyResourceManager` gives you direct control to create policies that don't follow the automatic relation-based pattern. Unlike `ServiceMeshConsumer`, where policies are managed by the beacon charm, `PolicyResourceManager` allows your charm to create and manage its own `AuthorizationPolicy` resources directly in Kubernetes.
 
@@ -130,7 +130,7 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
 from lightkube import Client
 ```
 
-### Step 2: instantiate the policyresourcemanager
+### Step 2: instantiate the PolicyResourceManager
 
 Create a method in your charm to instantiate the `PolicyResourceManager`:
 
@@ -164,7 +164,7 @@ class MyCharm(CharmBase):
 The `lightkube_client` **must** be instantiated with a `field_manager` parameter. This is required for Kubernetes server-side apply operations. A good practice is to use your application name combined with the model name to ensure uniqueness.
 ```
 
-### Step 3: define your custom meshpolicy objects
+### Step 3: define your custom MeshPolicy objects
 
 Create a method that returns the list of policies you want to manage:
 
@@ -248,7 +248,7 @@ def _on_remove(self, event):
     prm.delete()
 ```
 
-## Understanding meshpolicy configuration
+## Understanding MeshPolicy configuration
 
 A `MeshPolicy` defines a complete authorization policy with the following key fields. For more details on how these policies translate to actual authorization rules, see the [traffic authorization documentation](../explanation/traffic-authorization.md).
 
@@ -306,7 +306,7 @@ Currently, the following raw policy types are supported:
 **For Istio mesh:**
 - `AuthorizationPolicy` - available from `lightkube_extensions.types`
 
-### Building raw policies for istio
+### Building raw policies for Istio
 
 Import the `AuthorizationPolicy` type and spec models:
 

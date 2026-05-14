@@ -1,6 +1,6 @@
 <!-- vale off -->
 
-# Use istio ambient across different juju models
+# Use Istio ambient across different juju models
 
 <!-- vale on -->
 
@@ -30,7 +30,7 @@ Before starting this tutorial, ensure you have:
 Remove the `bookinfo-reviews-k8s` charm from the `bookinfo` model so it can be deployed in a different model to demonstrate cross-model communications through Charmed Istio:
 
 ```bash
-# Switch to the bookinfo model if that's not your current juju model
+# Switch to the bookinfo model if that's not your current Juju model
 juju switch bookinfo
 
 juju remove-application bookinfo-reviews-k8s
@@ -38,7 +38,7 @@ juju remove-application bookinfo-reviews-k8s
 
 <!-- vale off -->
 
-### Step 2: create a new juju model
+### Step 2: create a new Juju model
 
 <!-- vale on -->
 
@@ -50,7 +50,7 @@ juju deploy bookinfo-reviews-k8s --trust
 ```
 <!-- vale off -->
 
-### Step 3: deploy istio beacon in the new model
+### Step 3: deploy Istio Beacon in the new model
 
 <!-- vale on -->
 

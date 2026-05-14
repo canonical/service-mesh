@@ -59,7 +59,7 @@ class DetailsK8sCharm(CharmBase):
 
 This means that, when related to a Beacon charm via the `service_mesh` relation, `bookinfo-details-k8s` will request traffic authorization for every application related to its `details` integration.  Specifically, it will request that those related applications can `GET` the `/health` and `/details/*` endpoints on a given port.  It is then the responsibility of the related beacon charm to create the policies necessary for this communication in the given service mesh.
 
-## Authorization management in charmed istio
+## Authorization management in Charmed Istio
 
 Istio's [Authorization](https://istio.io/latest/docs/concepts/security/#authorization) model centers around the [`AuthorizationPolicy`](https://istio.io/latest/docs/reference/config/security/authorization-policy/).  This object is how service-to-service communication is opened in an Istio service mesh.  The [istio-beacon-k8s](https://charmhub.io/istio-beacon-k8s) charm manages `AuthorizationPolicies` for Charmed Istio.  It automatically creates policies for charms related to it via the [`service_mesh`](https://charmhub.io/istio-beacon-k8s/integrations) interface.  
 
@@ -67,7 +67,7 @@ Using the above example of `bookinfo-details-k8s` requesting a policy for applic
 
 ```yaml
 # See this yaml yourself by using:
-# Kubectl get authorizationpolicy -n bookinfo istio-beacon-k8s-bookinfo-policy-bookinfo-productpage-k8s-bookinfo-bookinfo-details-k8s-hash -o yaml
+# kubectl get authorizationpolicy -n bookinfo istio-beacon-k8s-bookinfo-policy-bookinfo-productpage-k8s-bookinfo-bookinfo-details-k8s-HASH -o yaml
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy
 metadata:

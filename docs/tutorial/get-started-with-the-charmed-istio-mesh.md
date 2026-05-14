@@ -1,4 +1,4 @@
-# Get started with charmed istio ambient
+# Get started with charmed Istio ambient
 
 ## Introduction
 
@@ -19,18 +19,18 @@ can be found in the [Juju docs](https://documentation.ubuntu.com/juju/3.6/howto/
 
 This tutorial also assumes you have a basic knowledge of Juju.
 
-## Configure microk8s
+## Configure MicroK8s
 
 For this tutorial to go smoothly, make sure the following MicroK8s [addons](https://microk8s.io/docs/addons) are enabled: `dns`, `hostpath-storage`, and `metallb`.
 
 You can check this with `microk8s status` and enable any missing addons.
 
 <!-- vale off -->
-## Deploy charmed istio
+## Deploy charmed Istio
 
 <!-- vale on -->
 
-### Step 1: set up the istio system
+### Step 1: set up the Istio system
 
 Create a dedicated model for Istio components and deploy the core charms:
 
@@ -44,7 +44,7 @@ The [`istio-k8s`](https://charmhub.io/istio-k8s) charm deploys and manages the c
 
 The [`istio-ingress-k8s`](https://charmhub.io/istio-ingress-k8s) charm manages Istio ingress gateways in Kubernetes clusters and provides an ingress endpoint for charms that use it. 
 
-### Step 2: offer istio ingress
+### Step 2: offer Istio ingress
 
 As we've deployed a single central ingress for our applications, we must make that ingress accessible to other Juju models by [offering](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/offer/) it:
 
@@ -133,12 +133,12 @@ Your application now works, but it:
 
 For example, if we `curl` from the productpage charm Pod we see it succeeds in many situations, even ones that are not necessary for our application:
 ```bash
-# All endpoints are accessible with any http method
+# All endpoints are accessible with any HTTP method
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/health
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1
 
-# Even potentially dangerous methods like post work
+# Even potentially dangerous methods like POST work
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s -X POST http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1 -d '{}'
 ```
 
@@ -199,7 +199,7 @@ With Charmed Istio authorization policies in place, access is now restricted.
 Verify the security restrictions:
 
 ```bash
-# These still work - authorized endpoints with get method
+# These still work - authorized endpoints with GET method
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/health
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/details/1
 

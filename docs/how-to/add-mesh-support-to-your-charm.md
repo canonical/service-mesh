@@ -24,7 +24,7 @@ provides:
       If this app is generating polciies to provide access to related applications that are cross-model, relate that app to this additional relation to retrieve additional data required for these policies.  This is required because Juju does not natively provide all information required to build these policies when related cross-model.
 ```
 
-## Use the `servicemeshconsumer` library in your charm
+## Use the `serviceMeshConsumer` library in your charm
 
 ### Fetch the library and add dependencies
 
@@ -45,7 +45,7 @@ lightkube-extensions
 If you're using the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0+), you must add the `service_mesh` library and these dependencies to **both** your coordinator and worker charms, even if the worker doesn't use the library directly in code. See [Add Service Mesh Support to Coordinated-Worker Charms](./add-service-mesh-support-to-coordinated-worker-charms.md) for details.
 ```
 
-### Add servicemeshconsumer to your charm
+### Add ServiceMeshConsumer to your charm
 
 Add the `ServiceMeshConsumer` to your Charm. For example:
 

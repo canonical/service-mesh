@@ -27,7 +27,7 @@ A client_credentials client is a machine-to-machine identity. It has a
 client_id and client_secret, but no associated user. It gets tokens directly
 from Hydra without going through login, consent, or Kratos.
 
-## Step 1: enable jwt bearer tokens
+## Step 1: enable JWT bearer tokens
 
 By default, oauth2-proxy only accepts session cookies. Setting
 `enable_jwt_bearer_tokens=true` makes it also validate Bearer JWTs in the

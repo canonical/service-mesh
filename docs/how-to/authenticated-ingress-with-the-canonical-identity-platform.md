@@ -1,4 +1,4 @@
-# Authenticated ingress with the canonical identity platform
+# Authenticated ingress with the Canonical Identity Platform
 
 ## Introduction
 

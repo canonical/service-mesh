@@ -49,7 +49,7 @@ charmcraft fetch-lib charms.istio_beacon_k8s.v0.service_mesh
 The `service_mesh` library has dependencies that must be added to the `requirements.txt` file in **both coordinator and worker charms**:
 
 ```text
-# In requirements.txt for both coordinator and worker
+# In requirements.txt for BOTH coordinator and worker
 charmed-service-mesh-helpers>=0.2.0
 lightkube-extensions
 ```
