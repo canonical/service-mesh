@@ -21,7 +21,7 @@ The distinction matters because of how Istio ambient [evaluates authorization po
 
 An allow-nothing policy works differently.  It is an `ALLOW` policy with an empty rule set, meaning it matches no traffic.  However, its presence activates Istio ambient's [implicit deny behavior](https://istio.io/latest/docs/concepts/security/#allow-nothing-deny-all-and-allow-all-policy): once at least one `ALLOW` policy exists for a workload, any traffic that does not match an `ALLOW` rule is denied.  Other `ALLOW` policies can then selectively open up the specific traffic that should be permitted.  This gives us a secure default that can still be overridden by explicit allow rules.
 
-### Ztunnel allow-nothing policy
+### ztunnel allow-nothing policy
 
 An `AuthorizationPolicy` with an empty spec acts as a global allow-nothing policy.  This ensures that any traffic not matched by an explicit `ALLOW` policy is denied at the ztunnel layer:
 

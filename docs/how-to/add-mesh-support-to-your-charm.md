@@ -24,7 +24,7 @@ provides:
       If this app is generating polciies to provide access to related applications that are cross-model, relate that app to this additional relation to retrieve additional data required for these policies.  This is required because Juju does not natively provide all information required to build these policies when related cross-model.
 ```
 
-## Use the `serviceMeshConsumer` library in your charm
+## Use the `ServiceMeshConsumer` library in your charm
 
 ### Fetch the library and add dependencies
 

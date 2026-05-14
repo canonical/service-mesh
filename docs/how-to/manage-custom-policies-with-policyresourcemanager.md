@@ -24,7 +24,7 @@ The beacon charm manages these policies completely - creating, updating, and del
 
 `PolicyResourceManager` gives you direct control to create policies that don't follow the automatic relation-based pattern. Unlike `ServiceMeshConsumer`, where policies are managed by the beacon charm, `PolicyResourceManager` allows your charm to create and manage its own `AuthorizationPolicy` resources directly in Kubernetes.
 
-## When to use policyresourcemanager
+## When to use PolicyResourceManager
 
 Consider using `PolicyResourceManager` in situations like, but not limited to:
 
@@ -36,7 +36,7 @@ Consider using `PolicyResourceManager` in situations like, but not limited to:
 For most charms, the `ServiceMeshConsumer` with `AppPolicy` and `UnitPolicy` is sufficient and recommended. Only use `PolicyResourceManager` if you have specific requirements that cannot be met by the automatic policy generation provided by the `service-mesh` relation.
 ```
 
-## How policyresourcemanager identifies and owns resources
+## How PolicyResourceManager identifies and owns resources
 
 The `PolicyResourceManager` uses Kubernetes labels to identify and manage the policy resources it creates. This label-based ownership model is critical to understand:
 
@@ -112,7 +112,7 @@ external_prm = PolicyResourceManager(
 
 Each manager can independently reconcile its own set of policies without interfering with the other.
 
-## Add policyresourcemanager to your charm
+## Add PolicyResourceManager to your charm
 
 ### Step 1: import the required classes
 
@@ -401,7 +401,7 @@ The `PolicyResourceManager` will apply the configured labels to raw policies and
 
 ## Best practices
 
-### Combining servicemeshconsumer and policyresourcemanager
+### Combining ServiceMeshConsumer and PolicyResourceManager
 
 You can use both `ServiceMeshConsumer` and `PolicyResourceManager` together:
 

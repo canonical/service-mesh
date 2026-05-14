@@ -18,7 +18,7 @@ The `coordinated-workers` package handles both categories automatically while al
 
 The service mesh integration in coordinated-worker charms uses two complementary approaches:
 
-### Servicemeshconsumer for external policies
+### ServiceMeshConsumer for external policies
 
 The coordinator uses [`ServiceMeshConsumer`](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) to manage policies for **external** communication - that is, traffic between the coordinator and applications that relate to it via Juju relations. See [how traffic authorization works](./traffic-authorization.md) for details on `ServiceMeshConsumer`.
 
@@ -28,7 +28,7 @@ When the coordinator instantiates `ServiceMeshConsumer`, it provides:
 
 These policies are passed to the beacon charm, which creates the corresponding authorization policy resources (such as Istio `AuthorizationPolicy` objects) in [managed mode](./managed-mode.md).
 
-### Policyresourcemanager for cluster-internal policies
+### PolicyResourceManager for cluster-internal policies
 
 The coordinator uses [`PolicyResourceManager`](../how-to/manage-custom-policies-with-policyresourcemanager.md) to manage policies for **cluster-internal** communication - that is, traffic within the coordinated-worker cluster itself. This is necessary because:
 - Cluster-internal communication patterns don't follow standard Juju relation-based patterns
