@@ -1,4 +1,4 @@
-# Client Credentials Flow
+# Client credentials flow
 
 How a programmatic client authenticates with the IAM setup to access a
 protected app, without a browser or user interaction.
@@ -27,7 +27,7 @@ A client_credentials client is a machine-to-machine identity. It has a
 client_id and client_secret, but no associated user. It gets tokens directly
 from Hydra without going through login, consent, or Kratos.
 
-## Step 1: Enable JWT bearer tokens
+## Step 1: enable JWT bearer tokens
 
 By default, oauth2-proxy only accepts session cookies. Setting
 `enable_jwt_bearer_tokens=true` makes it also validate Bearer JWTs in the
@@ -38,7 +38,7 @@ oauth2-proxy workload. When a request arrives with a Bearer token, oauth2-proxy
 validates the JWT signature against Hydra's JWKS endpoint instead of looking
 for a session cookie.
 
-## Step 2: Register a client in Hydra
+## Step 2: register a client in hydra
 
 The client is created via Hydra's admin API using the CLI inside the hydra pod.
 
@@ -65,7 +65,7 @@ Two details matter:
 The oauth2-proxy client_id comes from the `oauth` relation data on
 oauth2-proxy. It was assigned by Hydra when the relation was established.
 
-## Step 3: Get a token
+## Step 3: get a token
 
 The client exchanges its credentials for a JWT at Hydra's token endpoint.
 
@@ -97,7 +97,7 @@ The JWT payload looks like:
 
 No `email`, no `name`, no user identity. The `sub` claim is the client_id.
 
-## Step 4: Access the protected app
+## Step 4: access the protected app
 
 The client sends the JWT as a Bearer token. The request goes through the
 same ext_authz path as the browser flow.
@@ -147,7 +147,7 @@ These headers are configured in the mesh config under
   this limitation without needing RequestAuthentication. For claim-to-header
   mapping that bypasses oauth2-proxy entirely, Istio's RequestAuthentication
   can do this with `outputClaimToHeaders`, see
-  [request-authentication-findings.md](request-authentication-findings.md).
+  [Request-authentication-findings.md](request-authentication-findings.md).
 
 ### Not a service mesh concern
 

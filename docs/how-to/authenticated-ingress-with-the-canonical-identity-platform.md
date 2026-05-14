@@ -1,4 +1,4 @@
-# Authenticated Ingress with the Canonical Identity Platform
+# Authenticated ingress with the Canonical Identity Platform
 
 ## Introduction
 
@@ -6,15 +6,15 @@ In this tutorial, you will learn how to set up authentication for any applicatio
 
 ## Requirements
 
-* A [MicroK8s cluster](https://canonical.com/microk8s/docs/getting-started)
+* A [Microk8s cluster](https://canonical.com/microk8s/docs/getting-started)
 
 ```{note}
 This tutorial requires you to have 2 IP addresses available to your k8s cluster. One for the traefik instance deployed with the identity bundle and one for istio-ingress-k8s. This can be done by enabling metallb with an IP range. For example:
 `microk8s enable metallb:192.168.0.XXX-192.168.0.YYY`
-See [the docs](https://canonical.com/microk8s/docs/addon-metallb) for more info.
+See [The docs](https://canonical.com/microk8s/docs/addon-metallb) for more info.
 ```
 
-* A [bootstrapped juju controller](https://documentation.ubuntu.com/juju/3.6/tutorial/)
+* A [Bootstrapped Juju controller](https://documentation.ubuntu.com/juju/3.6/tutorial/)
 * [Terraform](https://snapcraft.io/terraform) (For the identity tutorial)
 
 ## Set up the prerequisites
@@ -50,7 +50,7 @@ We need to use the `dev` track for the Istio charms currently as the 2 track has
 Any release track newer than 2 should work just fine.
 ```
 
-## Deploy Authenticated Bookinfo
+## Deploy authenticated bookinfo
 
 * Deploy the bookinfo application
   ```{code} bash

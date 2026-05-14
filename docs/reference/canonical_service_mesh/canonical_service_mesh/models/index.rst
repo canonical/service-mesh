@@ -44,7 +44,7 @@ Classes
    canonical_service_mesh.models.SecretObjectReference
 
 
-Package Contents
+Package contents
 ----------------
 
 .. py:class:: AllowedRoutes
@@ -414,6 +414,5 @@ Package Contents
    .. py:attribute:: namespace
       :type:  Optional[str]
       :value: None
-
 
 

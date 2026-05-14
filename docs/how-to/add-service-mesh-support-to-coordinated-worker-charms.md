@@ -1,6 +1,6 @@
-# Add Service Mesh Support to Coordinated-Worker Charms
+# Add service mesh support to coordinated-worker charms
 
-This guide explains how to add service mesh support to charms that use the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) Python package. The package provides built-in service mesh integration that handles cluster-internal policies and worker telemetry routing automatically.
+This guide explains how to add service mesh support to charms that use the [`Coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) Python package. The package provides built-in service mesh integration that handles cluster-internal policies and worker telemetry routing automatically.
 
 ```{note}
 Service mesh support in the `coordinated-workers` package is available from version **v2.1.0** and later.
@@ -9,20 +9,20 @@ Service mesh support in the `coordinated-workers` package is available from vers
 ## Prerequisites
 
 This guide assumes you have:
-- A charm already using the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0 or later) with a coordinator and worker charm
-- Basic knowledge of [service mesh concepts](../explanation/service-mesh.md)
-- Familiarity with [adding mesh support to charms](./add-mesh-support-to-your-charm.md)
-- Understanding of [traffic authorization](../explanation/traffic-authorization.md) in charmed service meshes
+- A charm already using the [`Coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0 or later) with a coordinator and worker charm
+- Basic knowledge of [Service mesh concepts](../explanation/service-mesh.md)
+- Familiarity with [Adding mesh support to charms](./add-mesh-support-to-your-charm.md)
+- Understanding of [Traffic authorization](../explanation/traffic-authorization.md) in charmed service meshes
 
 ```{note}
-This guide is specifically for charms using the `coordinated-workers` package (like Tempo, Loki, and Mimir). If you're adding mesh support to a standard charm, see [Add Mesh Support to your Charm](./add-mesh-support-to-your-charm.md) instead.
+This guide is specifically for charms using the `coordinated-workers` package (like Tempo, Loki, and Mimir). If you're adding mesh support to a standard charm, see [Add mesh support to your charm](./add-mesh-support-to-your-charm.md) instead.
 ```
 
 ## Overview
 
 The `coordinated-workers` package provides automatic service mesh integration for coordinator-worker architectures. When enabled, it:
 
-- Automatically manages [cluster-internal authorization policies](../explanation/service-mesh-in-coordinated-worker-charms.md#cluster-internal-policies) between the coordinator and workers
+- Automatically manages [Cluster-internal authorization policies](../explanation/service-mesh-in-coordinated-worker-charms.md#cluster-internal-policies) between the coordinator and workers
 - Routes all worker telemetry (metrics, logs, traces) through the coordinator for simplified policy management
 - Allows charm authors to define additional charm-specific policies for external relations
 
@@ -49,7 +49,7 @@ charmcraft fetch-lib charms.istio_beacon_k8s.v0.service_mesh
 The `service_mesh` library has dependencies that must be added to the `requirements.txt` file in **both coordinator and worker charms**:
 
 ```text
-# In requirements.txt for BOTH coordinator and worker
+# In requirements.txt for both coordinator and worker
 charmed-service-mesh-helpers>=0.2.0
 lightkube-extensions
 ```
@@ -60,7 +60,7 @@ Even though the worker charm doesn't directly use the `service_mesh` library in 
 
 ## Add service mesh relations to your coordinator charm
 
-### Step 1: Add required relations to `charmcraft.yaml`
+### Step 1: add required relations to `charmcraft.yaml`
 
 Add the following relations to your **coordinator** charm's `charmcraft.yaml`:
 
@@ -89,7 +89,7 @@ provides:
 The worker charm does not require any service mesh relations in its `charmcraft.yaml`. All mesh configuration is handled by the coordinator. However, the worker charm **must** still have the `service_mesh` library and its dependencies installed.
 ```
 
-### Step 2: Configure service mesh endpoints in Coordinator initialization
+### Step 2: configure service mesh endpoints in coordinator initialization
 
 Update your `Coordinator` instantiation to include the service mesh endpoint names:
 
@@ -124,7 +124,7 @@ class MyCoordinatorCharm(CharmBase):
             },
             nginx_config=my_nginx_config,
             workers_config=self._get_workers_config,
-            # ... other parameters
+            # ... Other parameters
         )
 ```
 
@@ -133,7 +133,7 @@ The `Coordinator` class will automatically:
 - Create cluster-internal policies for coordinator-worker communication
 - Handle mesh label reconciliation on coordinator and worker pods
 
-### Step 3: Define charm-specific mesh policies
+### Step 3: define charm-specific mesh policies
 
 Create a method that returns policies specific to your charm's external relations. These policies control access from applications that relate to your coordinator (not the internal cluster communication):
 
@@ -155,7 +155,7 @@ class MyCoordinatorCharm(CharmBase):
         are managed automatically by the Coordinator class.
         """
         return [
-            # Allow access from applications related via the "api" relation
+            # Allow access from applications related via the "API" relation
             AppPolicy(
                 relation="api",
                 endpoints=[
@@ -165,7 +165,7 @@ class MyCoordinatorCharm(CharmBase):
                     )
                 ],
             ),
-            # Allow Grafana to query this charm's API
+            # Allow grafana to query this charm's API
             AppPolicy(
                 relation="grafana-source",
                 endpoints=[
@@ -174,7 +174,7 @@ class MyCoordinatorCharm(CharmBase):
                     )
                 ],
             ),
-            # Allow Prometheus to scrape metrics from coordinator units
+            # Allow prometheus to scrape metrics from coordinator units
             UnitPolicy(
                 relation="metrics-endpoint",
                 ports=[METRICS_PORT],
@@ -190,7 +190,7 @@ You only need to define policies for relations that are **external** to your coo
 - Metrics scraping from worker units (when worker telemetry proxying is enabled)
 ```
 
-### Step 4: Enable worker telemetry proxying
+### Step 4: enable worker telemetry proxying
 
 Configure the coordinator to proxy worker telemetry by defining a `WorkerTelemetryProxyConfig`:
 
@@ -212,7 +212,7 @@ Then pass both the policies and telemetry config to the `Coordinator`:
 ```python
 self.coordinator = Coordinator(
     charm=self,
-    # ... other parameters
+    # ... Other parameters
     worker_telemetry_proxy_config=self._worker_telemetry_proxy_config,
     charm_mesh_policies=self._charm_mesh_policies,
 )
@@ -224,16 +224,16 @@ Worker telemetry proxying is **mandatory** when using service mesh with coordina
 - Provides a single point of egress from the cluster
 - Enables the coordinator to enforce consistent access control
 
-See the [service mesh architecture explanation](../explanation/service-mesh-in-coordinated-worker-charms.md#worker-telemetry-routing) for details on why this is required.
+See the [Service mesh architecture explanation](../explanation/service-mesh-in-coordinated-worker-charms.md#worker-telemetry-routing) for details on why this is required.
 ```
 
-### Step 5: Open the telemetry proxy port
+### Step 5: open the telemetry proxy port
 
 Ensure your coordinator charm opens the port specified in your `WorkerTelemetryProxyConfig`:
 
 ```python
 def _reconcile(self):
-    # ... your existing reconciliation logic
+    # ... Your existing reconciliation logic
 
     # Open the worker telemetry proxy port
     self.unit.set_ports(
@@ -244,8 +244,8 @@ def _reconcile(self):
 
 ## Further reading
 
-- Learn about the [service mesh architecture in coordinated-worker charms](../explanation/service-mesh-in-coordinated-worker-charms.md)
-- Understand [how to manage custom policies with PolicyResourceManager](./manage-custom-policies-with-policyresourcemanager.md) for advanced use cases
-- Explore [traffic authorization concepts](../explanation/traffic-authorization.md) in service meshes
-- See [managed mode](../explanation/managed-mode.md) for details on automatic policy generation
-- View the [`coordinated-workers` package repository](https://github.com/canonical/cos-coordinated-workers) for more information
+- Learn about the [Service mesh architecture in coordinated-worker charms](../explanation/service-mesh-in-coordinated-worker-charms.md)
+- Understand [How to manage custom policies with policyresourcemanager](./manage-custom-policies-with-policyresourcemanager.md) for advanced use cases
+- Explore [Traffic authorization concepts](../explanation/traffic-authorization.md) in service meshes
+- See [Managed mode](../explanation/managed-mode.md) for details on automatic policy generation
+- View the [`Coordinated-workers` package repository](https://github.com/canonical/cos-coordinated-workers) for more information

@@ -1,9 +1,9 @@
-# Compatibility with Cilium CNI
+# Compatibility with cilium cni
 
 `Cilium` is an `eBPF` based CNI which includes some intelligent kernel level traffic re-routing using `eBPF` programs. This traffic re-routing can potentially interfere with `Istio ambient's` mesh features.
 
 ```{note}
-The complete compatibility documentation between Cilium and Istio can be found [here](https://docs.cilium.io/en/stable/network/servicemesh/istio/). This documentation only covers certain gotchas that is not explicitly clear from the mentioned doc.
+The complete compatibility documentation between Cilium and Istio can be found [Here](https://docs.cilium.io/en/stable/network/servicemesh/istio/). This documentation only covers certain gotchas that is not explicitly clear from the mentioned doc.
 ```
 
 By default `Cilium` is designed to be the exclusive CNI which wont allow the Istio CNI plugin to be successfully deployed. Hence it is important to make sure `Cilium` is configured to allow external CNI plugins.
@@ -14,4 +14,4 @@ Assuming `Cilium` allows `Istio's` CNI plugin, the major compatibility issue bet
 
 An important gotcha that is not mentioned in the `Cilium` documentation is the fact that, even when `socketLB.hostNamespaceOnly` is set to be `false`, the destination `ztunnel` will successfully capture the traffic to the destination pod and might apply L4 policies directed at the pod. This might give the impression that service mesh is working successfully and will mask the fact the traffic between the source pod and destination pod is not encrypted by Istio ambient (if `mTLS` mode is set to be `PERMISSIVE`).
 
-The recommended configuration to successfully use Charmed Istio with Canonical Kubernetes with the `Cilium` CNI can be found in [this](../how-to/use-charmed-istio-with-canonical-kubernetes.md) how-to documentation.
+The recommended configuration to successfully use Charmed Istio with Canonical Kubernetes with the `Cilium` CNI can be found in [This](../how-to/use-charmed-istio-with-canonical-kubernetes.md) how-to documentation.

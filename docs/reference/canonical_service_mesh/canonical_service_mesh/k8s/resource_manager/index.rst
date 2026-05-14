@@ -38,7 +38,7 @@ Functions
    canonical_service_mesh.k8s.resource_manager.patch_many
 
 
-Package Contents
+Package contents
 ----------------
 
 .. py:exception:: K8sApiError
@@ -223,5 +223,4 @@ Package Contents
 
    Returns:
        A list of Resource objects returned from client.patch().
-
 

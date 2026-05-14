@@ -1,5 +1,5 @@
 <!-- vale off -->
-# Charmed Service Mesh
+# Charmed service mesh
 <!-- vale on -->
 
 A service mesh manages communication between microservices, offering traffic control, security, and observability without changing application code. However, it can be complex to operate.
@@ -61,9 +61,9 @@ The Charmed Service Mesh is a member of the Canonical family. It's an open sourc
 that warmly welcomes community projects, contributions, suggestions, fixes
 and constructive feedback.
 
-* [Join the Discourse community forum](https://discourse.charmhub.io/c/charm/)
-* [Join the Matrix community chat](https://matrix.to/#/#cos:ubuntu.com)
-* [Contribute on GitHub](https://github.com/canonical/service-mesh)
+* [Join the discourse community forum](https://discourse.charmhub.io/c/charm/)
+* [Join the matrix community chat](https://matrix.to/#/#cos:ubuntu.com)
+* [Contribute on github](https://github.com/canonical/service-mesh)
 
 * [Code of conduct](https://ubuntu.com/community/ethos/code-of-conduct)
 * [Canonical contributor license agreement](https://canonical.com/legal/contributors)

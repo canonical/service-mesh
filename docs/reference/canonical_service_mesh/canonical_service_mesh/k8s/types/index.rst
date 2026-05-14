@@ -28,7 +28,7 @@ Attributes
    canonical_service_mesh.k8s.types.LightkubeResourcesList
 
 
-Package Contents
+Package contents
 ----------------
 
 .. py:data:: LightkubeResourceType
@@ -36,4 +36,3 @@ Package Contents
 .. py:data:: LightkubeResourceTypesSet
 
 .. py:data:: LightkubeResourcesList
-
