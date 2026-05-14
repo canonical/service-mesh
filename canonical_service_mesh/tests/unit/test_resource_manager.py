@@ -19,6 +19,7 @@ from canonical_service_mesh.k8s.resource_manager._resource_manager import (
     _hash_lightkube_resource,
     _in_left_not_right,
     _validate_resources,
+    create_charm_default_labels,
 )
 
 DEFAULT_LABELS = {"label": "default"}
@@ -188,3 +189,15 @@ def test_get_resource_classes_in_manifests():
 def test_validate_resources(resources, allowed, ctx):
     with ctx:
         _validate_resources(resources, allowed)
+
+
+@pytest.mark.parametrize("model_name", ["a", "b" * 63, "c" * 64], ids=["m1", "m63", "m64"])
+@pytest.mark.parametrize("app_name", ["a", "b" * 63, "c" * 64], ids=["a1", "a63", "a64"])
+def test_create_charm_default_labels__maxlength(model_name, app_name):
+    labels = create_charm_default_labels(app_name, model_name, "testscope")
+    assert len(labels["app.kubernetes.io/instance"]) <= 63
+
+
+def test_create_charm_default_labels__short_names():
+    labels = create_charm_default_labels("abcde", "fghij", "testscope")
+    assert labels["app.kubernetes.io/instance"] == "fghij-abcde"

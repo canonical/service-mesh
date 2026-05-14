@@ -20,6 +20,7 @@ from lightkube.types import PatchType
 from ops import CharmBase
 
 from ...enums import MeshType
+from ...utils import charm_kubernetes_label
 from ...utils.istio._policy_builder import (
     POLICY_RESOURCE_TYPES,
     build_policy_resources_istio,
@@ -213,10 +214,15 @@ class KubernetesResourceManager:
         self.patch(resources=resources, force=force, patch_type=patch_type)
 
 
-def create_charm_default_labels(application_name: str, model_name: str, scope: str) -> dict:
+def create_charm_default_labels(
+    application_name: str, model_name: str, scope: str
+) -> Dict[str, str]:
     """Return a default label style for the KubernetesResourceHandler label selector."""
+    instance_label = charm_kubernetes_label(
+        model_name=model_name, app_name=application_name, separator="-"
+    )
     return {
-        "app.kubernetes.io/instance": f"{application_name}-{model_name}",
+        "app.kubernetes.io/instance": instance_label,
         "kubernetes-resource-handler-scope": scope,
     }
 
