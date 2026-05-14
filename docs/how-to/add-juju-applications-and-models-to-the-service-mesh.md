@@ -1,5 +1,4 @@
-# Add Juju Applications and Models to the Service Mesh
-
+# Add juju applications and models to the service mesh
 Charmed Service Mesh makes it easy to add Juju applications, or even whole models, to your service mesh.  All Charmed service mesh products include a beacon charm (for example, [istio-beacon-k8s](https://charmhub.io/istio-beacon-k8s/)) which provides a few ways to put your application on the mesh.
 
 For applications that have [added mesh support by implementing the `service-mesh` relation](../how-to/add-mesh-support-to-your-charm.md), relate them to the a beacon charm in the same model.  This will subscribe the charm to the mesh

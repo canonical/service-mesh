@@ -1,5 +1,4 @@
-# Add Service Mesh Support to Coordinated-Worker Charms
-
+# Add service mesh support to coordinated-worker charms
 This guide explains how to add service mesh support to charms that use the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) Python package. The package provides built-in service mesh integration that handles cluster-internal policies and worker telemetry routing automatically.
 
 ```{note}
@@ -7,7 +6,6 @@ Service mesh support in the `coordinated-workers` package is available from vers
 ```
 
 ## Prerequisites
-
 This guide assumes you have:
 - A charm already using the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0 or later) with a coordinator and worker charm
 - Basic knowledge of [service mesh concepts](../explanation/service-mesh.md)
@@ -19,7 +17,6 @@ This guide is specifically for charms using the `coordinated-workers` package (l
 ```
 
 ## Overview
-
 The `coordinated-workers` package provides automatic service mesh integration for coordinator-worker architectures. When enabled, it:
 
 - Automatically manages [cluster-internal authorization policies](../explanation/service-mesh-in-coordinated-worker-charms.md#cluster-internal-policies) between the coordinator and workers
@@ -27,13 +24,11 @@ The `coordinated-workers` package provides automatic service mesh integration fo
 - Allows charm authors to define additional charm-specific policies for external relations
 
 ## Add the service mesh library to both coordinator and worker charms
-
 ```{important}
 Both the **coordinator** and **worker** charms must fetch the `service_mesh` library, even though the worker charm won't use it directly in code. The `coordinated-workers` package requires this library to be present in both charms to function correctly.
 ```
 
 ### Fetch the library
-
 In both your coordinator and worker charm directories, fetch the `service_mesh` library:
 
 ```bash
@@ -45,11 +40,10 @@ charmcraft fetch-lib charms.istio_beacon_k8s.v0.service_mesh
 ```
 
 ### Add required dependencies
-
 The `service_mesh` library has dependencies that must be added to the `requirements.txt` file in **both coordinator and worker charms**:
 
 ```text
-# In requirements.txt for BOTH coordinator and worker
+# In requirements.txt for both coordinator and worker
 charmed-service-mesh-helpers>=0.2.0
 lightkube-extensions
 ```
@@ -59,9 +53,7 @@ Even though the worker charm doesn't directly use the `service_mesh` library in 
 ```
 
 ## Add service mesh relations to your coordinator charm
-
-### Step 1: Add required relations to `charmcraft.yaml`
-
+### Step 1: add required relations to `charmcraft.yaml`
 Add the following relations to your **coordinator** charm's `charmcraft.yaml`:
 
 ```yaml
@@ -89,8 +81,7 @@ provides:
 The worker charm does not require any service mesh relations in its `charmcraft.yaml`. All mesh configuration is handled by the coordinator. However, the worker charm **must** still have the `service_mesh` library and its dependencies installed.
 ```
 
-### Step 2: Configure service mesh endpoints in Coordinator initialization
-
+### Step 2: configure service mesh endpoints in coordinator initialization
 Update your `Coordinator` instantiation to include the service mesh endpoint names:
 
 ```python
@@ -133,8 +124,7 @@ The `Coordinator` class will automatically:
 - Create cluster-internal policies for coordinator-worker communication
 - Handle mesh label reconciliation on coordinator and worker pods
 
-### Step 3: Define charm-specific mesh policies
-
+### Step 3: define charm-specific mesh policies
 Create a method that returns policies specific to your charm's external relations. These policies control access from applications that relate to your coordinator (not the internal cluster communication):
 
 ```python
@@ -190,8 +180,7 @@ You only need to define policies for relations that are **external** to your coo
 - Metrics scraping from worker units (when worker telemetry proxying is enabled)
 ```
 
-### Step 4: Enable worker telemetry proxying
-
+### Step 4: enable worker telemetry proxying
 Configure the coordinator to proxy worker telemetry by defining a `WorkerTelemetryProxyConfig`:
 
 ```python
@@ -227,8 +216,7 @@ Worker telemetry proxying is **mandatory** when using service mesh with coordina
 See the [service mesh architecture explanation](../explanation/service-mesh-in-coordinated-worker-charms.md#worker-telemetry-routing) for details on why this is required.
 ```
 
-### Step 5: Open the telemetry proxy port
-
+### Step 5: open the telemetry proxy port
 Ensure your coordinator charm opens the port specified in your `WorkerTelemetryProxyConfig`:
 
 ```python
@@ -243,7 +231,6 @@ def _reconcile(self):
 ```
 
 ## Further reading
-
 - Learn about the [service mesh architecture in coordinated-worker charms](../explanation/service-mesh-in-coordinated-worker-charms.md)
 - Understand [how to manage custom policies with PolicyResourceManager](./manage-custom-policies-with-policyresourcemanager.md) for advanced use cases
 - Explore [traffic authorization concepts](../explanation/traffic-authorization.md) in service meshes

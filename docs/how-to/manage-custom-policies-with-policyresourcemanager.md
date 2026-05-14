@@ -1,9 +1,7 @@
-# Manage Custom Service Mesh Policies with PolicyResourceManager
-
+# Manage custom service mesh policies with policyresourcemanager
 This guide explains how to use the `PolicyResourceManager` class to create and manage custom service mesh authorization policies directly from your charm. This is an advanced feature for scenarios where the automatic policy generation provided by `ServiceMeshConsumer` is not sufficient.
 
 ## Prerequisites
-
 This guide assumes you have:
 - Basic knowledge of Juju charms and charm development
 - Understanding of [service mesh concepts](../explanation/service-mesh.md)
@@ -11,21 +9,17 @@ This guide assumes you have:
 - Understanding of [how traffic authorization works](../explanation/traffic-authorization.md) in charmed service meshes
 
 ## Understanding automatic vs. custom policy management
-
 Before using `PolicyResourceManager`, it's important to understand how policy management works in Charmed Service Mesh:
 
-### Automatic policy management with ServiceMeshConsumer
-
+### Automatic policy management with servicemeshconsumer
 When you [add mesh support to your charm](./add-mesh-support-to-your-charm.md) using `ServiceMeshConsumer`, your charm integrates with a beacon charm (like `istio-beacon-k8s`) via the `service-mesh` relation. In [managed mode](../explanation/managed-mode.md), the beacon charm automatically generates authorization policies based on your Juju relations and the `AppPolicy` or `UnitPolicy` definitions you provide.
 
 The beacon charm manages these policies completely - creating, updating, and deleting them as relations change. This works well for typical charm-to-charm communication patterns.
 
-### Custom policy management with PolicyResourceManager
-
+### Custom policy management with policyresourcemanager
 `PolicyResourceManager` gives you direct control to create policies that don't follow the automatic relation-based pattern. Unlike `ServiceMeshConsumer`, where policies are managed by the beacon charm, `PolicyResourceManager` allows your charm to create and manage its own `AuthorizationPolicy` resources directly in Kubernetes.
 
-## When to use PolicyResourceManager
-
+## When to use policyresourcemanager
 Consider using `PolicyResourceManager` in situations like, but not limited to:
 
 1. **Custom policy requirements**: Your authorization policies cannot be expressed through the relation-based approach of `ServiceMeshConsumer`
@@ -36,12 +30,10 @@ Consider using `PolicyResourceManager` in situations like, but not limited to:
 For most charms, the `ServiceMeshConsumer` with `AppPolicy` and `UnitPolicy` is sufficient and recommended. Only use `PolicyResourceManager` if you have specific requirements that cannot be met by the automatic policy generation provided by the `service-mesh` relation.
 ```
 
-## How PolicyResourceManager identifies and owns resources
-
+## How policyresourcemanager identifies and owns resources
 The `PolicyResourceManager` uses Kubernetes labels to identify and manage the policy resources it creates. This label-based ownership model is critical to understand:
 
 ### Label-based resource identification
-
 When you instantiate a `PolicyResourceManager` with specific labels:
 
 ```python
@@ -61,7 +53,6 @@ These labels serve two purposes:
 2. **Resource querying**: When calling `reconcile()` or `delete()`, the `PolicyResourceManager` queries Kubernetes for all resources matching these labels to determine what it currently owns
 
 ### Why labels must be unique
-
 The labels you provide **must be unique** to this specific `PolicyResourceManager` instance. This ensures:
 
 - **Complete ownership**: The `PolicyResourceManager` can safely delete any resource with these labels without affecting resources managed by other components
@@ -73,7 +64,6 @@ If you use the same labels for multiple `PolicyResourceManager` instances, they 
 ```
 
 ### Practical labeling strategy
-
 A good labeling strategy combines:
 
 ```python
@@ -112,10 +102,8 @@ external_prm = PolicyResourceManager(
 
 Each manager can independently reconcile its own set of policies without interfering with the other.
 
-## Add PolicyResourceManager to your charm
-
-### Step 1: Import the required classes
-
+## Add policyresourcemanager to your charm
+### Step 1: import the required classes
 First, fetch the [`service-mesh` library](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) and import the necessary classes in your charm:
 
 ```python
@@ -130,8 +118,7 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
 from lightkube import Client
 ```
 
-### Step 2: Instantiate the PolicyResourceManager
-
+### Step 2: instantiate the policyresourcemanager
 Create a method in your charm to instantiate the `PolicyResourceManager`:
 
 ```python
@@ -164,8 +151,7 @@ class MyCharm(CharmBase):
 The `lightkube_client` **must** be instantiated with a `field_manager` parameter. This is required for Kubernetes server-side apply operations. A good practice is to use your application name combined with the model name to ensure uniqueness.
 ```
 
-### Step 3: Define your custom MeshPolicy objects
-
+### Step 3: define your custom meshpolicy objects
 Create a method that returns the list of policies you want to manage:
 
 ```python
@@ -211,8 +197,7 @@ def _get_custom_policies(self) -> List[MeshPolicy]:
     return policies
 ```
 
-### Step 4: Reconcile policies in your charm's event handlers
-
+### Step 4: reconcile policies in your charm's event handlers
 Call the `reconcile()` method to create or update the policies:
 
 ```python
@@ -234,8 +219,7 @@ def _reconcile_policies(self, event):
     prm.reconcile(policies, mesh_type)
 ```
 
-### Step 5: Clean up on removal
-
+### Step 5: clean up on removal
 Ensure policies are deleted when your charm is removed:
 
 ```python
@@ -248,8 +232,7 @@ def _on_remove(self, event):
     prm.delete()
 ```
 
-## Understanding MeshPolicy configuration
-
+## Understanding meshpolicy configuration
 A `MeshPolicy` defines a complete authorization policy with the following key fields. For more details on how these policies translate to actual authorization rules, see the [traffic authorization documentation](../explanation/traffic-authorization.md).
 
 ### Source configuration
@@ -260,8 +243,7 @@ A `MeshPolicy` defines a complete authorization policy with the following key fi
 - **`target_namespace`**: The Juju model (Kubernetes namespace) of the target application
 - **`target_type`**: Either `PolicyTargetType.app` or `PolicyTargetType.unit`
 
-### App-targeted policies vs. Unit-targeted policies
-
+### App-targeted policies vs. unit-targeted policies
 The behavior differs significantly based on the `target_type`. For a detailed explanation of these policy types, see the [charm mesh support guide](./add-mesh-support-to-your-charm.md#enable-automatic-fine-grained-access-to-other-charmed-applications-via-policies).
 
 For **app-targeted policies** (`PolicyTargetType.app`):
@@ -283,11 +265,9 @@ Unit-targeted policies provide Layer 4 (TCP) access control to individual pods. 
 ```
 
 ## Using raw policy objects
-
 For advanced use cases where `MeshPolicy` doesn't provide enough flexibility, you can pass pre-built policy objects directly to the `PolicyResourceManager` using the `raw_policies` parameter.
 
 ### When to use raw policies
-
 Use `raw_policies` when you need:
 - Mesh-specific features not exposed by the mesh-agnostic `MeshPolicy` abstraction
 - Full control over the native policy specification
@@ -298,14 +278,12 @@ Use `raw_policies` when you need:
 ```
 
 ### Available policy types
-
 Currently, the following raw policy types are supported:
 
 **For Istio mesh:**
 - `AuthorizationPolicy` - available from `lightkube_extensions.types`
 
-### Building raw policies for Istio
-
+### Building raw policies for istio
 Import the `AuthorizationPolicy` type and spec models:
 
 ```python
@@ -376,7 +354,6 @@ The `AuthorizationPolicySpec` is a Pydantic model. Use `.model_dump(by_alias=Tru
 ```
 
 ### Reconciling raw policies
-
 Pass `raw_policies` to `reconcile()` alongside or instead of `MeshPolicy` objects:
 
 ```python
@@ -398,9 +375,7 @@ def _reconcile_policies(self, event):
 The `PolicyResourceManager` will apply the configured labels to raw policies and manage them alongside any `MeshPolicy`-generated policies.
 
 ## Best practices
-
-### Combining ServiceMeshConsumer and PolicyResourceManager
-
+### Combining servicemeshconsumer and policyresourcemanager
 You can use both `ServiceMeshConsumer` and `PolicyResourceManager` together:
 
 ```python
@@ -437,7 +412,6 @@ This approach gives you:
 - Custom policy management for special cases that don't fit the standard pattern
 
 ### Reconciliation timing
-
 Call `reconcile()` in response to events that affect your policies:
 
 - When cluster topology changes (e.g., relation added/removed)
@@ -446,7 +420,6 @@ Call `reconcile()` in response to events that affect your policies:
 - When mesh connection is established (e.g., `service-mesh` relation created)
 
 ### Handling empty policy lists
-
 The `reconcile()` method handles empty policy lists gracefully by deleting all managed resources:
 
 ```python
@@ -458,7 +431,6 @@ prm.delete()
 ```
 
 ## Further reading
-
 - Learn more about [service mesh concepts](../explanation/service-mesh.md)
 - Understand [traffic authorization in charmed service meshes](../explanation/traffic-authorization.md)
 - Learn about [managed mode](../explanation/managed-mode.md) and automatic policy generation

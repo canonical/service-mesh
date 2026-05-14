@@ -1,11 +1,8 @@
-# Authenticated Ingress with the Canonical Identity Platform
-
+# Authenticated ingress with the canonical identity platform
 ## Introduction
-
 In this tutorial, you will learn how to set up authentication for any application using Istio and the Canonical Identity Platform. We will deploy the sample "bookinfo" application and configure Istio to redirect unauthenticated traffic to oauth2-proxy.
 
 ## Requirements
-
 * A [MicroK8s cluster](https://canonical.com/microk8s/docs/getting-started)
 
 ```{note}
@@ -18,7 +15,6 @@ See [the docs](https://canonical.com/microk8s/docs/addon-metallb) for more info.
 * [Terraform](https://snapcraft.io/terraform) (For the identity tutorial)
 
 ## Set up the prerequisites
-
 * First follow the tutorial to deploy the [Canonical Identity Platform](https://canonical-identity.readthedocs-hosted.com/tutorial/canonical-identity-platform/). This is what will be used to manage users and authentication.
 
 ````{note}
@@ -50,8 +46,7 @@ We need to use the `dev` track for the Istio charms currently as the 2 track has
 Any release track newer than 2 should work just fine.
 ```
 
-## Deploy Authenticated Bookinfo
-
+## Deploy authenticated bookinfo
 * Deploy the bookinfo application
   ```{code} bash
   juju add-model bookinfo

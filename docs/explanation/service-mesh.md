@@ -1,7 +1,5 @@
-# Service Mesh
-
+# Service mesh
 ## What is a service mesh?
-
 A service mesh is an infrastructure layer that handles security controls, observability, and traffic management for a microservice application.  Generally, a goal of a service mesh is to add this functionality *without the microservices knowing about it*, enabling developers to separate these concerns from their applications.  
 
 Some examples of service meshes include:
@@ -9,8 +7,7 @@ Some examples of service meshes include:
 * [Istio](https://istio.io) (see [Charmed Istio](./istio.md) for deploying with Juju)
 * [Cilium](https://cilium.io/use-cases/service-mesh/)
 
-## Why do I need a service mesh?
-
+## Why do i need a service mesh?
 Kubernetes facilitates deploying resilient and scalable microservice applications in multi-tenant environments, but these deployments also have specific operational concerns:
 
 * how do I protect against person-in-the-middle attacks?
