@@ -1,10 +1,12 @@
 # Browser auth flow
+
 How a browser request to a protected app (bookinfo productpage) gets authenticated
 through the Charmed Istio Ambient + IAM stack.
 
 Reference setup: `justfiles/setup.just`
 
 ## Components
+
 | Component | Model | Role |
 |---|---|---|
 | istio-k8s | istio-system | mesh control plane, holds ext_authz config |
@@ -16,6 +18,7 @@ Reference setup: `justfiles/setup.just`
 | kratos | iam | identity store, validates credentials |
 
 ## Why traefik?
+
 The IAM charms (hydra, kratos, login-ui) dropped support for the generic `ingress`
 interface (IPA) in mid-2025 and now only expose a `public-route` relation using the
 `traefik_route` interface. This means they can only be fronted by Traefik, not by
@@ -25,6 +28,7 @@ Until the IAM charms either revive the generic ingress interface or add support 
 `istio-ingress-route`, Traefik is a required component in this setup.
 
 ## Step 1: unauthenticated request hits ext_authz
+
 The browser hits productpage. Envoy intercepts and asks oauth2-proxy
 if the request is allowed. No session cookie exists, so oauth2-proxy
 redirects to Hydra.
@@ -52,7 +56,8 @@ The `ingress` endpoint on istio-ingress is the authenticated route.
 The `ingress-unauthenticated` endpoint bypasses ext_authz entirely.
 oauth2-proxy's own callback uses this to avoid an infinite auth loop.
 
-## Step 2: hydra starts the login flow
+## Step 2: Hydra starts the login flow
+
 Hydra receives the OAuth2 authorization request. It doesn't authenticate
 users itself, it delegates to Login UI via a login challenge.
 
@@ -78,6 +83,7 @@ hardcoded by `normalise_url` in the login-ui charm, which is why
 Traefik must have TLS.
 
 ## Step 3: login ui authenticates the user via kratos
+
 Login UI receives the login challenge, checks with Hydra what's being
 requested, then runs the user through Kratos authentication.
 
@@ -121,6 +127,7 @@ sequenceDiagram
 ```
 
 ## Step 4: login accepted, csrf check, consent
+
 Login UI tells Hydra the user is authenticated. The browser is redirected
 back to Hydra, which validates the CSRF cookie and moves to consent.
 
@@ -152,6 +159,7 @@ The consent step asks "does the user allow this client to access their data?"
 In this setup, login-ui auto-accepts without prompting the user.
 
 ## Step 5: token exchange and session
+
 oauth2-proxy receives the authorization code, exchanges it for tokens,
 and sets a session cookie.
 
@@ -185,6 +193,7 @@ The three tokens:
 - **refresh_token** (opaque): how to get fresh tokens without re-authenticating. Keeps the session alive long-term.
 
 ## Step 6: authenticated request
+
 The browser retries with the session cookie. oauth2-proxy validates it
 and tells Envoy to allow the request, setting identity headers.
 

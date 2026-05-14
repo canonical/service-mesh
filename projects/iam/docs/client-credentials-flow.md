@@ -1,4 +1,5 @@
 # Client credentials flow
+
 How a programmatic client authenticates with the IAM setup to access a
 protected app, without a browser or user interaction.
 
@@ -7,6 +8,7 @@ Requires the browser auth setup from `justfiles/setup.just` to be deployed.
 Reference setup: `justfiles/client-credentials.just`
 
 ## Prerequisites
+
 The browser auth flow must already be working. This flow reuses the same
 ext_authz path but with a Bearer JWT instead of a session cookie.
 
@@ -16,6 +18,7 @@ Two additional steps are needed:
 2. Register a `client_credentials` client in Hydra with the right audience
 
 ## What is a client_credentials client?
+
 In the browser flow, the only OAuth2 client is oauth2-proxy itself. It was
 registered by Hydra when the cross-model `oauth` relation was established.
 Users are not OAuth2 clients, they exist in Kratos.
@@ -25,6 +28,7 @@ client_id and client_secret, but no associated user. It gets tokens directly
 from Hydra without going through login, consent, or Kratos.
 
 ## Step 1: enable jwt bearer tokens
+
 By default, oauth2-proxy only accepts session cookies. Setting
 `enable_jwt_bearer_tokens=true` makes it also validate Bearer JWTs in the
 Authorization header.
@@ -34,7 +38,8 @@ oauth2-proxy workload. When a request arrives with a Bearer token, oauth2-proxy
 validates the JWT signature against Hydra's JWKS endpoint instead of looking
 for a session cookie.
 
-## Step 2: register a client in hydra
+## Step 2: register a client in Hydra
+
 The client is created via Hydra's admin API using the CLI inside the hydra pod.
 
 ```
@@ -61,6 +66,7 @@ The oauth2-proxy client_id comes from the `oauth` relation data on
 oauth2-proxy. It was assigned by Hydra when the relation was established.
 
 ## Step 3: get a token
+
 The client exchanges its credentials for a JWT at Hydra's token endpoint.
 
 ```mermaid
@@ -92,6 +98,7 @@ The JWT payload looks like:
 No `email`, no `name`, no user identity. The `sub` claim is the client_id.
 
 ## Step 4: access the protected app
+
 The client sends the JWT as a Bearer token. The request goes through the
 same ext_authz path as the browser flow.
 
@@ -113,6 +120,7 @@ sequenceDiagram
 ```
 
 ## What headers reach the backend?
+
 oauth2-proxy sets the same headers as in the browser flow, but the values
 come from the JWT claims:
 
@@ -127,7 +135,9 @@ These headers are configured in the mesh config under
 `forward-auth` -> `istio-ingress-config` relation chain.
 
 ## Limitations
+
 ### Service mesh concern
+
 - No custom headers. The headers oauth2-proxy sets are hardcoded in the
   `auth_proxy` charm lib as `ALLOWED_HEADERS`. There is no technical reason
   for this restriction. oauth2-proxy itself supports arbitrary headers
@@ -140,6 +150,7 @@ These headers are configured in the mesh config under
   [request-authentication-findings.md](request-authentication-findings.md).
 
 ### Not a service mesh concern
+
 - No user identity in client_credentials JWTs. The `sub` claim is the
   client_id, not a user email or username. This is how OAuth2
   client_credentials works by design. Mapping M2M clients to user

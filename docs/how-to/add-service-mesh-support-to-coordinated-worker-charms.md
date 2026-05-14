@@ -1,4 +1,5 @@
 # Add service mesh support to coordinated-worker charms
+
 This guide explains how to add service mesh support to charms that use the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) Python package. The package provides built-in service mesh integration that handles cluster-internal policies and worker telemetry routing automatically.
 
 ```{note}
@@ -6,6 +7,7 @@ Service mesh support in the `coordinated-workers` package is available from vers
 ```
 
 ## Prerequisites
+
 This guide assumes you have:
 - A charm already using the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0 or later) with a coordinator and worker charm
 - Basic knowledge of [service mesh concepts](../explanation/service-mesh.md)
@@ -17,6 +19,7 @@ This guide is specifically for charms using the `coordinated-workers` package (l
 ```
 
 ## Overview
+
 The `coordinated-workers` package provides automatic service mesh integration for coordinator-worker architectures. When enabled, it:
 
 - Automatically manages [cluster-internal authorization policies](../explanation/service-mesh-in-coordinated-worker-charms.md#cluster-internal-policies) between the coordinator and workers
@@ -24,11 +27,13 @@ The `coordinated-workers` package provides automatic service mesh integration fo
 - Allows charm authors to define additional charm-specific policies for external relations
 
 ## Add the service mesh library to both coordinator and worker charms
+
 ```{important}
 Both the **coordinator** and **worker** charms must fetch the `service_mesh` library, even though the worker charm won't use it directly in code. The `coordinated-workers` package requires this library to be present in both charms to function correctly.
 ```
 
 ### Fetch the library
+
 In both your coordinator and worker charm directories, fetch the `service_mesh` library:
 
 ```bash
@@ -40,6 +45,7 @@ charmcraft fetch-lib charms.istio_beacon_k8s.v0.service_mesh
 ```
 
 ### Add required dependencies
+
 The `service_mesh` library has dependencies that must be added to the `requirements.txt` file in **both coordinator and worker charms**:
 
 ```text
@@ -53,7 +59,9 @@ Even though the worker charm doesn't directly use the `service_mesh` library in 
 ```
 
 ## Add service mesh relations to your coordinator charm
+
 ### Step 1: add required relations to `charmcraft.yaml`
+
 Add the following relations to your **coordinator** charm's `charmcraft.yaml`:
 
 ```yaml
@@ -82,6 +90,7 @@ The worker charm does not require any service mesh relations in its `charmcraft.
 ```
 
 ### Step 2: configure service mesh endpoints in coordinator initialization
+
 Update your `Coordinator` instantiation to include the service mesh endpoint names:
 
 ```python
@@ -125,6 +134,7 @@ The `Coordinator` class will automatically:
 - Handle mesh label reconciliation on coordinator and worker pods
 
 ### Step 3: define charm-specific mesh policies
+
 Create a method that returns policies specific to your charm's external relations. These policies control access from applications that relate to your coordinator (not the internal cluster communication):
 
 ```python
@@ -181,6 +191,7 @@ You only need to define policies for relations that are **external** to your coo
 ```
 
 ### Step 4: enable worker telemetry proxying
+
 Configure the coordinator to proxy worker telemetry by defining a `WorkerTelemetryProxyConfig`:
 
 ```python
@@ -217,6 +228,7 @@ See the [service mesh architecture explanation](../explanation/service-mesh-in-c
 ```
 
 ### Step 5: open the telemetry proxy port
+
 Ensure your coordinator charm opens the port specified in your `WorkerTelemetryProxyConfig`:
 
 ```python
@@ -231,6 +243,7 @@ def _reconcile(self):
 ```
 
 ## Further reading
+
 - Learn about the [service mesh architecture in coordinated-worker charms](../explanation/service-mesh-in-coordinated-worker-charms.md)
 - Understand [how to manage custom policies with PolicyResourceManager](./manage-custom-policies-with-policyresourcemanager.md) for advanced use cases
 - Explore [traffic authorization concepts](../explanation/traffic-authorization.md) in service meshes

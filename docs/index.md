@@ -1,5 +1,6 @@
 <!-- vale off -->
 # Charmed service mesh
+
 <!-- vale on -->
 
 A service mesh manages communication between microservices, offering traffic control, security, and observability without changing application code. However, it can be complex to operate.
@@ -19,6 +20,7 @@ Reference </reference/index>
 ```
 
 ## In this documentation
+
 ````{grid} 1 1 2 2
 
   ```{grid-item-card} Tutorial
@@ -55,6 +57,7 @@ Reference </reference/index>
 
 
 ## Project and community
+
 The Charmed Service Mesh is a member of the Canonical family. It's an open source project
 that warmly welcomes community projects, contributions, suggestions, fixes
 and constructive feedback.

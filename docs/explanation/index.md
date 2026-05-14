@@ -1,4 +1,5 @@
 # Explanation
+
 These documents provide an explanation of key topics and concepts of the Charmed Service Mesh.
 
 ```{toctree}

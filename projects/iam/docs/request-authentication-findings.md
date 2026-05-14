@@ -1,9 +1,11 @@
 # Requestauthentication findings
+
 Findings from investigating how to add JWT validation via Istio's
 RequestAuthentication to the existing ext_authz setup, and what charm
 changes would be needed.
 
 ## Background
+
 The current setup uses ext_authz (oauth2-proxy) for all authentication.
 This works for both browser flows (session cookies) and programmatic
 access (Bearer JWTs when `enable_jwt_bearer_tokens` is enabled).
@@ -15,6 +17,7 @@ For client_credentials JWTs, both `X-Auth-Request-User` and
 `X-Auth-Request-Email` contain the client_id UUID, not a user identity.
 
 ## Kubeflow's approach
+
 Kubeflow uses RequestAuthentication alongside ext_authz, not instead of it.
 Three Istio resources work together on the same gateway:
 
@@ -97,6 +100,7 @@ spec:
 Source: https://github.com/kubeflow/manifests/tree/v1.11-branch/common/oauth2-proxy/components/istio-external-auth
 
 ## The critical detail: oauth2-proxy injects the jwt
+
 The key insight from the Kubeflow DENY policy comment:
 
 > "even user requests that have been authenticated by oauth2-proxy
@@ -119,6 +123,7 @@ The current oauth2-proxy charm does NOT set this flag. It only sets
 required for this pattern to work.
 
 ## How forward-auth and request-auth work in tandem
+
 The three resources form a pipeline, not two separate paths:
 
 **Browser flow (no Authorization header):**
@@ -177,6 +182,7 @@ but would not be redirected to ext_authz (the CUSTOM policy already
 evaluated). The DENY policy catches this case.
 
 ## Gateway endpoints
+
 The existing istio-ingress-k8s endpoints remain unchanged:
 
 | Endpoint | Auth applied |
@@ -189,10 +195,12 @@ Apps on `ingress-unauthenticated` (like oauth2-proxy's callback)
 bypass both, same as today.
 
 ## Implementation plan
+
 Based on how upstream Kubeflow solves this, with three changes needed
 across two charms:
 
 ### 1. Oauth2-proxy charm: inject jwt on allow
+
 Enable `OAUTH2_PROXY_SET_AUTHORIZATION_HEADER=true` so that browser-flow
 requests get the id_token injected as a Bearer token. This is what makes
 RequestAuthentication work for browser users, not just API clients.
@@ -202,6 +210,7 @@ when forward-auth is active. Without this, RequestAuthentication only
 works for the API/JWT flow.
 
 ### 2. Istio-ingress charm: requestauthentication resource
+
 A new `request-auth` relation on istio-ingress-k8s where the consuming
 app provides its claim-to-header mappings. Only the app knows what
 headers it needs (e.g. Kubeflow needs `email` -> `kubeflow-userid`).
@@ -227,12 +236,14 @@ exactly as it does today. The `ingress` and `ingress-unauthenticated`
 endpoints are unchanged.
 
 ### 3. Forward-auth lib: pass oidc discovery info
+
 The forward-auth lib would need to also pass `issuer_url` and
 `jwks_uri`, which it currently does not. RequestAuthentication needs
 these to validate JWTs. oauth2-proxy already has them from its `oauth`
 relation with Hydra.
 
 ## Jwks endpoint and tls trust
+
 RequestAuthentication needs to fetch JWKS from the OIDC provider.
 In this setup, the JWKS endpoint is behind Traefik with a self-signed
 cert. The gateway won't trust it, and there is no `insecureSkipVerify`
