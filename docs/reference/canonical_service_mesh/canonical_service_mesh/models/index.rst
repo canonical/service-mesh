@@ -1,5 +1,5 @@
 canonical_service_mesh.models
-===========================
+=============================
 
 .. py:module:: canonical_service_mesh.models
 

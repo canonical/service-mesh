@@ -1,9 +1,9 @@
 <!-- vale off -->
-# Monitor istio ambient using Kiali
+# Monitor istio ambient using 
 
 <!-- vale on -->
 
-This guide demonstrates how to deploy and configure [Kiali](https://kiali.io) to observe your Charmed Istio ambient. You'll learn how to visualize your mesh topology, monitor traffic flow, and gain insights into your distributed applications.
+This guide demonstrates how to deploy and configure [](https://kiali.io) to observe your Charmed Istio ambient. You'll learn how to visualize your mesh topology, monitor traffic flow, and gain insights into your distributed applications.
 
 ## Introduction
 
@@ -82,7 +82,7 @@ juju deploy kiali-k8s --trust --channel=2/edge
 ```
 
 <!-- vale off -->
-### Step 4: connect kiali to Istio
+### Step 4: connect Kiali to Istio
 
 <!-- vale on -->
 

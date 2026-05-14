@@ -1,5 +1,5 @@
 canonical_service_mesh.k8s
-========================
+==========================
 
 .. py:module:: canonical_service_mesh.k8s
 

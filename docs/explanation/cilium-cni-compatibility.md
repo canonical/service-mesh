@@ -1,4 +1,4 @@
-# Compatibility with cilium cni
+# Compatibility with Cilium CNI
 
 `Cilium` is an `eBPF` based CNI which includes some intelligent kernel level traffic re-routing using `eBPF` programs. This traffic re-routing can potentially interfere with `Istio ambient's` mesh features.
 

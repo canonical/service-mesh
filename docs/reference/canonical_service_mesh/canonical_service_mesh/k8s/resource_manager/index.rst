@@ -1,5 +1,5 @@
 canonical_service_mesh.k8s.resource_manager
-=========================================
+===========================================
 
 .. py:module:: canonical_service_mesh.k8s.resource_manager
 
@@ -189,7 +189,7 @@ Package Contents
        A list of Resource objects returned from client.apply().
 
 
-.. py:function:: create_charm_default_labels(application_name: str, model_name: str, scope: str) -> dict
+.. py:function:: create_charm_default_labels(application_name: str, model_name: str, scope: str) -> Dict[str, str]
 
    Return a default label style for the KubernetesResourceHandler label selector.
 

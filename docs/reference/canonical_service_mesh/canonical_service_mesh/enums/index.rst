@@ -1,5 +1,5 @@
 canonical_service_mesh.enums
-==========================
+============================
 
 .. py:module:: canonical_service_mesh.enums
 
