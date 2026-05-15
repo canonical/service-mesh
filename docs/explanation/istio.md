@@ -1,4 +1,4 @@
-# Charmed Istio Ambient
+# Charmed Istio ambient
 
 [Istio](https://istio.io) is an implementation of a [service mesh](./service-mesh.md).  It helps you:
 

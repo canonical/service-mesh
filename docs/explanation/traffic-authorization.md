@@ -1,4 +1,4 @@
-# Traffic Authorization
+# Traffic authorization
 
 Traffic authorization is an important security feature in a Kubernetes cluster.  As Kubernetes enables multi-tenant deployments, microservice applications, and other complex patterns, it is important that:
 
@@ -12,7 +12,7 @@ Authorization controls like this help prevent unwanted access within your networ
 
 These are codified in concrete policies that differ between each service mesh.
 
-## Authorization Management in a Charmed Service Mesh
+## Authorization management in a charmed service mesh
 
 Authorization management in a charmed service mesh centers around the Beacon charm.  Each charmed service mesh implements a Beacon charm that manages the service mesh for a model.  That charm:
 
@@ -59,14 +59,14 @@ class DetailsK8sCharm(CharmBase):
 
 This means that, when related to a Beacon charm via the `service_mesh` relation, `bookinfo-details-k8s` will request traffic authorization for every application related to its `details` integration.  Specifically, it will request that those related applications can `GET` the `/health` and `/details/*` endpoints on a given port.  It is then the responsibility of the related beacon charm to create the policies necessary for this communication in the given service mesh.
 
-## Authorization Management in Charmed Istio
+## Authorization management in Charmed Istio
 
 Istio's [Authorization](https://istio.io/latest/docs/concepts/security/#authorization) model centers around the [`AuthorizationPolicy`](https://istio.io/latest/docs/reference/config/security/authorization-policy/).  This object is how service-to-service communication is opened in an Istio service mesh.  The [istio-beacon-k8s](https://charmhub.io/istio-beacon-k8s) charm manages `AuthorizationPolicies` for Charmed Istio.  It automatically creates policies for charms related to it via the [`service_mesh`](https://charmhub.io/istio-beacon-k8s/integrations) interface.  
 
 Using the above example of `bookinfo-details-k8s` requesting a policy for applications integrated in its `details` integration, if `bookinfo-details-k8s` is related to `istio-beacon-k8s` then we'd see the following `AuthorizationPolicy` created:
 
 ```yaml
-# see this yaml yourself by using:
+# See this yaml yourself by using:
 # kubectl get authorizationpolicy -n bookinfo istio-beacon-k8s-bookinfo-policy-bookinfo-productpage-k8s-bookinfo-bookinfo-details-k8s-HASH -o yaml
 apiVersion: security.istio.io/v1
 kind: AuthorizationPolicy

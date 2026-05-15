@@ -1,4 +1,4 @@
-# Service Mesh
+# Service mesh
 
 ## What is a service mesh?
 

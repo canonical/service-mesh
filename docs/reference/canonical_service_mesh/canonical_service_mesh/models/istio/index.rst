@@ -1,5 +1,5 @@
 canonical_service_mesh.models.istio
-=================================
+===================================
 
 .. py:module:: canonical_service_mesh.models.istio
 

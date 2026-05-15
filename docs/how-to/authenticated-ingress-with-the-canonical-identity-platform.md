@@ -1,4 +1,4 @@
-# Authenticated Ingress with the Canonical Identity Platform
+# Authenticated ingress with the Canonical Identity Platform
 
 ## Introduction
 
@@ -50,9 +50,9 @@ We need to use the `dev` track for the Istio charms currently as the 2 track has
 Any release track newer than 2 should work just fine.
 ```
 
-## Deploy Authenticated Bookinfo
+## Deploy authenticated Bookinfo
 
-* Deploy the bookinfo application
+* Deploy the `bookinfo` application
   ```{code} bash
   juju add-model bookinfo
   juju deploy bookinfo-productpage-k8s bookinfo

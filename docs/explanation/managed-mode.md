@@ -1,4 +1,4 @@
-# Managed Mode
+# Managed mode
 
 Managed mode refers to a set of configuration options that together control how authorization policies are automatically created and enforced on the mesh.  When fully enabled, the beacon charm automatically generates `AuthorizationPolicies` based on what charm authors define via the [`ServiceMeshConsumer` library](../how-to/add-mesh-support-to-your-charm.md), so administrators do not need to create policies manually.
 

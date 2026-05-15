@@ -1,4 +1,4 @@
-# Manage Custom Service Mesh Policies with PolicyResourceManager
+# Manage custom service mesh policies with PolicyResourceManager
 
 This guide explains how to use the `PolicyResourceManager` class to create and manage custom service mesh authorization policies directly from your charm. This is an advanced feature for scenarios where the automatic policy generation provided by `ServiceMeshConsumer` is not sufficient.
 
@@ -114,7 +114,7 @@ Each manager can independently reconcile its own set of policies without interfe
 
 ## Add PolicyResourceManager to your charm
 
-### Step 1: Import the required classes
+### Step 1: import the required classes
 
 First, fetch the [`service-mesh` library](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) and import the necessary classes in your charm:
 
@@ -130,7 +130,7 @@ from charms.istio_beacon_k8s.v0.service_mesh import (
 from lightkube import Client
 ```
 
-### Step 2: Instantiate the PolicyResourceManager
+### Step 2: instantiate the PolicyResourceManager
 
 Create a method in your charm to instantiate the `PolicyResourceManager`:
 
@@ -164,7 +164,7 @@ class MyCharm(CharmBase):
 The `lightkube_client` **must** be instantiated with a `field_manager` parameter. This is required for Kubernetes server-side apply operations. A good practice is to use your application name combined with the model name to ensure uniqueness.
 ```
 
-### Step 3: Define your custom MeshPolicy objects
+### Step 3: define your custom MeshPolicy objects
 
 Create a method that returns the list of policies you want to manage:
 
@@ -211,7 +211,7 @@ def _get_custom_policies(self) -> List[MeshPolicy]:
     return policies
 ```
 
-### Step 4: Reconcile policies in your charm's event handlers
+### Step 4: reconcile policies in your charm's event handlers
 
 Call the `reconcile()` method to create or update the policies:
 
@@ -234,7 +234,7 @@ def _reconcile_policies(self, event):
     prm.reconcile(policies, mesh_type)
 ```
 
-### Step 5: Clean up on removal
+### Step 5: clean up on removal
 
 Ensure policies are deleted when your charm is removed:
 
@@ -253,14 +253,16 @@ def _on_remove(self, event):
 A `MeshPolicy` defines a complete authorization policy with the following key fields. For more details on how these policies translate to actual authorization rules, see the [traffic authorization documentation](../explanation/traffic-authorization.md).
 
 ### Source configuration
+
 - **`source_namespace`**: The Juju model (Kubernetes namespace) of the application making the request
 - **`source_app_name`**: The name of the Juju application making the request
 
 ### Target configuration
+
 - **`target_namespace`**: The Juju model (Kubernetes namespace) of the target application
 - **`target_type`**: Either `PolicyTargetType.app` or `PolicyTargetType.unit`
 
-### App-targeted policies vs. Unit-targeted policies
+### App-targeted policies vs. unit-targeted policies
 
 The behavior differs significantly based on the `target_type`. For a detailed explanation of these policy types, see the [charm mesh support guide](./add-mesh-support-to-your-charm.md#enable-automatic-fine-grained-access-to-other-charmed-applications-via-policies).
 

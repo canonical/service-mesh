@@ -1,4 +1,4 @@
-# Hardened Mode
+# Hardened mode
 
 In a zero-trust network, no service is trusted by default and every request must be explicitly authorized before it is allowed through.  Hardened mode brings this principle to the service mesh by enforcing a deny-by-default security posture: all inbound traffic to services on the mesh is denied unless an authorization policy explicitly allows it.
 

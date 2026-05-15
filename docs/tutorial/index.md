@@ -5,7 +5,7 @@ in a natural progression, where you will first get your service mesh up and runn
 some more advanced use cases, as well as how to get it operationally ready.
 
 1. [Get started with Charmed Istio ambient](get-started-with-the-charmed-istio-mesh)
-1. [Use Istio ambient across different Juju models](use-the-istio-mesh-across-different-juju-models)
+1. [Use istio ambient across different Juju models](use-the-istio-mesh-across-different-juju-models)
 
 ```{toctree}
 :maxdepth: 1

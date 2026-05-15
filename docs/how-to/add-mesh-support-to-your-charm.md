@@ -1,8 +1,8 @@
-# Add Mesh Support to your Charm
+# Add mesh support to your charm
 
 This guide explains how to add service mesh support to your charm using the [ServiceMeshConsumer](https://charmhub.io/istio-beacon-k8s/libraries/service_mesh) library.  This library enables your charm to join a service mesh and automatically generate traffic authorization policies.
 
-## Add Required Relations to `charmcraft.yaml`
+## Add required relations to `charmcraft.yaml`
 
 To use the `ServiceMeshConsumer` library, add the following relations to your charm's `charmcraft.yaml`:
 
@@ -58,7 +58,7 @@ class MyCharm(CharmBase):
 
 This integration allows for your Charm to be integrated with a Charmed Beacon and [individually added to a Juju service mesh](./add-juju-applications-and-models-to-the-service-mesh.md).  By default, Charmed Service Meshes deploy [hardening](../explanation/hardened-mode.md), meaning they block any unauthorized access to your workloads.  If your Charm is never accessed by other applications in the cluster (ex: a Wordpress server that simply provides a website), you're done!  But if other applications need to access your charm, such as if you've charmed a database that other applications will relate to or a workload that has scrapable metrics, then continue below to create access policies.  
 
-## Enable Automatic, Fine-grained Access to other Charmed Applications via Policies
+## Enable automatic, fine-grained access to other charmed applications via policies
 
 In a [hardened](../explanation/hardened-mode.md) service mesh, communication between applications must be explicitly allowed by policies.  If your Charm deploys workloads that other applications consume, for example:
 
@@ -112,7 +112,7 @@ class MyCharm(CharmBase):
 
 Exactly what should be defined for your `Endpoint`s depends on the application you've charmed.  Generally, you can look at your applications API reference or typical usage and include exactly what is needed, exposing only the necessary attack surface.  
 
-## Cross-model Integrations (Optional)
+## Cross-model integrations (optional)
 
 If your Charm provides integrations that can be used cross-model, the `ServiceMeshConsumer` library offers the additional `provide-cmr-mesh` and `require-cmr-mesh` integrations to ensure these generate policies properly.  These additional integrations are required because Juju cross-model relations do not natively provide all the information needed for a service mesh authorization policy to be generated.  
 

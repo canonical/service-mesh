@@ -1,4 +1,4 @@
-# Service Mesh in Coordinated-Worker Charms
+# Service mesh in coordinated-worker charms
 
 This document explains how service mesh integration works in charms that use the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (available from v2.1.0). It covers the architecture, policy management, and worker telemetry routing that enable secure, controlled communication in coordinator-worker deployments.
 

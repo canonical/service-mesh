@@ -1,5 +1,5 @@
 canonical_service_mesh
-====================
+======================
 
 .. py:module:: canonical_service_mesh
 
@@ -16,6 +16,7 @@ Submodules
    :maxdepth: 1
 
    /reference/canonical_service_mesh/canonical_service_mesh/enums/index
+   /reference/canonical_service_mesh/canonical_service_mesh/interfaces/index
    /reference/canonical_service_mesh/canonical_service_mesh/k8s/index
    /reference/canonical_service_mesh/canonical_service_mesh/models/index
    /reference/canonical_service_mesh/canonical_service_mesh/utils/index

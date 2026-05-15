@@ -1,4 +1,4 @@
-# RequestAuthentication Findings
+# RequestAuthentication findings
 
 Findings from investigating how to add JWT validation via Istio's
 RequestAuthentication to the existing ext_authz setup, and what charm
