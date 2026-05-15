@@ -21,7 +21,7 @@ provides:
   provide-cmr-mesh:
     interface: cross_model_mesh
     description: |
-      If this app is generating polciies to provide access to related applications that are cross-model, relate that app to this additional relation to retrieve additional data required for these policies.  This is required because Juju does not natively provide all information required to build these policies when related cross-model.
+      If this app is generating policies to provide access to related applications that are cross-model, relate that app to this additional relation to retrieve additional data required for these policies.  This is required because Juju does not natively provide all information required to build these policies when related cross-model.
 ```
 
 ## Use the `ServiceMeshConsumer` library in your charm
@@ -53,7 +53,7 @@ Add the `ServiceMeshConsumer` to your Charm. For example:
 class MyCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
-    self._mesh = ServiceMeshConsumer(self)
+        self._mesh = ServiceMeshConsumer(self)
 ```
 
 This integration allows for your Charm to be integrated with a Charmed Beacon and [individually added to a Juju service mesh](./add-juju-applications-and-models-to-the-service-mesh.md).  By default, Charmed Service Meshes deploy [hardening](../explanation/hardened-mode.md), meaning they block any unauthorized access to your workloads.  If your Charm is never accessed by other applications in the cluster (ex: a Wordpress server that simply provides a website), you're done!  But if other applications need to access your charm, such as if you've charmed a database that other applications will relate to or a workload that has scrapable metrics, then continue below to create access policies.  
@@ -89,25 +89,25 @@ For example:
 class MyCharm(CharmBase):
     def __init__(self, *args):
         super().__init__(*args)
-    self._mesh = ServiceMeshConsumer(
-        self,
-        policies=[
-            AppPolicy(
-                relation="database",          # On the database relation
-                endpoints=[                   # allow a related application to access...
-                    Endpoint(
-                        paths=["/db"],                     # these specific paths
-                        ports=[DB_PORT],                   # on these specific ports
-                        methods=[Method.get, Method.Post], # using only these methods
-                    ),
-                ],
-            ),
-            UnitPolicy(
-                relation="metrics-endpoint",  # On the metrics-endpoint relations
-                ports=[HTTP_PORT],  # allow a related application to access this charm's individual units on these specific ports
-            ),
-        ],
-    )
+        self._mesh = ServiceMeshConsumer(
+            self,
+            policies=[
+                AppPolicy(
+                    relation="database",          # On the database relation
+                    endpoints=[                   # allow a related application to access...
+                        Endpoint(
+                            paths=["/db"],                     # these specific paths
+                            ports=[DB_PORT],                   # on these specific ports
+                            methods=[Method.get, Method.Post], # using only these methods
+                        ),
+                    ],
+                ),
+                UnitPolicy(
+                    relation="metrics-endpoint",  # On the metrics-endpoint relations
+                    ports=[HTTP_PORT],  # allow a related application to access this charm's individual units on these specific ports
+                ),
+            ],
+        )
 ```
 
 Exactly what should be defined for your `Endpoint`s depends on the application you've charmed.  Generally, you can look at your applications API reference or typical usage and include exactly what is needed, exposing only the necessary attack surface.  
