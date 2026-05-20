@@ -1,8 +1,11 @@
 """Pytest configuration for Service Mesh integration tests."""
 
+import logging
 from typing import Dict
 
 import pytest
+
+logger = logging.getLogger(__name__)
 
 
 def pytest_bdd_apply_tag(tag, function):
@@ -22,6 +25,7 @@ pytest_plugins = [
     "tests.integration.istio.steps.authorization_policies_steps",
     "tests.integration.istio.steps.managed_mode_steps",
     "tests.integration.istio.steps.hardened_mode_steps",
+    "tests.integration.istio.steps.iam_steps",
 ]
 
 
@@ -49,6 +53,24 @@ def beacon_info() -> Dict:
 @pytest.fixture(scope="module")
 def ingress_info() -> Dict:
     """Store the ingress app name for the test module."""
+    return {"app_name": None}
+
+
+@pytest.fixture(scope="module")
+def iam_juju(temp_model_factory):
+    """Create a temporary Juju model for IAM deployment."""
+    yield temp_model_factory.get_juju(suffix="iam")
+
+
+@pytest.fixture(scope="module")
+def iam_info() -> Dict:
+    """Store IAM deployment state and offer URLs for the test module."""
+    return {"deployed": False}
+
+
+@pytest.fixture(scope="module")
+def oauth2_info() -> Dict:
+    """Store the oauth2-proxy app name for the test module."""
     return {"app_name": None}
 
 

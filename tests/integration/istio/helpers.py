@@ -3,14 +3,12 @@
 import json
 import logging
 import os
+import subprocess
 import tempfile
 from pathlib import Path
 from typing import List, Optional
 
 import jubilant
-from lightkube import Client
-from lightkube.generic_resource import create_namespaced_resource
-from lightkube.resources.core_v1 import Service
 
 from tests.integration.helpers import TFManager, wait_for_active_idle_without_error
 
@@ -31,29 +29,35 @@ def get_gateway_address(namespace: str) -> str:
     Raises:
         RuntimeError: If no external IP is found
     """
-    client = Client()
-    svc = client.get(Service, name=ISTIO_INGRESS_K8S_SERVICE_NAME, namespace=namespace)
-    if (
-        svc.status is None
-        or svc.status.loadBalancer is None
-        or not svc.status.loadBalancer.ingress
-    ):
+    # Use kubectl instead of lightkube because MicroK8s CA certs lack the key usage
+    # extension, which causes SSL verification failures with OpenSSL 3.5+.
+    # See: https://github.com/canonical/microk8s/issues/4864
+    result = subprocess.run(
+        [
+            "kubectl",
+            "get",
+            "svc",
+            ISTIO_INGRESS_K8S_SERVICE_NAME,
+            "-n",
+            namespace,
+            "-o",
+            "jsonpath={.status.loadBalancer.ingress[0].ip}",
+        ],
+        capture_output=True,
+        text=True,
+        timeout=30,
+    )
+    if result.returncode != 0 or not result.stdout.strip():
         raise RuntimeError(
-            f"No external IP found for {ISTIO_INGRESS_K8S_SERVICE_NAME} in {namespace}"
+            f"No external IP found for {ISTIO_INGRESS_K8S_SERVICE_NAME} in {namespace}: "
+            f"{result.stderr}"
         )
-    return str(svc.status.loadBalancer.ingress[0].ip)
-
-
-_AuthorizationPolicy = create_namespaced_resource(
-    group="security.istio.io",
-    version="v1beta1",
-    kind="AuthorizationPolicy",
-    plural="authorizationpolicies",
-)
+    return result.stdout.strip()
 
 
 # Istio configuration
-ISTIO_CHANNEL = os.environ.get("ISTIO_CHANNEL", "2/edge")
+# Version 2 doesn't work with iam so running dev for now. We can consider switching to a stable track when a new one releases.
+ISTIO_CHANNEL = os.environ.get("ISTIO_CHANNEL", "dev/edge")
 
 
 def get_authorization_policies(juju: jubilant.Juju) -> List[str]:
@@ -67,14 +71,28 @@ def get_authorization_policies(juju: jubilant.Juju) -> List[str]:
     """
     assert juju.model is not None, "Juju model is not set"
 
+    # Use kubectl instead of lightkube because MicroK8s CA certs lack the key usage
+    # extension, which causes SSL verification failures with OpenSSL 3.5+.
+    # See: https://github.com/canonical/microk8s/issues/4864
     try:
-        client = Client()
-        policies = client.list(_AuthorizationPolicy, namespace=juju.model)
-        policy_names = [
-            policy.metadata.name
-            for policy in policies
-            if policy.metadata is not None and policy.metadata.name is not None
-        ]
+        result = subprocess.run(
+            [
+                "kubectl",
+                "get",
+                "authorizationpolicies.security.istio.io",
+                "-n",
+                juju.model,
+                "-o",
+                "jsonpath={.items[*].metadata.name}",
+            ],
+            capture_output=True,
+            text=True,
+            timeout=30,
+        )
+        if result.returncode != 0:
+            logger.error(f"Failed to get authorization policies: {result.stderr}")
+            return []
+        policy_names = result.stdout.strip().split() if result.stdout.strip() else []
         logger.info(
             f"Found {len(policy_names)} authorization policies in {juju.model}: {policy_names}"
         )
@@ -194,6 +212,70 @@ def deploy_istio_ingress(juju: jubilant.Juju, config: Optional[dict] = None) -> 
 
     app_name = terraform.output("app_name")
     logger.info(f"Istio-ingress deployed: app={app_name}")
+
+    return app_name
+
+
+def deploy_iam(juju: jubilant.Juju) -> dict:
+    """Deploy the Canonical Identity Platform using terraform.
+
+    Args:
+        juju: The Juju model instance to deploy into
+
+    Returns:
+        Dictionary with offer URLs: oauth_offer_url, send_ca_cert_offer_url, certificates_offer_url
+    """
+    assert juju.model is not None, "Juju model is not set"
+
+    terraform_dir = Path(__file__).parent / "terraform" / "iam"
+    state_file = Path(tempfile.gettempdir()) / f"iam-{juju.model}.tfstate"
+
+    logger.info(f"Deploying the Canonical Identity Platform to model {juju.model}")
+
+    terraform = TFManager(terraform_dir, state_file)
+    terraform.init()
+
+    env = os.environ.copy()
+    env["TF_VAR_model"] = juju.model
+    terraform.apply(env)
+    wait_for_active_idle_without_error([juju], timeout=60 * 20)
+
+    return {
+        "oauth_offer_url": terraform.output("oauth_offer_url"),
+        "send_ca_cert_offer_url": terraform.output("send_ca_cert_offer_url"),
+        "certificates_offer_url": terraform.output("certificates_offer_url"),
+    }
+
+
+def deploy_oauth2_proxy(juju: jubilant.Juju, config: Optional[dict] = None) -> str:
+    """Deploy oauth2-proxy-k8s to a Juju model using terraform.
+
+    Args:
+        juju: The Juju model instance to deploy to
+        config: Optional configuration dict for the charm
+
+    Returns:
+        The app name
+    """
+    assert juju.model is not None, "Juju model is not set"
+
+    terraform_dir = Path(__file__).parent / "terraform" / "oauth2-proxy"
+    state_file = Path(tempfile.gettempdir()) / f"oauth2-proxy-{juju.model}.tfstate"
+
+    logger.info(f"Deploying oauth2-proxy-k8s to {juju.model} (config={config})")
+
+    terraform = TFManager(terraform_dir, state_file)
+    terraform.init()
+
+    env = os.environ.copy()
+    env["TF_VAR_model"] = juju.model
+    if config:
+        env["TF_VAR_config"] = json.dumps(config)
+    terraform.apply(env)
+    wait_for_active_idle_without_error([juju], timeout=60 * 20)
+
+    app_name = terraform.output("app_name")
+    logger.info(f"OAuth2-proxy deployed: app={app_name}")
 
     return app_name
 

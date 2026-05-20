@@ -32,7 +32,7 @@ def productpage_exposed_via_ingress(juju: jubilant.Juju, ingress_info: Dict):
     ingress_app = ingress_info["app_name"]
     assert ingress_app is not None, "Ingress app not deployed"
     logger.info(f"Relating productpage to {ingress_app}")
-    juju.cli("relate", "productpage:ingress", f"{ingress_app}:ingress")
+    juju.integrate("productpage:ingress", f"{ingress_app}:ingress")
     wait_for_active_idle_without_error([juju], timeout=60 * 10)
 
 
