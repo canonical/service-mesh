@@ -25,5 +25,6 @@ just -f setup.just create-admin "username" "email"
   * jupyter-controller
   * kserve-controller
   * kubeflow-profiles
+  * kubeflow-dashboard
   * oauth2-proxy
   * self-signed-certs
