@@ -9,7 +9,7 @@ on:
       - 'tox.ini'
       - 'uv.lock'
       - '.github/workflows/pull_request.yaml'
-      - '.github/workflows/_quality-checks.yaml'
+      - '.github/workflows/_solution-level-tests.yaml'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -17,6 +17,6 @@ concurrency:
 
 jobs:
   quality-checks:
-    uses: ./.github/workflows/_quality-checks.yaml
+    uses: ./.github/workflows/_solution-level-tests.yaml
     with:
       istio-channel: "dev/edge"
