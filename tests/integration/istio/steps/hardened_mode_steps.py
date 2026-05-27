@@ -6,11 +6,11 @@ from typing import Dict
 import jubilant
 from pytest_bdd import given, parsers, when
 
-from tests.integration.helpers import (
+from integration.helpers import (
     curl_from_host,
     wait_for_active_idle_without_error,
 )
-from tests.integration.istio.helpers import deploy_istio_ingress, get_gateway_address
+from integration.istio.helpers import deploy_istio_ingress, get_gateway_address
 
 logger = logging.getLogger(__name__)
 

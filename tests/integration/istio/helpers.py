@@ -10,7 +10,7 @@ from typing import List, Optional
 
 import jubilant
 
-from tests.integration.helpers import TFManager, wait_for_active_idle_without_error
+from integration.helpers import TFManager, wait_for_active_idle_without_error
 
 logger = logging.getLogger(__name__)
 

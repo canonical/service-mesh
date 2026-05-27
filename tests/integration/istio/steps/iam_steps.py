@@ -6,8 +6,8 @@ from typing import Dict
 import jubilant
 from pytest_bdd import given, then, when
 
-from tests.integration.helpers import wait_for_active_idle_without_error
-from tests.integration.istio.helpers import (
+from integration.helpers import wait_for_active_idle_without_error
+from integration.istio.helpers import (
     deploy_bookinfo,
     deploy_iam,
     deploy_istio_ingress,
