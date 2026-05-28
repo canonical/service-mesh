@@ -3,7 +3,7 @@
 The Charmed Service Mesh project consists of a set of charms that provide a low-ops 
 service mesh deployed and operated using Juju.
 
-See the full documentation: https://documentation.ubuntu.com/service-mesh/
+See the full documentation: https://canonical-service-mesh-documentation.readthedocs-hosted.com/latest/
 
 ## Structure
 
