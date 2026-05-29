@@ -1,0 +1,70 @@
+name: Release Charm to Edge and Publish Libraries
+
+on:
+  workflow_dispatch:
+    inputs:
+      charm:
+        type: choice
+        description: Which charm to release
+        default: all
+        options:
+          - all
+          - istio-k8s
+          - istio-beacon-k8s
+          - istio-ingress-k8s
+  push:
+    branches:
+      - main
+      - track/**
+    paths:
+      # If you update these paths, also update the filters in the 'changes' job below
+      - charms/istio-k8s/**
+      - charms/istio-beacon-k8s/**
+      - charms/istio-ingress-k8s/**
+
+jobs:
+  changes:
+    name: Detect changed charms
+    runs-on: ubuntu-latest
+    outputs:
+      charms: ${{ steps.set-charms.outputs.charms }}
+    steps:
+      - uses: actions/checkout@v4
+        if: ${{ github.event_name == 'push' }}
+      - uses: dorny/paths-filter@v4
+        if: ${{ github.event_name == 'push' }}
+        id: filter
+        with:
+          filters: |
+            charms/istio-k8s:
+              - charms/istio-k8s/**
+            charms/istio-beacon-k8s:
+              - charms/istio-beacon-k8s/**
+            charms/istio-ingress-k8s:
+              - charms/istio-ingress-k8s/**
+      - name: Set charms matrix
+        id: set-charms
+        run: |
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
+            if [[ "${{ inputs.charm }}" == "all" ]]; then
+              echo 'charms=["charms/istio-k8s","charms/istio-beacon-k8s","charms/istio-ingress-k8s"]' >> "$GITHUB_OUTPUT"
+            else
+              echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
+            fi
+          else
+            echo 'charms=${{ steps.filter.outputs.changes }}' >> "$GITHUB_OUTPUT"
+          fi
+
+  release:
+    name: Release (${{ matrix.charm-path }})
+    needs: changes
+    if: ${{ needs.changes.outputs.charms != '[]' }}
+    strategy:
+      matrix:
+        charm-path: ${{ fromJSON(needs.changes.outputs.charms) }}
+      fail-fast: false
+    uses: canonical/observability/.github/workflows/charm-release.yaml@v2
+    secrets: inherit
+    with:
+      charm-path: ${{ matrix.charm-path }}
+      default-track: dev

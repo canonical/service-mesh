@@ -1,0 +1,21 @@
+name: Tiobe TiCS Analysis
+
+on:
+    workflow_dispatch:
+    schedule:
+    - cron: "0 0 * * 1"  # Runs at midnight UTC every Monday
+
+jobs:
+    tics:
+        name: TiCs (${{ matrix.charm-path }})
+        strategy:
+            matrix:
+                charm-path:
+                    - charms/istio-k8s
+                    - charms/istio-beacon-k8s
+                    - charms/istio-ingress-k8s
+            fail-fast: false
+        uses: canonical/observability/.github/workflows/charm-tiobe-scan.yaml@v2
+        with:
+            charm-path: ${{ matrix.charm-path }}
+        secrets: inherit

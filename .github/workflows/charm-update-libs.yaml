@@ -1,0 +1,23 @@
+name: Auto-update Charm Libraries
+on:
+  # Manual trigger
+  workflow_dispatch:
+  # Check regularly the upstream every four hours
+  schedule:
+    - cron: "0 0,4,8,12,16,20 * * *"
+
+jobs:
+  update-lib:
+    name: Check libraries (${{ matrix.charm-path }})
+    strategy:
+      matrix:
+        charm-path:
+          - charms/istio-k8s
+          - charms/istio-beacon-k8s
+          - charms/istio-ingress-k8s
+      fail-fast: false
+    uses: canonical/observability/.github/workflows/charm-update-libs.yaml@v2
+    with:
+      charm-path: ${{ matrix.charm-path }}
+    secrets: inherit
+
