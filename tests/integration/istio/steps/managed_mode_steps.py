@@ -6,10 +6,10 @@ from typing import Dict
 import jubilant
 from pytest_bdd import given, parsers, then
 
-from tests.integration.helpers import (
+from integration.helpers import (
     wait_for_active_idle_without_error,
 )
-from tests.integration.istio.helpers import (
+from integration.istio.helpers import (
     deploy_bookinfo,
     deploy_istio_beacon,
     get_authorization_policies,

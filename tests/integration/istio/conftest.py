@@ -20,12 +20,12 @@ def pytest_bdd_apply_tag(tag, function):
 
 # Register step definition modules as pytest plugins
 pytest_plugins = [
-    "tests.integration.istio.steps.common_steps",
-    "tests.integration.istio.steps.istio_integration_steps",
-    "tests.integration.istio.steps.authorization_policies_steps",
-    "tests.integration.istio.steps.managed_mode_steps",
-    "tests.integration.istio.steps.hardened_mode_steps",
-    "tests.integration.istio.steps.iam_steps",
+    "integration.istio.steps.common_steps",
+    "integration.istio.steps.istio_integration_steps",
+    "integration.istio.steps.authorization_policies_steps",
+    "integration.istio.steps.managed_mode_steps",
+    "integration.istio.steps.hardened_mode_steps",
+    "integration.istio.steps.iam_steps",
 ]
 
 

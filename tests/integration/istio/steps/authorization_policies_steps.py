@@ -4,7 +4,7 @@ import logging
 
 from pytest_bdd import then
 
-from tests.integration.helpers import verify_http_response
+from integration.helpers import verify_http_response
 
 logger = logging.getLogger(__name__)
 
