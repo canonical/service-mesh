@@ -6,38 +6,28 @@ on:
       - main
       - track/**
     paths:
-      # If you update these paths, also update the filters in the 'changes' job below
-      - charms/istio-k8s/**
-      - charms/istio-beacon-k8s/**
-      - charms/istio-ingress-k8s/**
+      - charms/**
 
 jobs:
-  changes:
-    name: Detect changed charms
+  discover-charms:
+    name: Discover charms
     runs-on: ubuntu-latest
-    permissions:
-      pull-requests: read
     outputs:
-      charms: ${{ steps.filter.outputs.changes }}
+      charms: ${{ steps.discover.outputs.charms }}
     steps:
-      - uses: dorny/paths-filter@v4
-        id: filter
+      - uses: actions/checkout@v4
         with:
-          filters: |
-            charms/istio-k8s:
-              - charms/istio-k8s/**
-            charms/istio-beacon-k8s:
-              - charms/istio-beacon-k8s/**
-            charms/istio-ingress-k8s:
-              - charms/istio-ingress-k8s/**
+          sparse-checkout: charms
+          sparse-checkout-cone-mode: true
+      - id: discover
+        run: echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
 
   pull-request:
     name: PR (${{ matrix.charm-path }})
-    needs: changes
-    if: ${{ needs.changes.outputs.charms != '[]' }}
+    needs: discover-charms
     strategy:
       matrix:
-        charm-path: ${{ fromJSON(needs.changes.outputs.charms) }}
+        charm-path: ${{ fromJSON(needs.discover-charms.outputs.charms) }}
       fail-fast: false
     uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
     with:

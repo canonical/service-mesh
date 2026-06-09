@@ -11,12 +11,8 @@ on:
           - beta -> candidate
           - candidate -> stable
       charm:
-        type: choice
-        description: Charm to promote
-        options:
-          - istio-k8s
-          - istio-beacon-k8s
-          - istio-ingress-k8s
+        type: string
+        description: Charm to promote (directory name under charms/)
 
 jobs:
   promote:

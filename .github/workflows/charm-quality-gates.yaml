@@ -5,12 +5,8 @@ on:
   workflow_dispatch:
     inputs:
       charm:
-        type: choice
-        description: Charm to run quality gates for
-        options:
-          - istio-k8s
-          - istio-beacon-k8s
-          - istio-ingress-k8s
+        type: string
+        description: Charm to run quality gates for (directory name under charms/)
   # Run the quality checks periodically
   # FIXME: adjust the frequency as needed once we have actual gates in place
   # schedule:

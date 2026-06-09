@@ -4,64 +4,42 @@ on:
   workflow_dispatch:
     inputs:
       charm:
-        type: choice
-        description: Which charm to release
+        type: string
+        description: Which charm to release (directory name under charms/, or "all")
         default: all
-        options:
-          - all
-          - istio-k8s
-          - istio-beacon-k8s
-          - istio-ingress-k8s
   push:
     branches:
       - main
       - track/**
     paths:
-      # If you update these paths, also update the filters in the 'changes' job below
-      - charms/istio-k8s/**
-      - charms/istio-beacon-k8s/**
-      - charms/istio-ingress-k8s/**
+      - charms/**
 
 jobs:
-  changes:
-    name: Detect changed charms
+  set-charms:
+    name: Set charm matrix
     runs-on: ubuntu-latest
     outputs:
       charms: ${{ steps.set-charms.outputs.charms }}
     steps:
       - uses: actions/checkout@v4
-        if: ${{ github.event_name == 'push' }}
-      - uses: dorny/paths-filter@v4
-        if: ${{ github.event_name == 'push' }}
-        id: filter
         with:
-          filters: |
-            charms/istio-k8s:
-              - charms/istio-k8s/**
-            charms/istio-beacon-k8s:
-              - charms/istio-beacon-k8s/**
-            charms/istio-ingress-k8s:
-              - charms/istio-ingress-k8s/**
+          sparse-checkout: charms
+          sparse-checkout-cone-mode: true
       - name: Set charms matrix
         id: set-charms
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            if [[ "${{ inputs.charm }}" == "all" ]]; then
-              echo 'charms=["charms/istio-k8s","charms/istio-beacon-k8s","charms/istio-ingress-k8s"]' >> "$GITHUB_OUTPUT"
-            else
-              echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
-            fi
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.charm }}" != "all" ]]; then
+            echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
           else
-            echo 'charms=${{ steps.filter.outputs.changes }}' >> "$GITHUB_OUTPUT"
+            echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
           fi
 
   release:
     name: Release (${{ matrix.charm-path }})
-    needs: changes
-    if: ${{ needs.changes.outputs.charms != '[]' }}
+    needs: set-charms
     strategy:
       matrix:
-        charm-path: ${{ fromJSON(needs.changes.outputs.charms) }}
+        charm-path: ${{ fromJSON(needs.set-charms.outputs.charms) }}
       fail-fast: false
     uses: canonical/observability/.github/workflows/charm-release.yaml@v2
     secrets: inherit
