@@ -5,8 +5,7 @@ on:
     inputs:
       charm:
         type: string
-        description: Which charm to release (directory name under charms/, or "all")
-        default: all
+        description: Which charm to release (directory name under charms/, or leave empty for all)
   push:
     branches:
       - main
@@ -21,14 +20,14 @@ jobs:
     outputs:
       charms: ${{ steps.set-charms.outputs.charms }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
         with:
           sparse-checkout: charms
           sparse-checkout-cone-mode: true
       - name: Set charms matrix
         id: set-charms
         run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.charm }}" != "all" ]]; then
+          if [[ "${{ github.event_name }}" == "workflow_dispatch" && -n "${{ inputs.charm }}" ]]; then
             echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
           else
             echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"

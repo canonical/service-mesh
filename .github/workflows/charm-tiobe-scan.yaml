@@ -12,7 +12,7 @@ jobs:
         outputs:
             charms: ${{ steps.discover.outputs.charms }}
         steps:
-        - uses: actions/checkout@v4
+        - uses: actions/checkout@v6
           with:
             sparse-checkout: charms
             sparse-checkout-cone-mode: true
