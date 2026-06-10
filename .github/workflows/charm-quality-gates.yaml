@@ -8,7 +8,6 @@ on:
         type: choice
         description: Charm to run quality gates for
         options:
-          - all
           - istio-beacon-k8s
           - istio-ingress-k8s
           - istio-k8s
@@ -17,47 +16,11 @@ on:
   # schedule:
   #   - cron: "0 0 * * Tue"
 
-permissions:
-  contents: read
-
 
 jobs:
-  set-charms:
-    name: Set charm matrix
-    runs-on: ubuntu-latest
-    outputs:
-      charms: ${{ steps.set-charms.outputs.charms }}
-    steps:
-      - uses: actions/checkout@v6
-        with:
-          sparse-checkout: charms
-          sparse-checkout-cone-mode: true
-      - name: Set charms matrix
-        id: set-charms
-        run: |
-          if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.charm }}" != "all" ]]; then
-            echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
-          else
-            if [[ ! -d charms ]]; then
-              echo "charms/ directory not found" >&2
-              exit 1
-            fi
-            charms=$(find charms -mindepth 1 -maxdepth 1 -type d -not -name '.*' | sort | jq -Rsc 'split("\n")[:-1]')
-            if [[ "$charms" == "[]" ]]; then
-              echo "No charms found under charms/" >&2
-              exit 1
-            fi
-            echo "charms=$charms" >> "$GITHUB_OUTPUT"
-          fi
-
   quality-gates:
-    name: Run quality gates (${{ matrix.charm-path }})
-    needs: set-charms
-    strategy:
-      matrix:
-        charm-path: ${{ fromJSON(needs.set-charms.outputs.charms) }}
-      fail-fast: false
+    name: Run quality gates
     uses: canonical/observability/.github/workflows/charm-quality-gates.yaml@v2
     with:
-      charm-path: ${{ matrix.charm-path }}
+      charm-path: charms/${{ github.event.inputs.charm }}
     secrets: inherit
