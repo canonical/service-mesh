@@ -38,6 +38,10 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.charm }}" != "all" ]]; then
             echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
           else
+            if [[ ! -d charms ]]; then
+              echo "charms/ directory not found" >&2
+              exit 1
+            fi
             charms=$(find charms -mindepth 1 -maxdepth 1 -type d | sort | jq -Rsc 'split("\n")[:-1]')
             if [[ "$charms" == "[]" ]]; then
               echo "No charms found under charms/" >&2
