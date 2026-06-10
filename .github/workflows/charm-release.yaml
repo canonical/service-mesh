@@ -11,7 +11,6 @@ on:
           - istio-beacon-k8s
           - istio-ingress-k8s
           - istio-k8s
-          - kiali-k8s
   push:
     branches:
       - main
