@@ -16,11 +16,14 @@ on:
   # schedule:
   #   - cron: "0 0 * * Tue"
 
+permissions:
+  contents: read
+
 
 jobs:
   quality-gates:
     name: Run quality gates
     uses: canonical/observability/.github/workflows/charm-quality-gates.yaml@v2
     with:
-      charm-path: charms/${{ github.event.inputs.charm }}
+      charm-path: charms/${{ inputs.charm }}
     secrets: inherit
