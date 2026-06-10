@@ -17,6 +17,9 @@ on:
   # schedule:
   #   - cron: "0 0 * * Tue"
 
+permissions:
+  contents: read
+
 
 jobs:
   set-charms:
@@ -35,7 +38,12 @@ jobs:
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.charm }}" != "all" ]]; then
             echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
           else
-            echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+            charms=$(find charms -mindepth 1 -maxdepth 1 -type d | sort | jq -Rsc 'split("\n")[:-1]')
+            if [[ "$charms" == "[]" ]]; then
+              echo "No charms found under charms/" >&2
+              exit 1
+            fi
+            echo "charms=$charms" >> "$GITHUB_OUTPUT"
           fi
 
   quality-gates:
