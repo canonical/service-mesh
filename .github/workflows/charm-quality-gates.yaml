@@ -16,10 +16,6 @@ on:
   # schedule:
   #   - cron: "0 0 * * Tue"
 
-permissions:
-  contents: read
-
-
 jobs:
   quality-gates:
     name: Run quality gates
