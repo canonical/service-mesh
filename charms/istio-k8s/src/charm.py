@@ -1,0 +1,779 @@
+#!/usr/bin/env python3
+
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""A Juju charm for managing the Istio service mesh control plane."""
+
+import hashlib
+import logging
+import tempfile
+from pathlib import Path
+from typing import Any, Dict, List, Tuple
+from urllib.parse import urlparse
+
+import ops
+import yaml
+from canonical_service_mesh.interfaces.istio_ingress_config import (
+    IngressConfigRequirer,
+)
+from canonical_service_mesh.k8s.resource_manager import (
+    KubernetesResourceManager,
+    create_charm_default_labels,
+)
+from canonical_service_mesh.models.istio import (
+    AuthorizationPolicySpec,
+    PolicyTargetReference,
+)
+from charmlibs.interfaces.certificate_transfer import (
+    CertificateTransferRequires,
+)
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.istio_k8s.v0.istio_metadata import IstioMetadataProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
+from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
+
+# Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
+from lightkube import Client, codecs  # type: ignore
+from lightkube.codecs import AnyResource
+from lightkube.generic_resource import create_namespaced_resource
+from lightkube.models.autoscaling_v2 import (
+    CrossVersionObjectReference,
+    HorizontalPodAutoscalerSpec,
+)
+from lightkube.models.core_v1 import EmptyDirVolumeSource, EnvVar, Volume, VolumeMount
+from lightkube.models.meta_v1 import ObjectMeta
+from lightkube.resources.admissionregistration_v1 import (
+    MutatingWebhookConfiguration,
+    ValidatingWebhookConfiguration,
+)
+from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
+from lightkube.resources.apps_v1 import DaemonSet, Deployment
+from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
+from lightkube.resources.core_v1 import ConfigMap, Service, ServiceAccount
+from lightkube.resources.policy_v1 import PodDisruptionBudget
+from lightkube.resources.rbac_authorization_v1 import (
+    ClusterRole,
+    ClusterRoleBinding,
+    Role,
+    RoleBinding,
+)
+from ops.pebble import ChangeError, Layer
+
+from config import CharmConfig
+from istioctl import Istioctl, IstioctlError
+
+LOGGER = logging.getLogger(__name__)
+
+SOURCE_PATH = Path(__file__).parent
+
+CONTROL_PLANE_COMPONENTS = ["pilot", "cni", "ztunnel"]
+CONTROL_PLANE_LABEL = "control-plane"
+CONTROL_PLANE_RESOURCE_TYPES = {
+    ClusterRole,
+    ClusterRoleBinding,
+    ConfigMap,
+    DaemonSet,
+    Deployment,
+    HorizontalPodAutoscaler,
+    MutatingWebhookConfiguration,
+    PodDisruptionBudget,
+    Role,
+    RoleBinding,
+    Service,
+    ServiceAccount,
+    ValidatingWebhookConfiguration,
+}
+ISTIO_CRDS_COMPONENTS = ["base"]
+ISTIO_CRDS_LABEL = "istio-crds"
+ISTIO_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
+GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
+GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
+GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
+
+# Rock image settings
+ROCK_REGISTRY = "docker.io/ubuntu"
+ISTIO_VERSION = "1.29"
+ISTIO_ROCK_TAG = f"{ISTIO_VERSION}-24.04_stable"
+PILOT_IMAGE = "istio-pilot"
+CNI_IMAGE = "istio-install-cni"
+ZTUNNEL_IMAGE = "istio-ztunnel"
+RESOURCE_TYPES = {
+    "AuthorizationPolicy": create_namespaced_resource(
+        "security.istio.io",
+        "v1",
+        "AuthorizationPolicy",
+        "authorizationpolicies",
+    ),
+}
+AUTHORIZATION_POLICY_LABEL = "istio-authorization-policy"
+JWKS_CA_CERT_RELATION = "jwks-ca-cert"
+AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
+
+
+@trace_charm(
+    tracing_endpoint="_charm_tracing_endpoint",
+    extra_types=[
+        Istioctl,
+        MetricsEndpointProvider,
+        GrafanaDashboardProvider,
+    ],
+    # we don't add a cert because istio does TLS it's way
+    # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
+)
+class IstioCoreCharm(ops.CharmBase):
+    """Charm for managing the Istio service mesh control plane."""
+
+    def __init__(self, *args):
+        super().__init__(*args)
+        self._parsed_config = None
+        self._resource_manager_factories = {
+            CONTROL_PLANE_LABEL: self._get_control_plane_kubernetes_resource_manager,
+            ISTIO_CRDS_LABEL: self._get_crds_kubernetes_resource_manager,
+            GATEWAY_API_CRDS_LABEL: self._get_gateway_apis_kubernetes_resource_manager,
+        }
+        self.telemetry_labels = generate_telemetry_labels(self.app.name, self.model.name)
+        self._lightkube_field_manager: str = self.app.name
+
+        # Configure Observability
+        self._scraping = MetricsEndpointProvider(
+            self,
+            jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
+        )
+        self.grafana_dashboards = GrafanaDashboardProvider(self)
+        self.charm_tracing = TracingEndpointRequirer(
+            self, relation_name="charm-tracing", protocols=["otlp_http"]
+        )
+
+        self.workload_tracing = TracingEndpointRequirer(
+            self, relation_name="workload-tracing", protocols=["otlp_grpc"]
+        )
+        self._charm_tracing_endpoint = (
+            self.charm_tracing.get_endpoint("otlp_http") if self.charm_tracing.relations else None
+        )
+        self.ingress_config = IngressConfigRequirer(
+            relation_mapping=self.model.relations, app=self.app
+        )
+
+        self.istio_metadata = IstioMetadataProvider(
+            charm=self,
+            relation_mapping=self.model.relations,
+            app=self.app,
+        )
+
+        self.cert_transfer = CertificateTransferRequires(
+            self, relationship_name=JWKS_CA_CERT_RELATION
+        )
+
+        self.framework.observe(self.on.config_changed, self._reconcile)
+        self.framework.observe(self.on.start, self._reconcile)
+        self.framework.observe(self.on.remove, self._remove)
+        self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
+        self.framework.observe(self.workload_tracing.on.endpoint_changed, self._reconcile)
+        self.framework.observe(self.workload_tracing.on.endpoint_removed, self._reconcile)
+        self.framework.observe(self.on.collect_unit_status, self.on_collect_status)
+        self.framework.observe(self.on["istio-ingress-config"].relation_changed, self._reconcile)
+        self.framework.observe(self.on["istio-ingress-config"].relation_broken, self._reconcile)
+        # For istio-metadata
+        self.framework.observe(self.on["istio-metadata"].relation_joined, self._reconcile)
+        self.framework.observe(self.on.leader_elected, self._reconcile)
+        self.framework.observe(self.on["peers"].relation_changed, self._reconcile)
+        self.framework.observe(self.on["peers"].relation_departed, self._reconcile)
+        self.framework.observe(
+            self.cert_transfer.on.certificate_set_updated, self._reconcile
+        )
+        self.framework.observe(
+            self.cert_transfer.on.certificates_removed, self._reconcile
+        )
+
+    def _setup_proxy_pebble_service(self):
+        """Define and start the metrics broadcast proxy Pebble service."""
+        proxy_container = self.unit.get_container("metrics-proxy")
+        if not proxy_container.can_connect():
+            return
+        proxy_layer = Layer(
+            {
+                "summary": "Metrics Broadcast Proxy Layer",
+                "description": "Pebble layer for the metrics broadcast proxy",
+                "services": {
+                    "metrics-proxy": {
+                        "override": "replace",
+                        "summary": "Metrics Broadcast Proxy",
+                        "command": "metrics-proxy",
+                        "startup": "enabled",
+                        "environment": {"POD_LABEL_SELECTOR": self.format_labels(self.telemetry_labels)},
+                    }
+                },
+            }
+        )
+
+        proxy_container.add_layer("metrics-proxy", proxy_layer, combine=True)
+
+        try:
+            proxy_container.replan()
+        except ChangeError as e:
+            LOGGER.error(f"Error while replanning proxy container: {e}")
+
+    def _reconcile(self, _event: ops.ConfigChangedEvent):
+        """Reconcile the entire state of the charm."""
+        # Reconciliation can only be attempted by the leader.
+        if not self.unit.is_leader():
+            return
+        # Order here matters, we want to ensure rel data is populated before we reconcile objects/config
+        self._publish_ext_authz_provider_names()
+        self._publish_istio_metadata()
+
+        self._reconcile_gateway_api_crds()
+        self._reconcile_istio_crds()
+        self._reconcile_authorization_policies()
+        self._reconcile_control_plane()
+        self._set_istio_version()
+
+        # Ensure the Pebble service is up-to-date
+        self._setup_proxy_pebble_service()
+
+    def on_collect_status(self, event: ops.CollectStatusEvent):
+        """Collect unit statuses. Framework picks the worst."""
+        if not self.unit.is_leader():
+            event.add_status(ops.ActiveStatus("Standby (non-leader)"))
+            return
+
+        for status in self._get_control_plane_statuses():
+            event.add_status(status)
+
+    def _get_control_plane_statuses(self) -> list:
+        """Check control plane components and return list of statuses."""
+        statuses = []
+
+        # Check CNI DaemonSet
+        cni_status = self._check_daemonset_ready(
+            "istio-cni-node",
+            "Istio CNI not ready. Possible platform mismatch. Check charm config.",
+        )
+        if cni_status:
+            statuses.append(cni_status)
+
+        # Check ztunnel DaemonSet
+        ztunnel_status = self._check_daemonset_ready("ztunnel", "Istio ztunnel not ready.")
+        if ztunnel_status:
+            statuses.append(ztunnel_status)
+
+        # Check istiod Deployment
+        istiod_status = self._check_deployment_ready("istiod", "Istio istiod not ready.")
+        if istiod_status:
+            statuses.append(istiod_status)
+
+        # If no issues, return active
+        if not statuses:
+            statuses.append(ops.ActiveStatus())
+
+        return statuses
+
+    def _check_daemonset_ready(self, name: str, message: str) -> ops.StatusBase | None:
+        """Check if a DaemonSet is ready. Returns BlockedStatus if not ready, None otherwise."""
+        try:
+            ds = self.lightkube_client.get(DaemonSet, name=name, namespace=self.model.name)
+            if ds.status:
+                desired = ds.status.desiredNumberScheduled or 0
+                ready = ds.status.numberReady or 0
+                if desired > 0 and ready < desired:
+                    return ops.WaitingStatus(message)
+        except Exception as e:
+            LOGGER.error(f"Failed to check {name} status: {e}")
+        return None
+
+    def _check_deployment_ready(self, name: str, message: str) -> ops.StatusBase | None:
+        """Check if a Deployment is ready. Returns BlockedStatus if not ready, None otherwise."""
+        try:
+            deploy = self.lightkube_client.get(Deployment, name=name, namespace=self.model.name)
+            if deploy.status:
+                desired = deploy.spec.replicas if deploy.spec else 0
+                ready = deploy.status.readyReplicas or 0
+                if desired and ready < desired:
+                    return ops.WaitingStatus(message)
+        except Exception as e:
+            LOGGER.error(f"Failed to check {name} status: {e}")
+        return None
+
+    def _remove(self, _event: ops.RemoveEvent):
+        """Remove the charm's resources."""
+        if self.unit.is_leader():
+            for name in self._resource_manager_factories:
+                krh = self._get_resource_manager(name)
+                krh.delete()
+
+    # Properties
+
+    @property
+    def parsed_config(self):
+        """Return a validated and parsed configuration object."""
+        if self._parsed_config is None:
+            config = dict(self.model.config.items())
+            self._parsed_config = CharmConfig(**config)  # pyright: ignore
+        return self._parsed_config.dict(by_alias=True)
+
+    @property
+    def lightkube_client(self):
+        """Returns a lightkube client configured for this charm."""
+        return Client(namespace=self.model.name, field_manager=self._lightkube_field_manager)
+
+    # Helpers
+    def _get_resource_manager(self, resource_group: str) -> KubernetesResourceManager:
+        """Return an initialized KubernetesResourceManager for the given resource group."""
+        return self._resource_manager_factories[resource_group]()
+
+    def _set_istio_version(self) -> None:
+        """Set the istio version in juju status."""
+        if self.unit.is_leader():
+            ictl = self._get_istioctl()
+            try:
+                self.unit.set_workload_version(ictl.version()["control_plane"])
+            except IstioctlError:
+                self.unit.set_workload_version("")
+
+    def _reconcile_control_plane(self):
+        """Reconcile the control plane resources."""
+        ictl = self._get_istioctl()
+        resources = []
+        unit_count = self.model.app.planned_units()
+
+        # Reconcile an empty resource list if no units are left (unit_count < 1):
+        #  - This typically indicates an application removal event; we rely on the remove hook for cleanup.
+        #  - Attempting to reconcile with an HPA that sets replicas to zero is invalid.
+        #  - This guard exists because some events can call _reconcile before the remove hook runs,
+        #    leading to k8s validation webhook errors when planned_units is 0.
+        if unit_count > 0:
+            # Only the istiod HPA is overridden for scaling it with the charm.
+            # Refer this issue for more details: https://github.com/canonical/istio-k8s-operator/issues/22
+            hpa_override = self._construct_hpa(unit_count=unit_count)
+            manifests = ictl.manifest_generate(
+                components=CONTROL_PLANE_COMPONENTS,
+                overrides=[
+                    hpa_override,
+                ]
+            )
+
+            resources = codecs.load_all_yaml(manifests, create_resources_for_crds=True)
+            resources = self._patch_pebble_runtime(resources)
+            resources = self._add_metrics_labels(resources)
+
+        krm = self._get_resource_manager(CONTROL_PLANE_LABEL)
+        # TODO: A validating webhook raises a conflict if force=False.  Why?
+        krm.reconcile(resources, force=True)  # pyright: ignore
+
+    def _construct_hpa(self, unit_count: int) -> HorizontalPodAutoscaler:
+        """Construct a HorizontalPodAutoscaler resource for istiod with required custom specs.
+
+        This HPA is used to scale the istiod workload automatically when the charm scales.
+        The scaling is achieved by setting the min and max replica settings in the HPA to be
+        the same as the unit count.
+        These hpa specs override the default manifest generated by istioctl.
+        """
+        return HorizontalPodAutoscaler(
+            metadata=ObjectMeta(name="istiod", namespace=self.model.name),
+            spec=HorizontalPodAutoscalerSpec(
+                scaleTargetRef=CrossVersionObjectReference(
+                    apiVersion="apps/v1",
+                    kind="Deployment",
+                    name="istiod",
+                ),
+                minReplicas=unit_count,
+                maxReplicas=unit_count,
+            ),
+        )
+
+    def _reconcile_istio_crds(self):
+        """Reconcile the Istio CRD resources."""
+        # istioctl includes a ServiceAccount in the Base manifest that we don't need.  Build the
+        # manifests and remove that resource before passing to KubernetesResourceHandler
+        ictl = self._get_istioctl()
+        manifests = ictl.manifest_generate(components=ISTIO_CRDS_COMPONENTS)
+        resources = codecs.load_all_yaml(manifests, create_resources_for_crds=True)
+        if resources[-1].kind == "ServiceAccount":
+            resources.pop()
+        else:
+            raise ValueError(
+                f"Expected a ServiceAccount as the last resource in the manifest, found {resources[-1]}"
+            )
+        krm = self._get_resource_manager(ISTIO_CRDS_LABEL)
+        krm.reconcile(resources)  # pyright: ignore
+
+    def _reconcile_gateway_api_crds(self):
+        """Reconcile the Gateway API CRD resources."""
+        manifests = [manifest_file.read_text() for manifest_file in GATEWAY_API_CRDS_MANIFEST]
+        manifest = "\n---\n".join(manifests) + "\n"
+        resources = codecs.load_all_yaml(manifest, create_resources_for_crds=True)
+        krm = self._get_resource_manager(GATEWAY_API_CRDS_LABEL)
+        krm.reconcile(resources)  # pyright: ignore
+
+    def _publish_ext_authz_provider_names(self):
+        """Publish the unique external authorizer provider name for each ready relation.
+
+        This method iterates over all relations and, if a provider is ready,
+        it publishes its unique external authorizer provider name.
+        """
+        for relation in self.ingress_config.relations:
+            if self.ingress_config.is_ready(relation):
+                unique_name = f"ext_authz-{relation.app.name}"
+                self.ingress_config.publish_ext_authz_provider_name(relation, unique_name)
+
+    def _publish_istio_metadata(self):
+        """Publish our metadata to all related applications."""
+        self.istio_metadata.publish(root_namespace=self.model.name)
+
+    def _get_control_plane_kubernetes_resource_manager(self):
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=CONTROL_PLANE_LABEL
+            ),
+            resource_types=CONTROL_PLANE_RESOURCE_TYPES,
+            lightkube_client=self.lightkube_client,
+            logger=LOGGER,
+        )
+
+    def _get_crds_kubernetes_resource_manager(self):
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=ISTIO_CRDS_LABEL
+            ),
+            resource_types=ISTIO_CRDS_RESOURCE_TYPES,  # pyright: ignore
+            lightkube_client=self.lightkube_client,
+            logger=LOGGER,
+        )
+
+    def _get_gateway_apis_kubernetes_resource_manager(self):
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=GATEWAY_API_CRDS_LABEL
+            ),
+            resource_types=GATEWAY_API_CRDS_RESOURCE_TYPES,  # pyright: ignore
+            lightkube_client=self.lightkube_client,
+            logger=LOGGER,
+        )
+
+    def _get_authorization_policy_resource_manager(self):
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=AUTHORIZATION_POLICY_LABEL
+            ),
+            resource_types=AUTHORIZATION_POLICY_RESOURCE_TYPES,  # pyright: ignore
+            lightkube_client=self.lightkube_client,
+            logger=LOGGER,
+        )
+
+    def _workload_tracing_provider(self) -> Tuple[List[Any], Dict[str, Any]]:
+        """Return a tuple with the tracing provider and global tracing settings as dictionaries."""
+        if not self.workload_tracing.is_ready():
+            return [], {}
+
+        if not (endpoint := self.workload_tracing.get_endpoint("otlp_grpc")):
+            return [], {}
+
+        parsed = urlparse(f"//{endpoint}")
+        provider = {
+            "name": "otel-tracing",
+            "opentelemetry": {
+                "port": parsed.port,
+                "service": parsed.hostname,
+            },
+        }
+        global_config = {
+            "meshConfig.enableTracing": "true",
+            "meshConfig.defaultProviders.tracing[0]": "otel-tracing",
+            "meshConfig.defaultConfig.tracing.sampling": 100.0,
+        }
+        return [provider], global_config
+
+    def _external_authorizer_providers(self) -> List[Dict[str, Any]]:
+        """Return a list of external authorizers provider configurations."""
+        providers = []
+        for relation in self.ingress_config.relations:
+            if self.ingress_config.is_ready(relation):
+                # TODO: Remove the below when https://github.com/juju/juju/issues/19474 is fixed
+                # If fake config is detected, return an empty list immediately.
+                if self.ingress_config.is_fake_authz_config(relation):
+                    return providers
+
+                ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
+                providers.append(
+                    {
+                        "name": f"ext_authz-{relation.app.name}",
+                        "envoyExtAuthzHttp": {
+                            "service": ext_authz_info.ext_authz_service_name,  # type: ignore
+                            "port": ext_authz_info.ext_authz_port,  # type: ignore
+                            "includeRequestHeadersInCheck": ext_authz_info.include_headers_in_check,  # type: ignore
+                            "headersToUpstreamOnAllow": ext_authz_info.headers_to_upstream_on_allow,  # type: ignore
+                            "headersToDownstreamOnAllow": ext_authz_info.headers_to_downstream_on_allow,  # type: ignore
+                            "headersToDownstreamOnDeny": ext_authz_info.headers_to_downstream_on_deny,  # type: ignore
+                        },
+                    }
+                )
+        return providers
+
+    def _build_extension_providers_config(self, providers: List[Dict[str, Any]]) -> Dict[str, Any]:
+        """Build a flat configuration dictionary for all extension providers by flattening provider objects."""
+        config: Dict[str, Any] = {}
+        for idx, provider in enumerate(providers):
+            prefix = f"meshConfig.extensionProviders[{idx}]"
+            flat = flatten_config(provider, prefix)
+            config.update(flat)
+        return config
+
+    def _get_ca_certificates(self) -> str:
+        """Return all CA certificates from the jwks-ca-cert relation as a PEM bundle."""
+        certs = self.cert_transfer.get_all_certificates()
+        if not certs:
+            return ""
+        return "\n".join(sorted(certs))
+
+    def _write_jwks_ca_overlay(self, ca_bundle: str) -> str:
+        """Write an IstioOperator overlay YAML with the JWKS CA cert and return the file path."""
+        overlay = {
+            "apiVersion": "install.istio.io/v1alpha1",
+            "kind": "IstioOperator",
+            "spec": {
+                "values": {
+                    "pilot": {
+                        "jwksResolverExtraRootCA": ca_bundle
+                    }
+                }
+            }
+        }
+        overlay_path = Path(tempfile.gettempdir()) / "jwks-ca-overlay.yaml"
+        overlay_path.write_text(yaml.dump(overlay, default_flow_style=False))
+        return str(overlay_path)
+
+    def _get_istioctl(self) -> Istioctl:
+        """Return an initialized Istioctl instance."""
+        # Default settings
+        setting_overrides = {}
+
+        # Get tracing providers and global tracing settings.
+        # TODO: If Tempo is on mesh, Istio won't be able to send traces to Tempo until https://github.com/canonical/istio-k8s-operator/issues/30 is fixed
+        # (see https://istio.io/latest/docs/tasks/observability/distributed-tracing/opentelemetry/)
+        tracing_providers, global_tracing = self._workload_tracing_provider()
+
+        # Get external authorizers providers.
+        external_providers = self._external_authorizer_providers()
+
+        # Combine all providers (order does not matter).
+        all_providers = tracing_providers + external_providers
+
+        setting_overrides.update(self._build_extension_providers_config(all_providers))
+
+        # Merge global tracing settings (if any).
+        setting_overrides.update(global_tracing)
+
+        # Enable Envoy access logs
+        # (see https://istio.io/latest/docs/tasks/observability/logs/access-log/)
+        setting_overrides["meshConfig.accessLogFile"] = "/dev/stdout"
+
+        # Ignore the settings if they are not set or empty
+        if self.parsed_config["platform"]:
+            setting_overrides["values.global.platform"] = self.parsed_config["platform"]
+        if self.parsed_config["cniBinDir"]:
+            setting_overrides["values.cni.cniBinDir"] = self.parsed_config["cniBinDir"]
+        if self.parsed_config["cniConfDir"]:
+            setting_overrides["values.cni.cniConfDir"] = self.parsed_config["cniConfDir"]
+
+        # Configure the sidecar injector to exclude outbound traffic to all IP ranges.  This is a
+        # workaround for CNI limitations with init containers
+        # (https://istio.io/latest/docs/setup/additional-setup/cni/#compatibility-with-application-init-containers)
+        # This can be removed if we drop support for sidecars
+        setting_overrides[
+            r"values.sidecarInjectorWebhook.injectedAnnotations.traffic\.sidecar\.istio\.io/excludeOutboundIPRanges"
+        ] = "0.0.0.0/0"
+
+        setting_overrides["values.profile"] = "ambient"
+
+        # Enable CNI iptables reconciliation on startup to ensure pods are properly enrolled
+        # in the ambient mesh after CNI restarts. Without this, corrupted/stale iptables rules
+        # in existing pods won't be fixed, leading to mesh security bypass.
+        # (see https://istio.io/latest/news/releases/1.25.x/announcing-1.25/upgrade-notes/)
+        setting_overrides["values.cni.ambient.reconcileIptablesOnStartup"] = "true"
+
+        if self.parsed_config["auto-allow-waypoint-policy"]:
+            setting_overrides["values.pilot.env.PILOT_AUTO_ALLOW_WAYPOINT_POLICY"] = "true"
+
+        # Use Canonical rock images for Istio components (envoy/proxyv2 stays upstream)
+        setting_overrides["values.pilot.hub"] = ROCK_REGISTRY
+        setting_overrides["values.pilot.image"] = PILOT_IMAGE
+        setting_overrides["values.pilot.tag"] = ISTIO_ROCK_TAG
+        setting_overrides["values.cni.hub"] = ROCK_REGISTRY
+        setting_overrides["values.cni.image"] = CNI_IMAGE
+        setting_overrides["values.cni.tag"] = ISTIO_ROCK_TAG
+        setting_overrides["values.ztunnel.hub"] = ROCK_REGISTRY
+        setting_overrides["values.ztunnel.image"] = ZTUNNEL_IMAGE
+        setting_overrides["values.ztunnel.tag"] = ISTIO_ROCK_TAG
+        # Disable the default distroless variant suffix that istioctl appends to image tags
+        setting_overrides["values.global.variant"] = ""
+
+        overlay_files = []
+        ca_bundle = self._get_ca_certificates()
+        if ca_bundle:
+            overlay_files.append(self._write_jwks_ca_overlay(ca_bundle))
+
+        return Istioctl(
+            istioctl_path="./istioctl",
+            namespace=self.model.name,
+            profile="empty",
+            setting_overrides=setting_overrides,
+            overlay_files=overlay_files,
+        )
+
+    @staticmethod
+    def _patch_pebble_runtime(resources: List[AnyResource]) -> List[AnyResource]:
+        """Patch resources for compatibility with Pebble-based rocks.
+
+        Rocks use Pebble as their OCI entrypoint, which requires three adjustments:
+        1. A writable emptyDir volume at /run/pebble for Pebble state files (socket, identity),
+           since Istio enforces readOnlyRootFilesystem: true on istiod and ztunnel.
+        2. PEBBLE and PEBBLE_COPY_ONCE env vars to redirect Pebble's runtime directory to the
+           writable mount and copy baked-in layer config from /var/lib/pebble/default on first
+           start.
+        3. Stripping container args from ztunnel — istioctl injects ["proxy", "ztunnel"] which
+           Pebble misinterprets as subcommands. The istiod (pilot) rock uses entrypoint-service
+           with argument forwarding so its args are kept.
+        """
+        # (resource kind, resource name) -> (container name, strip_args)
+        pebble_targets = {
+            ("Deployment", "istiod"): ("discovery", False),
+            ("DaemonSet", "ztunnel"): ("istio-proxy", True),
+        }
+        for resource in resources:
+            key = (resource.kind, resource.metadata.name)  # pyright: ignore
+            target = pebble_targets.get(key)  # pyright: ignore
+            if target is None:
+                continue
+            container_name, strip_args = target
+
+            spec = resource.spec.template.spec  # pyright: ignore
+            if spec.volumes is None:
+                spec.volumes = []
+            spec.volumes.append(Volume(name="pebble-state", emptyDir=EmptyDirVolumeSource()))
+            for container in spec.containers:
+                if container.name == container_name:
+                    if container.volumeMounts is None:
+                        container.volumeMounts = []
+                    container.volumeMounts.append(
+                        VolumeMount(name="pebble-state", mountPath="/run/pebble")
+                    )
+                    if container.env is None:
+                        container.env = []
+                    container.env.extend([
+                        EnvVar(name="PEBBLE", value="/run/pebble"),
+                        EnvVar(name="PEBBLE_COPY_ONCE", value="/var/lib/pebble/default"),
+                    ])
+                    if strip_args:
+                        container.args = None
+                    break
+        return resources
+
+    def _add_metrics_labels(self, resources: List[AnyResource]) -> List[AnyResource]:
+        """Append extra labels to the ztunnel, istio-cni-node, and istiod pods based on METRICS_LABELS."""
+        for resource in resources:
+            if resource.kind in [
+                "DaemonSet",
+                "Deployment",
+            ] and resource.metadata.name in [  # pyright: ignore
+                "ztunnel",
+                "istio-cni-node",
+                "istiod",
+            ]:
+                for key, value in self.telemetry_labels.items():
+                    resource.spec.template.metadata.labels[key] = value  # pyright: ignore
+
+        return resources
+
+    @staticmethod
+    def format_labels(label_dict: Dict[str, str]) -> str:
+        """Format a dictionary into a comma-separated string of key=value pairs."""
+        return ",".join(f"{key}={value}" for key, value in label_dict.items())
+
+    def _reconcile_authorization_policies(self) -> None:
+        """Sync all global authorization policies."""
+        authorization_policies = []
+        if self.parsed_config["hardened-mode"]:
+            authorization_policies.extend(
+                    self._build_authorization_policies_for_hardened_mode()
+            )
+        krm = self._get_authorization_policy_resource_manager()
+        krm.reconcile(authorization_policies)  # type: ignore
+
+    def _build_authorization_policies_for_hardened_mode(self):
+        """Build required globally managed authorization policies to operate istio in hardened-mode.
+
+        This adds a global allow-nothing policy for the waypoint and the ztunnel
+        """
+        return [
+            RESOURCE_TYPES["AuthorizationPolicy"](
+                metadata=ObjectMeta(
+                    name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-ztunnel",
+                    namespace=self.model.name,
+                ),
+                spec={},
+            ),
+            RESOURCE_TYPES["AuthorizationPolicy"](
+                metadata=ObjectMeta(
+                    name=f"{self.app.name}-{self.model.name}-policy-global-allow-nothing-waypoint",
+                    namespace=self.model.name,
+                ),
+                spec=AuthorizationPolicySpec(
+                    targetRefs=[
+                        PolicyTargetReference(
+                            kind="GatewayClass",
+                            group="gateway.networking.k8s.io",
+                            name="istio-waypoint",
+                        ),
+                    ],
+                ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
+            ),
+        ]
+
+
+def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
+    """Recursively flatten a nested dictionary or list into a dictionary of key/value pairs."""
+    flat: Dict[str, Any] = {}
+    if isinstance(value, dict):
+        for k, v in value.items():
+            new_prefix = f"{prefix}.{k}" if prefix else k
+            flat.update(flatten_config(v, new_prefix))
+    elif isinstance(value, (list, tuple)):
+        for i, item in enumerate(value):
+            new_prefix = f"{prefix}[{i}]" if prefix else f"[{i}]"
+            flat.update(flatten_config(item, new_prefix))
+    else:
+        flat[prefix] = value
+    return flat
+
+
+def generate_telemetry_labels(app_name: str, model_name: str) -> Dict[str, str]:
+    """Generate telemetry labels for the application, ensuring it is always <=63 characters and usually unique.
+
+    The telemetry labels need to be unique for each application in order to prevent one application from scraping
+    another's metrics (eg: istio-beacon scraping the workloads of istio-ingress).  Ideally, this would be done by
+    including model_name and app_name in the label key or value, but Kubernetes label keys and values have a 63
+    character limit.  This, thus function returns:
+    * a label with a key that includes model_name and app_name, if that key is less than 63 characters
+    * a label with a key that is truncated to 63 characters but includes a hash of the full model_name and app_name, to
+      attempt to ensure uniqueness.
+
+    The hash is included because simply truncating the model or app names may lead to collisions.  Consider if
+    istio-beacon is deployed to two different models of names `really-long-model-name1` and `really-long-model-name2`,
+    they'd truncate to the same key.  To reduce this risk, we also include a hash of the model and app names which very
+    likely differs between two applications.
+    """
+    key = f"charms.canonical.com/{model_name}.{app_name}.telemetry"
+    if len(key) > 63:
+        # Truncate the key to fit within the 63-character limit.  Include a hash of the real model_name.app_name to
+        # avoid collisions with some other truncated key.
+        hash = hashlib.md5(f"{model_name}.{app_name}".encode()).hexdigest()[:10]
+        key = f"charms.canonical.com/{model_name[:10]}.{app_name[:10]}.{hash}.telemetry"
+    return {
+        key: "aggregated",
+    }
+
+
+if __name__ == "__main__":
+    ops.main.main(IstioCoreCharm)

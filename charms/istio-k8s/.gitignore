@@ -1,0 +1,20 @@
+venv/
+build/
+*.charm
+.coverage
+__pycache__/
+*.py[cod]
+.tox
+.idea/
+tests/integration/*-tester/lib/
+.env
+.vscode/
+*.egg-info
+*.raw
+tests/integration/testers/service-mesh-tester/lib/*
+
+# Terraform files
+terraform/**/*.tfstate
+terraform/**/*.tfstate.*
+terraform/**/.terraform/
+terraform/**/.terraform.lock.hcl

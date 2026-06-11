@@ -1,0 +1,149 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: istio-k8s
+type: charm
+title: Istio
+summary: A Juju charm to operate an Istio service mesh
+description: |
+  istio-k8s deploys and manages the control plane of an Istio service mesh on Kubernetes,
+  enabling configuring and managing Istio through Juju.
+
+links:
+  documentation: https://discourse.charmhub.io/t/istio-k8s-docs-index/20487
+  website: https://charmhub.io/istio-k8s
+  source: https://github.com/canonical/istio-k8s-operator
+  issues: https://github.com/canonical/istio-k8s-operator/issues
+
+config:
+  options:
+    auto-allow-waypoint-policy:
+      type: boolean
+      default: true
+      description: >
+        For workloads on an ambient mesh with traffic routed through a waypoint, that traffic passing through the 
+        waypoint to the workload can be controlled by L4 authorization policies like any other traffic.  This generally
+        means that, to allow traffic from a waypoint to a workload, users must create L4 authorization policies between
+        the waypoint and the workload.  
+        If this option is set to true, Istio will create synthetic authorization policies allowing waypoints to 
+        communicate with their workloads automatically.  
+        If this option is set to false, users must create L4 authorization policies between waypoints and the workloads.
+        See [PILOT_AUTO_ALLOW_WAYPOINT_POLICY](https://istio.io/latest/docs/reference/commands/pilot-discovery/#envvars)
+        for more detail.
+    hardened-mode:
+      type: boolean
+      default: false
+      description: >
+        When set to true, no inbound traffic will be allowed to charms in the service mesh unless explicitly authorized by an ALLOW policy.
+    platform:
+      type: string
+      default: "microk8s"
+      description: >
+        Some Kubernetes platforms require platform-specific configuration for Istio to function correctly.  This is 
+        described in more detail upstream in [Platform Prerequisites](https://istio.io/latest/docs/ambient/install/platform-prerequisites/).
+        This configuration option maps to the `values.global.platform` field in the Istio Helm chart, and can be used to
+        specify the platform-specific configuration for the Kubernetes platform on which the charm is deployed.  If left
+        blank, no value of `values.global.platform` will be set.
+
+    cniBinDir:
+      type: string
+      default: ""
+      description: >
+        On some non-standard Kubernetes installation, certain files are not located in standard locations. This configuration option allows overriding those paths. It maps to the `values.cni.cniBinDir` field in the Istio Helm chart.
+
+    cniConfDir:
+      type: string
+      default: ""
+      description: >
+        On some non-standard Kubernetes installation, certain files are not located in standard locations. This configuration option allows overriding those paths. It maps to the `values.cni.cniConfDir` field in the Istio Helm chart.
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@24.04:amd64:
+  #ubuntu@24.04:arm64:
+
+containers:
+  metrics-proxy:
+    resource: metrics-proxy-image
+
+provides:
+  grafana-dashboard:
+    interface: grafana_dashboard
+    optional: true
+  istio-metadata:
+    interface: istio_metadata
+    optional: true
+  metrics-endpoint:
+    interface: prometheus_scrape
+    optional: true
+
+requires:
+  charm-tracing:
+    interface: tracing
+    optional: true
+    limit: 1
+    description: |
+      Enables sending charm traces to a distributed tracing backend, such as Tempo.
+  workload-tracing:
+    interface: tracing
+    optional: true
+    limit: 1
+    description: |
+      Enables sending workload traces from on-mesh workloads to a distributed tracing backend, such as Tempo.
+
+      In ambient mode, traces are generated at the L7 layer by a waypoint proxy. To enable this, you must deploy
+      the waypoint proxy charm (i.e https://github.com/canonical/istio-beacon-k8s-operator) with --model-on-mesh=true
+      to collect traces for all workloads on the mesh. Alternatively, if you prefer to limit tracing to specific workloads, 
+      you can relate the beacon charm to a particular charm instead of applying --model-on-mesh=true to the entire model.
+  istio-ingress-config:
+    interface: istio_ingress_config
+    optional: true
+    description: |
+      Provides an interface for exchanging Istio ingress configuration,
+      including external authorizer configuration details.
+  jwks-ca-cert:
+    interface: certificate_transfer
+    optional: true
+    description: |
+      Receive CA certificates to be trusted by istiod for JWKS resolution.
+      When a RequestAuthentication resource specifies a jwksUri served by
+      a self-signed certificate, istiod needs to trust the signing CA to
+      fetch the JWKS keys. Relate a CA certificate provider here to
+      configure that trust.
+    limit: 1
+
+peers:
+  peers:
+    interface: istio_k8s_peers
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
+    override-build: |
+      craftctl default
+      git describe --always > $CRAFT_PART_INSTALL/version
+  istioctl:
+    plugin: dump
+    source: https://github.com/istio/istio/releases/download/1.29.0/istioctl-1.29.0-linux-amd64.tar.gz
+    source-type: tar
+  icon:
+    plugin: dump
+    source: .
+    stage:
+      - icon.svg
+
+charm-libs:
+  - lib: "certificate_transfer_interface.certificate_transfer"
+    version: '1'
+
+resources:
+  metrics-proxy-image:
+    type: oci-image
+    description: Metrics Proxy OCI image
+    upstream-source: docker.io/ubuntu/metrics-proxy:0.1.1-24.04_stable

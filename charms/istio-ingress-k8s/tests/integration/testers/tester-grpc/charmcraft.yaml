@@ -1,0 +1,31 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: tester-grpc
+description: gRPC echo server for testing ingress routes
+summary: gRPC echo server for testing ingress routes
+type: charm
+platforms:
+  ubuntu@24.04:amd64:
+parts:
+  charm:
+    charm-binary-python-packages:
+      - cryptography
+      - jsonschema
+      - pydantic>=2
+      - charmlibs-interfaces-istio-ingress-route
+
+
+requires:
+  istio-ingress-route:
+    interface: istio_ingress_route
+    limit: 1
+
+containers:
+  grpc-server:
+    resource: grpc-server-image
+
+resources:
+  grpc-server-image:
+    type: oci-image
+    description: OCI image for gRPC server
+    upstream-source: moul/grpcbin:latest
