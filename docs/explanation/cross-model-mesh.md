@@ -1,6 +1,6 @@
 # Cross-model mesh
 
-When two applications integrated on a charmed service mesh live in different Juju models, the Beacon charm cannot generate a correct authorization policy from a normal Juju cross-model relation alone. The `cross_model_mesh` interface (exposed as the `provide-cmr-mesh` and `require-cmr-mesh` endpoints) exists to fill that gap, and it introduces one constraint on how cross-model offers must be structured.
+The Beacon charm automatically generates authorization policies based on the juju integrations that are in place at a given time. But, when two applications integrated with one another live in different Juju models, the Beacon charm cannot generate a correct authorization policy from a normal Juju cross-model relation and the `service-mesh` relation alone. The `cross_model_mesh` interface (exposed as the `provide-cmr-mesh` and `require-cmr-mesh` endpoints) exists to fill that gap, and it introduces one constraint on how cross-model offers must be structured.
 
 ## Why a dedicated cross-model interface is needed
 
@@ -33,8 +33,7 @@ The same applies when multiple workload endpoints on a remote application each n
 juju offer my-app:reviews,metrics-endpoint,ingress,provide-cmr-mesh
 ```
 
-This is a structural limitation of Juju cross-model relations and cannot be worked around in the mesh charms or library. Future Juju support for surfacing the real remote application identity to the consumed side would remove the need for the `cross_model_mesh` interface and this grouping requirement.
-
+This is a structural limitation of Juju cross-model relations and cannot be worked around in the mesh charms or library.
 ## See also
 
 * [Use the Istio mesh across different Juju models](../tutorial/use-the-istio-mesh-across-different-juju-models.md): tutorial walkthrough of a cross-model mesh setup.
