@@ -1,0 +1,35 @@
+name: Charm Pull Requests
+
+on:
+  pull_request:
+    branches:
+      - main
+      - track/**
+    paths:
+      - charms/**
+
+jobs:
+  discover-charms:
+    name: Discover charms
+    runs-on: ubuntu-latest
+    outputs:
+      charms: ${{ steps.discover.outputs.charms }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: charms
+          sparse-checkout-cone-mode: true
+      - id: discover
+        run: echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+
+  pull-request:
+    name: PR (${{ matrix.charm-path }})
+    needs: discover-charms
+    strategy:
+      matrix:
+        charm-path: ${{ fromJSON(needs.discover-charms.outputs.charms) }}
+      fail-fast: false
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
+    with:
+      charm-path: ${{ matrix.charm-path }}
+    secrets: inherit

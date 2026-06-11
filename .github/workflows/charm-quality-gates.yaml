@@ -1,0 +1,50 @@
+name: Quality Gates
+
+on:
+  # Manual trigger
+  workflow_dispatch:
+    inputs:
+      charm:
+        type: choice
+        description: Charm to run quality gates for
+        options:
+          - all
+          - istio-beacon-k8s
+          - istio-ingress-k8s
+          - istio-k8s
+  # Run the quality checks periodically
+  # FIXME: adjust the frequency as needed once we have actual gates in place
+  # schedule:
+  #   - cron: "0 0 * * Tue"
+
+jobs:
+  set-charms:
+    name: Set charm matrix
+    runs-on: ubuntu-latest
+    outputs:
+      charms: ${{ steps.set-charms.outputs.charms }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: charms
+          sparse-checkout-cone-mode: true
+      - name: Set charms matrix
+        id: set-charms
+        run: |
+          if [[ "${{ inputs.charm }}" != "all" ]]; then
+            echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
+          else
+            echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+          fi
+
+  quality-gates:
+    name: Run quality gates (${{ matrix.charm-path }})
+    needs: set-charms
+    strategy:
+      matrix:
+        charm-path: ${{ fromJSON(needs.set-charms.outputs.charms) }}
+      fail-fast: false
+    uses: canonical/observability/.github/workflows/charm-quality-gates.yaml@v2
+    with:
+      charm-path: ${{ matrix.charm-path }}
+    secrets: inherit

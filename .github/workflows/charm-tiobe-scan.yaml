@@ -1,0 +1,32 @@
+name: Tiobe TiCS Analysis
+
+on:
+    workflow_dispatch:
+    schedule:
+    - cron: "0 0 * * 1"  # Runs at midnight UTC every Monday
+
+jobs:
+    discover-charms:
+        name: Discover charms
+        runs-on: ubuntu-latest
+        outputs:
+            charms: ${{ steps.discover.outputs.charms }}
+        steps:
+        - uses: actions/checkout@v6
+          with:
+            sparse-checkout: charms
+            sparse-checkout-cone-mode: true
+        - id: discover
+          run: echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+
+    tics:
+        name: TiCs (${{ matrix.charm-path }})
+        needs: discover-charms
+        strategy:
+            matrix:
+                charm-path: ${{ fromJSON(needs.discover-charms.outputs.charms) }}
+            fail-fast: false
+        uses: canonical/observability/.github/workflows/charm-tiobe-scan.yaml@v2
+        with:
+            charm-path: ${{ matrix.charm-path }}
+        secrets: inherit
