@@ -5,18 +5,21 @@ on:
   workflow_dispatch:
     inputs:
       charm:
-        type: string
-        description: Charm to run quality gates for (directory name under charms/)
+        type: choice
+        description: Charm to run quality gates for
+        options:
+          - istio-beacon-k8s
+          - istio-ingress-k8s
+          - istio-k8s
   # Run the quality checks periodically
   # FIXME: adjust the frequency as needed once we have actual gates in place
   # schedule:
   #   - cron: "0 0 * * Tue"
-
 
 jobs:
   quality-gates:
     name: Run quality gates
     uses: canonical/observability/.github/workflows/charm-quality-gates.yaml@v2
     with:
-      charm-path: charms/${{ github.event.inputs.charm }}
+      charm-path: charms/${{ inputs.charm }}
     secrets: inherit
