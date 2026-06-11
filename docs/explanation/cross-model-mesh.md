@@ -15,7 +15,7 @@ The `cross_model_mesh` interface works around this by carrying the real `app_nam
 
 ## How the correlation works
 
-When Beacon builds policies, it iterates over each workload relation (for example `metrics-endpoint`, `reviews`, `ingress`) and, for each one, looks up the matching `cross_model_mesh` payload to discover the real source identity. The lookup key is the remote application as seen locally, that is, the local SAAS name on the relation.
+When Beacon builds policies, it iterates over each service-mesh relation (for example `metrics-endpoint`, `reviews`, `ingress`) and, for each one, looks up the matching `cross_model_mesh` relation to discover the real source identity. The lookup key is the remote application as seen locally, that is, the local SAAS name on the relation.
 
 This means the workload relation and the `cross_model_mesh` relation must arrive on the providing side under the **same** SAAS. Only then does the Beacon charm know that a given `cross_model_mesh` payload describes the source of a given workload relation.
 
