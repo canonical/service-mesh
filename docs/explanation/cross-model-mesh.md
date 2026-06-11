@@ -1,6 +1,6 @@
 # Cross-model mesh
 
-The Beacon charm automatically generates authorization policies based on the juju integrations that are in place at a given time. But, when two applications integrated with one another live in different Juju models, the Beacon charm cannot generate a correct authorization policy from a normal Juju cross-model relation and the `service-mesh` relation alone. The `cross_model_mesh` interface (exposed as the `provide-cmr-mesh` and `require-cmr-mesh` endpoints) exists to fill that gap, and it introduces one constraint on how cross-model offers must be structured.
+The Beacon charm automatically generates authorization policies based on the Juju integrations that are in place at a given time. But, when two applications integrated with one another live in different Juju models, the Beacon charm cannot generate a correct authorization policy from a normal Juju cross-model relation and the `service-mesh` relation alone. The `cross_model_mesh` interface (exposed as the `provide-cmr-mesh` and `require-cmr-mesh` endpoints) exists to fill that gap, and it introduces one constraint on how cross-model offers must be structured.
 
 ## Why a dedicated cross-model interface is needed
 
@@ -9,31 +9,41 @@ A service mesh authorization policy identifies the source of allowed traffic by 
 * the **real application name** in the remote model
 * the **real model name** the remote application is deployed in
 
-Juju does not expose either of these across a cross-model relation. On the consumer side, an offer is consumed as a Software-as-a-Service (SAAS) under a local alias, and that local alias is the only name the providing side ever sees on the relation (`relation.app.name`). It has no relationship to the actual remote application name, and the remote model name is not surfaced at all.
+Juju does not expose either of these across a cross-model relation. On the consumer side, an offer is consumed as a Software-as-a-Service (SaaS) under a local alias, and that local alias is the only name the providing side ever sees on the relation (`relation.app.name`). It has no relationship to the actual remote application name, and the remote model name is not surfaced at all.
 
-The `cross_model_mesh` interface works around this by carrying the real `app_name` and `juju_model_name` of the consuming application explicitly in its relation data. The Beacon charm reads this payload and uses it, instead of the local SAAS alias, to build the source principal of the generated `AuthorizationPolicy`.
+The `cross_model_mesh` interface works around this by carrying the real `app_name` and `juju_model_name` of the consuming application explicitly in its relation data. The Beacon charm reads this payload and uses it, instead of the local SaaS alias, to build the source principal of the generated `AuthorizationPolicy`.
 
 ## How the correlation works
 
-When Beacon builds policies, it iterates over each service-mesh relation (for example `metrics-endpoint`, `reviews`, `ingress`) and, for each one, looks up the matching `cross_model_mesh` relation to discover the real source identity. The lookup key is the remote application as seen locally, that is, the local SAAS name on the relation.
+When Beacon builds policies, it iterates over each relation that a policy applies to (for example an established relation on the `metrics-endpoint`, `reviews`, or `ingress` charm endpoint) and looks up the matching `cross_model_mesh` relation to discover the real source identity. The lookup key is the remote application as seen locally, that is, the local SaaS name on the relation.
 
-This means the workload relation and the `cross_model_mesh` relation must arrive on the providing side under the **same** SAAS. Only then does the Beacon charm know that a given `cross_model_mesh` payload describes the source of a given workload relation.
+This means both relations must arrive on the providing side under the **same** SaaS. Only then does the Beacon charm know that a given `cross_model_mesh` payload describes the source of a given relation.
 
-## Limitation: group cross-model endpoints into a single offer
+## Limitation: every offer with a workload endpoint must also include `provide-cmr-mesh`
 
-A Juju offer produces exactly one SAAS on the consumer side, and each SAAS in a consuming model must have a unique local name. As a direct consequence:
+A Juju offer produces exactly one SaaS on the consumer side, and each SaaS in a consuming model has its own unique local name. Because Beacon correlates a charm relation with its corresponding `cross_model_mesh` relation data by **matching the local SaaS name on both relations**, the rule is:
 
-> All endpoints of a remote application that require an authorization policy, together with the `provide-cmr-mesh` endpoint, must be exposed through a **single** Juju offer.
+> Every Juju offer that exposes an endpoint requiring an authorization policy must also expose the `provide-cmr-mesh` endpoint.
 
-If the workload endpoint and `provide-cmr-mesh` are exposed through separate offers, the consumer ends up with two different SAAS names backing the same remote application. The providing Beacon receives the two relations under two unrelated local names and cannot correlate them. The lookup silently falls back to the local SAAS alias as the source name, producing an `AuthorizationPolicy` whose source principal does not match any real workload. The policy is silently ineffective: cross-model traffic that should be allowed is denied (in hardened mode), or, if a permissive rule happens to match for unrelated reasons, granted under the wrong identity.
+If a charm endpoint is exposed in an offer that does not also include `provide-cmr-mesh`, the consumer ends up with a SaaS for the charm relation that has no matching `cross_model_mesh` endpoint under the same local name. The providing Beacon silently falls back to the local SaaS alias as the source name, and produces an `AuthorizationPolicy` whose source principal does not match any real charm's principal. The policy is silently ineffective: cross-model traffic that should be allowed is denied (in hardened mode), or, if a permissive rule happens to match for unrelated reasons, granted under the wrong identity.
 
-The same applies when multiple workload endpoints on a remote application each need their own policy. They must all be grouped into the single offer that also exposes `provide-cmr-mesh`. For example:
+There are two equivalent ways to satisfy the rule:
 
-```bash
-juju offer my-app:reviews,metrics-endpoint,ingress,provide-cmr-mesh
-```
+* **One offer bundling everything.** Group all charm endpoints together with `provide-cmr-mesh` into a single offer:
 
-This is a structural limitation of Juju cross-model relations and cannot be worked around in the mesh charms or library.
+  ```bash
+  juju offer my-app:reviews,metrics-endpoint,ingress,provide-cmr-mesh
+  ```
+
+* **Multiple offers, each one self-contained.** Re-expose `provide-cmr-mesh` in every offer that carries a charm endpoint:
+
+  ```bash
+  juju offer my-app:reviews,provide-cmr-mesh           # consumed as e.g. my-app-reviews
+  juju offer my-app:metrics-endpoint,provide-cmr-mesh  # consumed as e.g. my-app-metrics
+  ```
+
+  Each offer becomes its own SaaS on the consumer side, and each SaaS carries both a workload relation and a `cross_model_mesh` relation under the same local name, so Beacon correlates each pair independently.
+
 ## See also
 
 * [Use the Istio mesh across different Juju models](../tutorial/use-the-istio-mesh-across-different-juju-models.md): tutorial walkthrough of a cross-model mesh setup.
