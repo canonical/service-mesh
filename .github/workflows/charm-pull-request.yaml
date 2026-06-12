@@ -8,6 +8,11 @@ on:
     paths:
       - 'charms/**'
 
+permissions:
+  security-events: write
+  actions: read
+  contents: read
+
 jobs:
   discover-charms:
     name: Discover charms
