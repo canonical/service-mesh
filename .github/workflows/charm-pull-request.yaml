@@ -4,9 +4,9 @@ on:
   pull_request:
     branches:
       - main
-      - track/**
+      - 'track/**'
     paths:
-      - charms/**
+      - 'charms/**'
 
 jobs:
   discover-charms:
