@@ -1,0 +1,52 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: tester-mock-oauth2
+description: Mock OAuth2 server for testing JWT-based authentication
+summary: Wraps navikt/mock-oauth2-server for integration testing
+type: charm
+platforms:
+  ubuntu@24.04:amd64:
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
+
+actions:
+  get-issuer-info:
+    description: Get the issuer URL, token URL, and JWKS URL for a given issuer ID.
+    params:
+      issuer-id:
+        type: string
+        default: "default"
+        description: The issuer ID (mock-oauth2-server creates issuers dynamically).
+  get-token:
+    description: Get an access token via client_credentials grant.
+    params:
+      issuer-id:
+        type: string
+        default: "default"
+        description: The issuer ID to request the token from.
+      client-id:
+        type: string
+        default: "test-client"
+        description: The client ID for the token request.
+      client-secret:
+        type: string
+        default: "test-secret"
+        description: The client secret for the token request.
+      scope:
+        type: string
+        default: "openid"
+        description: The scope for the token request.
+
+containers:
+  mock-oauth2-server:
+    resource: mock-oauth2-server-image
+
+resources:
+  mock-oauth2-server-image:
+    type: oci-image
+    description: OCI image for mock OAuth2 server
+    upstream-source: ghcr.io/navikt/mock-oauth2-server:2.1.10

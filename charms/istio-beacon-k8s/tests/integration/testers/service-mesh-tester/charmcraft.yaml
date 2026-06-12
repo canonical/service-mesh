@@ -1,0 +1,71 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: service-mesh-tester
+description: tester charm that implements the service-mesh relation, some mock relations, and a service that listens/responds to traffic.  Used for testing the istio charms
+summary: tester charm that implements the service-mesh relation, some mock relations, and a service that listens/responds to traffic.  Used for testing the istio charms
+type: charm
+platforms:
+  ubuntu@22.04:amd64:
+
+config:
+  options:
+    peer-communication:
+      type: boolean
+      default: true
+      description: |
+        Used for `ServiceMeshConsumer`'s `peer_communication` argument, which controls whether the units of this charm are allowed to communicate with each other or not.
+    auto-join-mesh:
+      type: boolean
+      default: true
+      description: |
+        Used for `ServiceMeshConsumer`'s `auto_join` argument, which controls whether this charm will add itself to the mesh if there is a service_mesh relation established to a beacon.
+
+provides:
+  inbound:
+    interface: service
+  inbound-unit:
+    interface: service
+  provide-cmr-mesh:
+    interface: cross_model_mesh
+
+requires:
+  outbound:
+    interface: service
+  service-mesh:
+    limit: 1
+    interface: service_mesh
+  require-cmr-mesh:
+    interface: cross_model_mesh
+  metrics-endpoint:
+    # This charm does not do a full implementation of metrics-endpoint, it just adds this so it can relate to
+    # istio-beacon-k8s on the prometheus_scrape interface to test policy generation.
+    interface: prometheus_scrape
+    optional: true
+    description: |
+      Integration to scrape the metrics and required endpoints of another charm.
+
+peers:
+  peers:
+    interface: service-mesh-tester-peers
+
+containers:
+  echo-server:
+    resource: echo-server-image
+
+resources:
+  echo-server-image:
+    type: oci-image
+    description: OCI image for echo server
+    upstream-source: jmalloc/echo-server:v0.3.7
+
+parts:
+  charm:
+    build-packages: [git]
+    charm-binary-python-packages:
+      - ops
+      - requests
+      - pydantic-core
+      - pydantic
+      - maturin
+      - canonical-service-mesh
+      - charmlibs-interfaces-service-mesh

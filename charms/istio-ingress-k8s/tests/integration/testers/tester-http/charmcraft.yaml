@@ -1,0 +1,66 @@
+# Copyright 2022 Canonical Ltd.
+# See LICENSE file for licensing details.
+name: tester-http
+description: HTTP echo server for testing ingress routes
+summary: HTTP echo server for testing ingress routes
+type: charm
+platforms:
+  ubuntu@24.04:amd64:
+parts:
+  charm:
+    build-packages:
+      - git
+    charm-binary-python-packages:
+      - cryptography
+      - jsonschema
+      - pydantic>=2
+      - charmlibs-interfaces-gateway-metadata
+      - charmlibs-interfaces-istio-ingress-route
+      - charmlibs-interfaces-istio-request-auth
+
+
+requires:
+  ingress:
+    interface: ingress
+    limit: 1
+  ingress-2:
+    interface: ingress
+    limit: 1
+  istio-ingress-route:
+    interface: istio_ingress_route
+    limit: 1
+  gateway-metadata:
+    interface: gateway_metadata
+    limit: 1
+  istio-request-auth:
+    interface: istio_request_auth
+    limit: 1
+
+actions:
+  set-request-auth:
+    description: Configure JWT-based request authentication via the istio-request-auth relation.
+    params:
+      issuer:
+        type: string
+        description: The issuer URL for JWT validation.
+      jwks-uri:
+        type: string
+        description: The JWKS URI for fetching public keys.
+      forward-original-token:
+        type: boolean
+        default: true
+        description: Whether to forward the original token to the upstream service.
+    required:
+      - issuer
+  clear-request-auth:
+    description: Clear JWT rules from the istio-request-auth relation databag.
+
+containers:
+  echo-server:
+    resource: echo-server-image
+
+resources:
+  echo-server-image:
+    type: oci-image
+    description: OCI image for echo server
+    upstream-source: jmalloc/echo-server:v0.3.7

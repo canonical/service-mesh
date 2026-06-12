@@ -1,0 +1,95 @@
+name: istio-beacon-k8s
+type: charm
+title: Istio Beacon
+summary: A beacon charm used for joining the Istio service mesh.
+description: |
+  The istio-beacon-k8s charm facilitates adding other charms to the Istio service mesh.
+  The operator is designed to be used in conjunction with istio-k8s to deploy and
+  configure Istio using Juju.
+
+links:
+  documentation: https://discourse.charmhub.io/t/istio-beacon-k8s-docs-index/20489
+  website: https://charmhub.io/istio-beacon-k8s
+  source: https://github.com/canonical/istio-beacon-k8s-operator
+  issues: https://github.com/canonical/istio-beacon-k8s-operator/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@22.04:amd64:
+  # ubuntu@22.04:arm64:
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
+    override-build: |
+      craftctl default
+      git describe --always > $CRAFT_PART_INSTALL/version
+  icon:
+    plugin: dump
+    source: .
+    stage:
+      - icon.svg
+
+containers:
+  metrics-proxy:
+    resource: metrics-proxy-image
+
+resources:
+  metrics-proxy-image:
+    type: oci-image
+    description: Metrics Proxy OCI image
+    upstream-source: docker.io/ubuntu/metrics-proxy:0.1.1-22.04_stable
+
+provides:
+  provide-cmr-mesh:
+    interface: cross_model_mesh
+    optional: true
+  service-mesh:
+    interface: service_mesh
+    optional: true
+  metrics-endpoint:
+    interface: prometheus_scrape
+    optional: true
+
+requires:
+  charm-tracing:
+    interface: tracing
+    optional: true
+    limit: 1
+    description: |
+      Endpoint for integrating over a `tracing` interface and sending charm traces 
+      to a distributed tracing backend such as Tempo.
+
+peers:
+  peers:
+    interface: istio_beacon_k8s_peers
+
+config:
+  options:
+    manage-authorization-policies:
+      type: boolean
+      default: true
+      description: >
+        Automatically create Istio authorization policies for any charm requiresting them over the service mesh 
+        relation.  If set to false, the charm will not create any authorization policies, but will still do other 
+        functions like provide a waypoint.
+    model-on-mesh:
+      type: boolean
+      default: false
+      description: >
+        Add this charm's model to the service mesh. 
+        All charms in this model will automatically be added to the mesh.
+    ready-timeout:
+      type: int
+      default: 100
+      description: >
+        The maximum time (in seconds) to wait for the waypoint deployment to be 
+        ready. This applies specifically to the deployment created for the Istio 
+        waypoint controller. If the deployment does not become ready within this time, 
+        charm will go into error state.
