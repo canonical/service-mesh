@@ -32,6 +32,7 @@ installable
 integrations
 JSON
 Juju
+JWT
 Kubeflow
 kubernetes
 Kubernetes
@@ -61,6 +62,7 @@ Permalink
 pre
 Quickstart
 ReadMe
+requirer
 reST
 reStructuredText
 roadmap

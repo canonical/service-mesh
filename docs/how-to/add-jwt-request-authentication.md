@@ -107,7 +107,7 @@ juju integrate my-charm:istio-request-auth ingress:istio-request-auth
 When the relation is established and your charm has published valid JWT rules, the ingress charm creates two Kubernetes resources in its own namespace, both targeting its gateway:
 
 * a `RequestAuthentication` resource (named `request-auth-<your-app>-<ingress-app>`) built from your published rules, and
-* a `DENY` `AuthorizationPolicy` (named `deny-without-jwt-<ingress-app>`) that rejects any request without a validated JWT principal, ensuring fail-closed behaviour.
+* a `DENY` `AuthorizationPolicy` (named `deny-without-jwt-<ingress-app>`) that rejects any request without a validated JWT principal, ensuring fail-closed behavior.
 
 When `forward-auth` is also active on the same gateway, the `DENY` policy is scoped to requests carrying a `Bearer` token so that non-`Bearer` requests continue to flow through the external authorization stack.
 
