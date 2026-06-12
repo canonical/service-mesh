@@ -86,6 +86,10 @@ This command offers two relations:
 - **`reviews`**: The application-specific relation for connecting the frontend [`bookinfo-productpage-k8s`](https://charmhub.io/bookinfo-productpage-k8s) with the backend `bookinfo-reviews-k8s` charm
 - **`provide-cmr-mesh`**: A service mesh relation that allows applications in other Juju models to make HTTP calls to this charm via the service mesh
 
+```{warning}
+Every endpoint of `bookinfo-reviews-k8s` that needs an authorization policy must be exposed through the **same** Juju offer as `provide-cmr-mesh`. If `reviews` and `provide-cmr-mesh` are split across separate offers, the consumer will consume them as two different SAAS, and Charmed Istio will silently generate an ineffective authorization policy. See [Cross-model mesh](../explanation/cross-model-mesh.md) for details.
+```
+
 ### Step 6: consume and connect the reviews charm
 
 Switch back to the original `bookinfo` model, [consume](https://documentation.ubuntu.com/juju/3.6/reference/juju-cli/list-of-juju-cli-commands/consume/) the `bookinfo-reviews-k8s` charm from the `bookinfo-2` Juju model and establish the cross-model connections:

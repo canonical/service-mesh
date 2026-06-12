@@ -26,5 +26,6 @@ It is implemented through the following charms:
 hardened-mode
 managed-mode
 traffic-authorization
+cross-model-mesh
 cilium-cni-compatibility
 ```
