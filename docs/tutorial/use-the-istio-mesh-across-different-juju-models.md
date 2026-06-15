@@ -87,7 +87,7 @@ This command offers two relations:
 - **`provide-cmr-mesh`**: A service mesh relation that allows applications in other Juju models to make HTTP calls to this charm via the service mesh
 
 ```{warning}
-Every endpoint of `bookinfo-reviews-k8s` that needs an authorization policy must be exposed through the **same** Juju offer as `provide-cmr-mesh`. If `reviews` and `provide-cmr-mesh` are split across separate offers, the consumer will consume them as two different SAAS, and Charmed Istio will silently generate an ineffective authorization policy. See [Cross-model mesh](../explanation/cross-model-mesh.md) for details.
+Every endpoint of `bookinfo-reviews-k8s` that needs an authorization policy must be exposed through the **same** Juju offer as `provide-cmr-mesh`. If `reviews` and `provide-cmr-mesh` are split across separate offers, the consumer will consume them as two different SaaS, and Charmed Istio will silently generate an ineffective authorization policy. See [Cross-model mesh](../explanation/cross-model-mesh.md) for details.
 ```
 
 ### Step 6: consume and connect the reviews charm
