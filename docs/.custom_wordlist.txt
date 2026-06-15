@@ -52,6 +52,7 @@ QEMU
 Rockcraft
 readthedocs
 rst
+SaaS
 ServiceMeshConsumer
 SVG
 scalable
@@ -73,6 +74,7 @@ url
 ztunnel
 utils
 VMs
+walkthrough
 waypoint
 waypoints
 Waypoint
