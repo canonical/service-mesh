@@ -1,0 +1,28 @@
+{# Extend the canonical_sphinx theme's base template so we keep all of its
+   functionality while adding the Google Tag Manager snippet required by the
+   cookie banner. The leading '!' tells Sphinx to extend the theme's own
+   base.html rather than this file. #}
+{% extends "!base.html" %}
+
+{% block theme_scripts %}
+{{ super() }}
+  <!-- Google Tag Manager -->
+  <script>
+    (function(w, d, s, l, i) {
+      w[l] = w[l] || [];
+      w[l].push({
+        'gtm.start': new Date().getTime(),
+        event: 'gtm.js'
+      });
+      var f = d.getElementsByTagName(s)[0];
+      var j = d.createElement(s);
+      var dl = '';
+      if (l != 'dataLayer') {
+          dl = '&l=' + l;
+      }
+      j.async = true;
+      j.src = 'https://www.googletagmanager.com/gtm.js?id=' + i + dl;
+      f.parentNode.insertBefore(j, f);
+    })(window, document, 'script', 'dataLayer', 'GTM-KNX3CJC');
+  </script>
+{% endblock theme_scripts %}
