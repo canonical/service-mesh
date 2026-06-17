@@ -68,6 +68,18 @@ client.
   charms are backend-agnostic — they receive credentials and pass them
   directly to the Tailscale operator or `tailscale up --auth-key`.
 
+*Device approval / pre-authorization:*
+- Credentials minted by `tailscale-config` MUST be created with
+  `preauthorized=true` so that devices skip manual approval even when the
+  tailnet has device approval enabled.
+- Device approval is an opt-in tailnet feature (off by default). It is only
+  hit when device approval is enabled AND a non-pre-authorized key is used.
+- When an admin configures a downstream charm manually (not via
+  `tailscale-config`) with a non-pre-authorized key on an approval-enabled
+  tailnet, the operator/client device lands in `NeedsMachineAuth`. Note that
+  each new device (the operator AND every proxy pod) requires its own
+  approval — it is not a one-time action.
+
 *Code structure for `tailscale-config`:*
 - The backend-specific logic (API calls for credential creation, revocation,
   etc.) must be abstracted behind a common interface and separated into
@@ -108,7 +120,9 @@ Deploys and manages the upstream Tailscale Kubernetes operator.
    directly as a Juju secret via charm config. For simpler deployments that
    don't need the full three-charm setup.
 
-If both are present, the relation takes precedence.
+If BOTH are present, neither wins — the charm sets BlockedStatus and refuses
+to proceed until the conflict is resolved (the ambiguity is treated as user
+error).
 
 **Configuration:**
 - `login-server`: URL of the control plane. Empty for Tailscale SaaS, set to
@@ -189,6 +203,38 @@ spec:
 The operator (managed by `tailscale-k8s`) holds the OAuth credentials and
 handles all tailnet registration.
 
+**Status Reporting:**
+
+The beacon cannot directly observe the proxy pod (it lives in the
+`tailscale-k8s` model). Instead, it reads two signals that the operator
+writes onto the beacon's own LoadBalancer Service:
+- `.status.loadBalancer.ingress` — populated with the tailnet hostname/IPs
+  when the proxy is ready.
+- `.status.conditions[ProxyReady]` — a condition the operator sets with
+  reasons: `ProxyCreated` (ready), `ProxyPending` (waiting), `ProxyInvalid`
+  / `ProxyFailed` (errors). Note: a stuck `NeedsMachineAuth` is NOT
+  distinguishable from normal startup — both appear as `ProxyPending` with
+  message "no Tailscale hostname known yet, waiting for proxy pod to finish
+  auth".
+
+Reporting rules:
+- **ActiveStatus** when `.status.loadBalancer.ingress` is populated. Show the
+  tailnet hostname in the status message.
+- **WaitingStatus** when `ProxyReady` is `ProxyPending` — surface the
+  operator's message.
+- When `ProxyReady` is `ProxyInvalid` or `ProxyFailed`: raise an exception
+  and write an error log, surfacing the operator's message as the exception
+  string. This MUST happen at the END of the charm's reconcile function so
+  it does not block other operations from completing first.
+- After a reasonable timeout still in `ProxyPending`, log a warning
+  mentioning possible device approval (`NeedsMachineAuth`) so the user knows
+  to check the admin console.
+
+The same status-reporting approach applies to `tailscale-k8s` for the
+operator's own device: surface `NeedsMachineAuth` as BlockedStatus with a
+message directing the admin to approve the device or use a pre-authorized
+key.
+
 ### tailscale-beacon
 
 Machine subordinate charm. Deploys and runs the Tailscale snap.
@@ -239,10 +285,19 @@ machine.
   Questions.
 
 ### ingress (application charm → tailscale-beacon-k8s)
-- Standard `ingress` relation interface.
-- Application charm provides: service name, port, model name.
+- Uses the standard `ingress` v2 relation interface (provider/requirer).
+- Requirer (the app) sends: `name` (app name), `model`, `port` (app
+  databag), and `host` (unit databag). These map cleanly to what the beacon
+  needs to create the LoadBalancer Service — no HTTP assumptions on this side.
+- Provider (the beacon) returns a `url` field, which is typed as
+  `AnyHttpUrl` in the v2 schema. This is an awkward fit for non-HTTP (L3)
+  workloads like databases, whose tailnet address is `host:port` with no
+  HTTP scheme.
 - `tailscale-beacon-k8s` creates the LoadBalancer Service to expose the app
   on the tailnet.
+- OPEN (see Open Questions): whether to (a) reuse `ingress` and return a
+  synthetic `http://<tailnet-host>:<port>/` URL, or (b) define a custom
+  interface that returns a properly-typed tailnet host + port + protocol.
 
 ### juju-info (principal charm → tailscale-beacon)
 - Standard `juju-info` subordinate relation.
@@ -253,9 +308,6 @@ machine.
 
 ## Open Questions
 
-- Precedence behavior when both relation and manual config are present on
-  `tailscale-k8s` or `tailscale-beacon` (error vs relation-wins).
-  (Current working assumption: relation takes precedence.)
 - Headscale credential API details — exact endpoints and authentication
   mechanism for Headscale's API.
 - Exact relation data field names for the `tailscale-config` credential
@@ -264,3 +316,15 @@ machine.
 - Cleanup behavior on `tailscale-k8s` removal — whether to delete CRDs
   (destructive, cascades to user ProxyGroups/Connectors) or only remove the
   charm-managed resources (proxies SA/RBAC, IngressClass).
+- `ingress` interface fit for L3/non-HTTP workloads: reuse standard `ingress`
+  v2 with a synthetic `http://` URL, or define a custom interface that
+  returns a properly-typed tailnet host + port + protocol.
+
+## Resolved Decisions
+
+- When both the `tailscale-config` relation and manual config are present,
+  the charm BLOCKS rather than picking a winner. Applies to both
+  `tailscale-k8s` and `tailscale-beacon`.
+- Credentials minted by `tailscale-config` are created with
+  `preauthorized=true`; `NeedsMachineAuth` is surfaced as BlockedStatus when
+  it occurs (manual non-pre-authorized keys on approval-enabled tailnets).
