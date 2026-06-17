@@ -111,6 +111,25 @@ When the relation is established and your charm has published valid JWT rules, t
 
 When `forward-auth` is also active on the same gateway, the `DENY` policy is scoped to requests carrying a `Bearer` token so that non-`Bearer` requests continue to flow through the external authorization stack.
 
+## Understand the gateway-wide scope
+
+Both resources target the **entire gateway**, not just the routes belonging to your charm. The `RequestAuthentication` and `DENY` `AuthorizationPolicy` both use a `targetRefs` entry of `kind: Gateway`, so JWT validation, claim-to-header mapping, and the fail-closed enforcement apply to *every* route exposed by that gateway. This has important consequences when more than one application shares the same `istio-ingress-k8s` instance.
+
+```{important}
+Enabling `istio-request-auth` affects all traffic through the gateway, including applications that never integrated over the relation. Plan your gateway topology accordingly: if some applications must not require a JWT, give them a separate gateway.
+```
+
+### Multiple charms on the same gateway
+
+The `istio-request-auth` relation does not limit the number of related applications, so several charms can integrate with the same gateway. When they do:
+
+* The ingress charm creates **one `RequestAuthentication` resource per related application** (each named `request-auth-<their-app>-<ingress-app>`), built from that application's published rules.
+* Istio **merges** the `jwtRules` from every `RequestAuthentication` that selects the same gateway. The gateway therefore trusts the **union** of all related applications' issuers. Because validation is gateway-scoped rather than per-route, a token issued for one application is also considered valid on requests destined for another application on the same gateway.
+* The ingress charm creates a **single** `DENY` `AuthorizationPolicy` for the whole gateway. As soon as *any* application enables `istio-request-auth`, every request through the gateway must carry a validated JWT principal (or, when `forward-auth` is active, every `Bearer`-token request). Applications sharing the gateway are subject to this even if they did not opt in.
+* If a related application publishes malformed or empty rules, no `RequestAuthentication` is created for it, but the gateway-wide `DENY` policy is still applied. This is the fail-closed behavior: a misconfigured application cannot leave the gateway open, but it can cause the gateway to reject traffic until valid rules are published or the relation is removed.
+
+If you need applications to trust different issuers in isolation, or you do not want one application's authentication requirements imposed on others, deploy them behind separate gateways.
+
 ## Verify the resources
 
 After the charms settle to `active/idle`, you can inspect the resources the gateway created in its model's namespace:
