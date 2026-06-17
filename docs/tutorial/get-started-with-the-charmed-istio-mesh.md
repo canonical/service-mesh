@@ -17,6 +17,10 @@ This tutorial assumes you have a [Juju](https://juju.is) controller bootstrapped
 Typical setup using [snaps](https://snapcraft.io/) 
 can be found in the [Juju docs](https://documentation.ubuntu.com/juju/3.6/howto/manage-your-deployment/).
 
+```{note}
+If you decide to use Canonical K8s instead of MicroK8s, don't forget to perform the required [configuration changes](../how-to/use-charmed-istio-with-canonical-kubernetes.md).
+```
+
 This tutorial also assumes you have a basic knowledge of Juju.
 
 ## Configure MicroK8s
@@ -43,6 +47,10 @@ juju deploy istio-ingress-k8s --trust --channel 2/stable
 The [`istio-k8s`](https://charmhub.io/istio-k8s) charm deploys and manages the control plane of Istio ambient on Kubernetes, enabling you to configure and manage Istio through Juju.
 
 The [`istio-ingress-k8s`](https://charmhub.io/istio-ingress-k8s) charm manages Istio ingress gateways in Kubernetes clusters and provides an ingress endpoint for charms that use it. 
+
+```{note}
+If you are using Canonical K8s instead of MicroK8s, you may need to make [additional changes](../how-to/use-charmed-istio-with-canonical-kubernetes.md) at this stage.
+```
 
 ### Step 2: offer Istio ingress
 
@@ -150,8 +158,8 @@ Deploy the `istio-beacon-k8s` charm and connect it to the bookinfo backend charm
 
 ```bash
 juju deploy istio-beacon-k8s --channel 2/stable --trust
-juju integrate bookinfo-details-k8s istio-beacon-k8s
-juju integrate bookinfo-reviews-k8s istio-beacon-k8s
+juju integrate bookinfo-details-k8s:service-mesh istio-beacon-k8s:service-mesh
+juju integrate bookinfo-reviews-k8s:service-mesh istio-beacon-k8s:service-mesh
 ```
 
 With the above commands, the `istio-beacon-k8s` charm 
@@ -180,7 +188,7 @@ Refresh the Bookinfo webpage in your browser - you'll notice that the details se
 Add the `bookinfo-productpage-k8s` charm to the mesh to enable secure communication:
 
 ```bash
-juju integrate bookinfo-productpage-k8s istio-beacon-k8s
+juju integrate bookinfo-productpage-k8s:service-mesh istio-beacon-k8s:service-mesh
 ```
 
 The `istio-beacon-k8s` charm automatically creates authorization policies allowing `bookinfo-productpage-k8s` to access specific endpoints on the `bookinfo-details-k8s` and `bookinfo-reviews-k8s` charms via `GET` requests on port `9080`. Read [How to Add Mesh Support to your Charms](../how-to/add-mesh-support-to-your-charm.md) for details on how to automate authorization policy creation in your own charms.
