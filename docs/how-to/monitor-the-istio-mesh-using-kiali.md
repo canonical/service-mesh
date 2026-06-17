@@ -27,7 +27,7 @@ Before starting, ensure you have:
 - **Completed tutorials**:
   - [Get started with Charmed Istio ambient](../tutorial/get-started-with-the-charmed-istio-mesh.md)
 - **Working Deployment**: Charmed Istio deployed in the `istio-system` model
-- **Juju Knowledge**: Basic familiarity with [Juju cross-model relations](https://documentation.ubuntu.com/juju/stable/reference/cross-model-integration/)
+- **Juju Knowledge**: Basic familiarity with [Juju cross-model relations](https://canonical.com/juju/docs/juju-cli/latest/reference/relation/#cross-model-relation)
 
 <!-- vale off -->
 ## Prepare the Istio system

@@ -17,7 +17,7 @@ We'll move a backend charm ([`bookinfo-reviews-k8s`](https://charmhub.io/bookinf
 Before starting this tutorial, ensure you have:
 
 - Completed the [Get started with Charmed Istio ambient](./get-started-with-the-charmed-istio-mesh.md) tutorial
-- Basic familiarity with [Juju cross-model relations](https://documentation.ubuntu.com/juju/stable/reference/cross-model-integration/) (CMR)
+- Basic familiarity with [Juju cross-model relations](https://canonical.com/juju/docs/juju-cli/latest/reference/relation/#cross-model-relation) (CMR)
 
 ## Deploy the reviews charm in a new model
 
