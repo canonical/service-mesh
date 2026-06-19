@@ -59,6 +59,16 @@ def get_gateway_address(namespace: str) -> str:
 # Version 2 doesn't work with iam so running dev for now. We can consider switching to a stable track when a new one releases.
 ISTIO_CHANNEL = os.environ.get("ISTIO_CHANNEL", "dev/edge")
 
+# K8s substrate the tests are running on (set by CI). Drives per-substrate charm config.
+SUBSTRATE = os.environ.get("SUBSTRATE", "")
+
+# Per-substrate overrides for the istio-k8s charm config. Set explicitly so the deploy is not
+# coupled to whatever the charm's current default for `platform` is.
+_SUBSTRATE_ISTIO_CONFIG = {
+    "microk8s": {"platform": "microk8s"},
+    "canonical-k8s": {"platform": ""},
+}
+
 
 def get_authorization_policies(juju: jubilant.Juju) -> List[str]:
     """Get list of AuthorizationPolicy resources in the model's namespace.
@@ -114,7 +124,10 @@ def deploy_istio(juju: jubilant.Juju, config: Optional[dict] = None) -> None:
     terraform_dir = Path(__file__).parent / "terraform" / "istio"
     state_file = Path(tempfile.gettempdir()) / f"istio-{juju.model}.tfstate"
 
-    logger.info(f"Deploying istio-k8s to {juju.model} (channel={ISTIO_CHANNEL}, config={config})")
+    # Stack substrate defaults under any scenario-provided overrides.
+    config = {**_SUBSTRATE_ISTIO_CONFIG.get(SUBSTRATE, {}), **(config or {})}
+
+    logger.info(f"Deploying istio-k8s to {juju.model} (channel={ISTIO_CHANNEL}, substrate={SUBSTRATE!r}, config={config})")
 
     terraform = TFManager(terraform_dir, state_file)
     terraform.init()

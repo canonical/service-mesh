@@ -9,14 +9,66 @@ on:
       - 'tox.ini'
       - 'uv.lock'
       - '.github/workflows/pull_request.yaml'
-      - '.github/workflows/_solution-level-tests.yaml'
+      - '.github/workflows/_istio-solution-tests.yaml'
+      - '.github/actions/setup-k8s-substrate/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  quality-checks:
-    uses: ./.github/workflows/_solution-level-tests.yaml
+  changes:
+    name: Detect changed paths
+    runs-on: ubuntu-latest
+    outputs:
+      istio: ${{ steps.filter.outputs.istio }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dorny/paths-filter@v3
+        id: filter
+        with:
+          filters: |
+            istio:
+              - 'tests/integration/istio/**'
+              - 'tests/integration/helpers.py'
+              - 'tests/integration/__init__.py'
+              - 'tests/__init__.py'
+              - 'tests/pyproject.toml'
+              - 'tests/tox.ini'
+              - 'tests/uv.lock'
+              - '.github/actions/setup-k8s-substrate/**'
+              - '.github/workflows/_istio-solution-tests.yaml'
+              - '.github/workflows/pull_request.yaml'
+
+  linting:
+    name: Linting
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Lint
+        run: |
+          cd tests
+          sudo snap install astral-uv --classic
+          uvx tox -e lint
+
+  static-analysis:
+    name: Static analysis
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+      - name: Static analysis
+        run: |
+          cd tests
+          sudo snap install astral-uv --classic
+          uvx tox -e static
+
+  istio:
+    name: Istio
+    needs: [linting, static-analysis, changes]
+    if: needs.changes.outputs.istio == 'true'
+    uses: ./.github/workflows/_istio-solution-tests.yaml
     with:
       istio-channel: "dev/edge"
+      substrates: '["canonical-k8s"]'
