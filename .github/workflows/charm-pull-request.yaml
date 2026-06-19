@@ -37,4 +37,5 @@ jobs:
     uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
     with:
       charm-path: ${{ matrix.charm-path }}
+      provider: microk8s
     secrets: inherit
