@@ -13,7 +13,7 @@ dependencies = [
     "charmlibs-interfaces-istio-request-auth",
     "charmlibs-interfaces-service-mesh",
     "canonical-service-mesh>=0.0.2",
-    "cryptography~=42.0.0", # Deps: tls_certificates_interface libs
+    "cryptography~=48.0.1", # Deps: tls_certificates_interface libs
     "opentelemetry-exporter-otlp-proto-http==1.21.0", # PYDEPS: lib/charms/tempo_coordinator_k8s/v0/charm_tracing.py
     "jsonschema>=4.22.0", # Deps: traefik_k8s libs, tls_certificates_interface libs
 ]
