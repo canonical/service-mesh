@@ -1,0 +1,115 @@
+groups:
+  - name: IstioAgentMonitoring
+    rules:
+      - alert: HighOutgoingLatency
+        expr: istio_agent_outgoing_latency > 50
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High Outgoing Latency"
+          description: "The outgoing latency is higher than the threshold."
+
+      - alert: XDSProxyMismatch
+        expr: istio_agent_xds_proxy_requests > istio_agent_xds_proxy_responses * 2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "XDS Proxy Requests Mismatch"
+          description: "Number of XDS proxy requests exceeds responses significantly."
+
+      - alert: HighCPUUsage
+        expr: istio_agent_process_cpu_seconds_total > 2
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High CPU Usage"
+          description: "CPU usage of the Istio agent is higher than the threshold."
+
+      - alert: HighMemoryUsage
+        expr: (istio_agent_process_resident_memory_bytes / (1024 * 1024)) > 200
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High Memory Usage"
+          description: "Memory usage of the Istio agent exceeds the threshold."
+
+      - alert: NoSuccessfulScrapes
+        expr: istio_agent_scrapes_total == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No Successful Scrapes"
+          description: "The Istio agent has not scraped metrics successfully."
+
+      - alert: LongStartupDuration
+        expr: istio_agent_startup_duration_seconds > 5
+        for: 5m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Long Startup Duration"
+          description: "The startup duration of the Istio agent is longer than expected."
+
+  - name: EnvoyClusterMonitoring
+    rules:
+      - alert: Http2FlushTimeout
+        expr: envoy_cluster_http2_tx_flush_timeout > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "HTTP2 Flush Timeout Detected"
+          description: "Flush timeout occurred in the (cluster_name {{ $labels.cluster_name }}) cluster in the last 5 minutes."
+
+      - alert: LocalClusterNotHealthy
+        expr: envoy_cluster_lb_local_cluster_not_ok == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Local Cluster Health Check Failed"
+          description: "The local cluster for (cluster_name {{ $labels.cluster_name }}) is not healthy in the last 5 minutes."
+
+      - alert: ZoneNoCapacityLeft
+        expr: envoy_cluster_lb_zone_no_capacity_left == 1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "No Capacity Left in a Zone"
+          description: "A zone in the (cluster_name {{ $labels.cluster_name }}) cluster has no capacity left."
+
+      - alert: OriginalDestinationHostInvalid
+        expr: envoy_cluster_original_dst_host_invalid > 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Invalid Original Destination Host Detected"
+          description: "Invalid original destination host detected in the (cluster_name {{ $labels.cluster_name }}) cluster in the last 5 minutes."
+
+  - name: EnvoyErrorMonitoring
+    rules:
+      - alert: HighErrorRate
+        expr: sum(rate(envoy_cluster_internal_upstream_rq_completed[5m])) /
+              sum(rate(envoy_cluster_internal_upstream_rq{response_code_class="2xx"}[5m])) > 0.1
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "High Error Rate Detected"
+          description: "More than 10% of requests in (cluster_name {{ $labels.cluster_name }}) cluster returned an error in the last 5 minutes."
+
+      - alert: ResourceExhaustion
+        expr: (envoy_server_memory_allocated / envoy_server_memory_heap_size) > 0.85
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Resource Exhaustion Detected"
+          description: "Memory usage exceeds 85% in the last 5 minutes."

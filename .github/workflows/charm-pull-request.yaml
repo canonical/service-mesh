@@ -4,9 +4,14 @@ on:
   pull_request:
     branches:
       - main
-      - track/**
+      - 'track/**'
     paths:
-      - charms/**
+      - 'charms/**'
+
+permissions:
+  security-events: write
+  actions: read
+  contents: read
 
 jobs:
   discover-charms:
@@ -32,4 +37,5 @@ jobs:
     uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
     with:
       charm-path: ${{ matrix.charm-path }}
+      provider: microk8s
     secrets: inherit

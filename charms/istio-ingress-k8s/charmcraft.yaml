@@ -1,0 +1,168 @@
+name: istio-ingress-k8s
+type: charm
+title: Istio Ingress
+summary: A Juju charm to deploy and manage ingresses
+description: |
+  Istio Ingress is a Juju charm for managing Istio ingress gateways in Kubernetes clusters.
+  It automates deployment and configuration, providing secure and reliable traffic routing.
+
+links:
+  documentation: https://discourse.charmhub.io/t/istio-ingress-k8s-docs-index/20488
+  website: https://charmhub.io/istio-ingress-k8s
+  source: https://github.com/canonical/istio-ingress-k8s-operator
+  issues: https://github.com/canonical/istio-ingress-k8s-operator/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@24.04:amd64:
+  # ubuntu@24.04:arm64:
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps: [astral-uv]
+  icon:
+    plugin: dump
+    source: .
+    stage:
+      - icon.svg
+
+charm-libs:
+  - lib: "tls_certificates_interface.tls_certificates"
+    version: '3'
+  - lib: "observability-libs.cert_handler"
+    version: '1'
+
+containers:
+  metrics-proxy:
+    resource: metrics-proxy-image
+
+config:
+  options:
+    ready-timeout:
+      type: int
+      default: 100
+      description: >
+        The maximum time (in seconds) to wait for the gateway deployment to be 
+        ready. This applies specifically to the deployment/LB created for the Istio 
+        gateway controller. If the deployment does not become ready within this time, 
+        charm will go into blocked state.
+    external_hostname:
+      description: |
+        The DNS name to be used by Istio ingress.
+        If unspecified, the gateway ingress ip address will be used, e.g,
+        as provided by MetalLB. This needs to be a `bare` hostname: i.e.
+        no schema prefix and no port.
+        Hostname can be "precise" which is a domain name without the terminating dot of a network host (e.g. "foo.example.com").
+        It's also important to note that domain name prefixed with a single wildcard label (e.g. *.example.com) isn't supported for now.
+      type: string
+    external-traffic-policy-cidrs:
+      description: |
+        Comma-separated list of IPs or CIDR blocks from which external traffic is allowed.
+        Traffic from source IPs outside these ranges will be denied by the gateway.
+        Example: "10.0.0.0/8,192.168.0.0/16", "192.168.1.1", or "0.0.0.0/0" to allow all.
+      type: string
+      default: "0.0.0.0/0"
+
+peers:
+  peers:
+    interface: istio_ingress_k8s_peers
+
+provides:
+  ingress:
+    interface: ingress
+    optional: true
+    description: |
+      Provides ingress-like routing to the related Juju application, load-balancing across all units.  If the ingress
+      has authentication configured, all paths will have authentication applied to them.  Otherwise, the paths will be
+      unauthenticated.  
+      Note that if more than one application related to either `ingress` or `ingress-unauthenticated` asks for an 
+      ingress of the same path, no route is created and the charm will go into a blocked state.
+  ingress-unauthenticated:
+    interface: ingress
+    optional: true
+    description: |
+      Provides ingress-like routing to the related Juju application, similar to the `ingress` relation.  Unlike
+      the `ingress` relation, paths ingressed here will never have authentication applied to them, even if the ingress
+      has authentication configured.
+      Note that if more than one application related to either `ingress` or `ingress-unauthenticated` asks for an 
+      ingress of the same path, no route is created and the charm will go into a blocked state.
+  metrics-endpoint:
+    interface: prometheus_scrape
+    optional: true
+  istio-ingress-config:
+    interface: istio_ingress_config
+    optional: true
+    limit: 1
+    description: |
+      Provides an interface for exchanging Istio ingress configuration,
+      including external authorizer configuration details.
+  istio-ingress-route:
+    interface: istio_ingress_route
+    optional: true
+    description: |
+      Provides advanced ingress routing with support for multiple ports and protocols
+      (HTTP, gRPC) using typed configuration models. Requirers can define custom
+      Gateway listeners and routes. If the ingress has authentication configured,
+      all routes will have authentication applied to them.
+  istio-ingress-route-unauthenticated:
+    interface: istio_ingress_route
+    optional: true
+    description: |
+      Provides advanced ingress routing similar to istio-ingress-route, but routes
+      will never have authentication applied to them, even if the ingress has
+      authentication configured.
+  gateway-metadata:
+    interface: gateway_metadata
+    optional: true
+    description: |
+      Provides metadata about the Gateway workload including namespace, gateway name,
+      deployment name, and service account. This allows related charms to reference
+      the Gateway workload in their configurations (e.g., in AuthorizationPolicies).
+  istio-request-auth:
+    interface: istio_request_auth
+    optional: true
+    description: |
+      Allows related applications to configure JWT-based authentication via
+      Istio RequestAuthentication. Each related app provides its JWT rules
+      (issuer, JWKS URI, claim-to-header mappings) and the ingress charm
+      creates corresponding RequestAuthentication resources targeting the Gateway.
+
+requires:
+  certificates:
+    interface: tls-certificates
+    optional: true
+    limit: 1
+    description: |
+      Send a CSR to- and obtain a signed certificate from an external CA.
+  charm-tracing:
+    interface: tracing
+    optional: true
+    limit: 1
+    description: |
+      Enables sending charm traces to a distributed tracing backend such as Tempo.
+  forward-auth:
+    interface: forward_auth
+    optional: true
+    limit: 1
+  upstream-ingress:
+    interface: ingress
+    optional: true
+    limit: 1
+    description: |
+      Configure to use an ingress upstream of this gateway. Useful when you want an internal
+      gateway that is then exposed by an additional external ingress.
+      When upstream ingress is configured, the URLs published to downstream consumers will use
+      the upstream ingress's address rather than this gateway's load balancer address.
+
+resources:
+  metrics-proxy-image:
+    type: oci-image
+    description: Metrics Proxy OCI image
+    # TODO: change below to point at the correct image once metrics-proxy rock is onboarded
+    # see: https://github.com/canonical/oci-factory/issues/268
+    upstream-source: docker.io/ubuntu/metrics-proxy:0.1.1-22.04_stable
