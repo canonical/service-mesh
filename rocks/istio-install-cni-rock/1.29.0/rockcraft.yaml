@@ -1,0 +1,64 @@
+# Rock for [install-cni](https://github.com/istio/istio/blob/master/cni/deployments/kubernetes/Dockerfile.install-cni).
+# The purpose of this image is described [here](https://github.com/istio/istio/tree/master/cni#overview)
+
+name: istio-install-cni
+summary: Istio's install-cni in a rock
+description: "Installs Istio's cni plugin"
+version: "1.29.0"
+base: ubuntu@24.04
+build-base: ubuntu@24.04
+services:
+  install-cni:
+    command: "/usr/local/bin/install-cni"
+    override: replace
+    startup: enabled
+    working-dir: /opt/cni/bin
+platforms:
+  amd64:
+environment:
+  # from https://github.com/istio/istio/blob/master/cni/deployments/kubernetes/Dockerfile.install-cni#L24.  Unclear
+  # why/if it is needed here.
+  PATH: /usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin:/opt/cni/bin
+parts:
+  # [install-cni](https://github.com/istio/istio/blob/master/cni/deployments/kubernetes/Dockerfile.install-cni)
+  # build instructions lifted from the makefile [here](https://github.com/istio/istio/blob/master/Makefile.core.mk#L246)
+  istio-install-cni:
+    plugin: go
+    source: https://github.com/istio/istio
+    source-type: git
+    source-tag: "1.29.0"
+    build-snaps:
+      - go/1.25/stable
+    override-build: |
+      VERSION=$CRAFT_PROJECT_VERSION GOOS=linux GOARCH=amd64 LDFLAGS='-extldflags -static -s -w' common/scripts/gobuild.sh ./out/linux_amd64/ -tags=agent,disable_pgv ./cni/cmd/istio-cni ./cni/cmd/install-cni
+
+      mkdir -p ${CRAFT_PART_INSTALL}/opt/cni/bin
+      cp out/linux_amd64/istio-cni ${CRAFT_PART_INSTALL}/opt/cni/bin
+
+      mkdir -p ${CRAFT_PART_INSTALL}/usr/local/bin
+      cp out/linux_amd64/install-cni ${CRAFT_PART_INSTALL}/usr/local/bin
+  # install packages provided by the istio/iptables distroless image, which is a base for install-cni
+  # as seen [here](https://github.com/istio/istio/blob/master/cni/deployments/kubernetes/Dockerfile.install-cni).
+  # The base image is defined [here](https://github.com/istio/istio/blob/master/docker/iptables.yaml) using apko,
+  # which is a tool for making distroless-like images.  apko's package names do not directly map to those in apt,
+  # so a bit of inference is applied to the list below.
+  stage-dependency-packages:
+    plugin: nil
+    stage-packages:
+      - libc6 # glibc
+      - iptables # includes both iptables and ip6tables
+      - conntrack # libnetfilter_conntrack and libnfnetlink (and maybe libmnl?)
+      - gcc
+  ca-certs:
+    plugin: nil
+    overlay-packages: [ca-certificates]
+  deb-security-manifest:
+    plugin: nil
+    after:
+      - istio-install-cni
+      - stage-dependency-packages
+      - ca-certs
+    override-prime: |
+      set -x
+      mkdir -p $CRAFT_PRIME/usr/share/rocks/
+      (echo "# os-release" && cat /etc/os-release && echo "# dpkg-query" && dpkg-query --admindir=$CRAFT_PRIME/var/lib/dpkg/ -f '${db:Status-Abbrev},${binary:Package},${Version},${source:Package},${Source:Version}\n' -W) > $CRAFT_PRIME/usr/share/rocks/dpkg.query

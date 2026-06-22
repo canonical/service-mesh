@@ -1,0 +1,4 @@
+# TODO: write some actual goss tests
+command:
+  true:
+    exit-status: 0
