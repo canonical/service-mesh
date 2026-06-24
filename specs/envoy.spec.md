@@ -514,7 +514,7 @@ Charm 2 needs to know that Charm 1 (Envoy Gateway controller) is running before 
 
 - Charm 2 hardcodes `controllerName: gateway.envoyproxy.io/gatewayclass-controller` in the GatewayClass spec.
 - During `_reconcile()`, Charm 2 uses **lightkube** to check if a GatewayClass with that controller name has an `Accepted` condition — indicating the controller is running and has claimed it.
-- If the GatewayClass is not yet accepted, Charm 2 sets `waiting` status: `Waiting for Envoy Gateway Controller`.
+- If the GatewayClass is not yet accepted, Charm 2 sets `waiting` status: `Waiting for GatewayClass controller to become available`.
 - If the GatewayClass is accepted, Charm 2 proceeds to create/update the Gateway resource.
 - Charm 2's `GatewayClass` sets `spec.parametersRef` to the default `EnvoyProxy` resource managed by Charm 1 (by name/namespace), so proxies inherit the OTLP sink and Juju-topology stats tags. The `EnvoyProxy` name is part of the cross-charm contract (hardcoded for v1, alongside the controller name).
 
