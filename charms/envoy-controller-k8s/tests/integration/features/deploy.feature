@@ -17,6 +17,6 @@ Feature: Charm deployment
     And the certificates relation is established with self-signed-certificates
     Then the charm is blocked with message "Trust not granted — run 'juju trust envoy-controller-k8s'"
 
-  Scenario: Charm blocks without tls-certificates relation
+  Scenario: Charm blocks without certificates relation
     When the envoy-controller-k8s charm is deployed with trust
-    Then the charm is blocked with message "Missing relation: tls-certificates"
+    Then the charm is blocked with message "Missing relation: certificates"
