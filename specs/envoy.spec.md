@@ -340,8 +340,8 @@ If multiple statuses of the same priority are collected, the **first one added**
 
 | Status | Condition | Message |
 |---|---|---|
-| `blocked` | Trust not granted | `Trust not granted — run 'juju trust --help'` |
-| `blocked` | TLS certificates relation not established | `Missing relation: tls-certificates` |
+| `blocked` | Trust not granted | `Trust not granted — run 'juju trust envoy-controller-k8s'` |
+| `blocked` | TLS certificates relation not established | `Missing relation: certificates` |
 | `waiting` | Pebble containers not yet connected | `Waiting for Pebble (envoy-gateway container)` |
 | `waiting` | TLS certs requested but not yet available | `Waiting for TLS certificates` |
 | `waiting` | A controller Pebble health check is failing (e.g., crash-looping) | `Waiting for envoy-gateway controller to become healthy` |
