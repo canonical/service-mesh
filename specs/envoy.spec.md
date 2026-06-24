@@ -108,9 +108,9 @@ KServe is **assumed to already exist** on the cluster. The charm(s) do not insta
 
 Installs all platform infrastructure (layers 1–5):
 - Gateway API CRDs
-- Gateway Inference Extension CRDs (stable `InferencePool` only; EPP is **not** installed — see Layer 2)
+- Gateway Inference Extension CRDs (stable `InferencePool` only; EPP is **not** installed — see Layer 2) (Only when AI features are enabled)
 - Envoy Gateway Controller (with AI Gateway extension manager config)
-- AI Gateway CRDs
+- AI Gateway CRDs (Only when AI features are enabled)
 - AI Gateway Controller
 
 **Does not** create any Gateway or GatewayClass resources.
