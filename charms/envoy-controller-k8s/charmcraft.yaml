@@ -1,0 +1,92 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: envoy-controller-k8s
+type: charm
+title: Envoy Gateway Controller
+summary: A Juju charm to deploy and operate the Envoy Gateway control plane
+description: |
+  envoy-controller-k8s deploys and manages the Envoy Gateway control plane stack
+  including Gateway API CRDs, Gateway Inference Extension CRDs, and optional
+  AI Gateway components.
+
+links:
+  documentation: https://discourse.charmhub.io/t/envoy-controller-k8s-docs-index
+  website: https://charmhub.io/envoy-controller-k8s
+  source: https://github.com/canonical/envoy-controller-k8s-operator
+  issues: https://github.com/canonical/envoy-controller-k8s-operator/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@24.04:amd64:
+
+containers:
+  envoy-gateway:
+    resource: envoy-gateway-image
+  ai-gateway:
+    resource: ai-gateway-image
+
+charm-libs:
+  - lib: grafana_k8s.grafana_dashboard
+    version: "0"
+
+config:
+  options:
+    log-level:
+      type: string
+      default: "info"
+      description: |
+        Logging level for both Envoy Gateway and AI Gateway controllers.
+        Valid values: debug, info, warn, error.
+    enable-ai-gateway:
+      type: boolean
+      default: false
+      description: |
+        Enable AI Gateway features. When true, installs AI Gateway CRDs,
+        runs AI Gateway controller, configures extension manager, and
+        creates the ExtProc MutatingWebhookConfiguration.
+        Disabling removes AI Gateway CRDs and may cascade-delete
+        cluster-wide AI custom resources.
+
+provides:
+  grafana-dashboard:
+    interface: grafana_dashboard
+    optional: true
+
+requires:
+  certificates:
+    interface: tls-certificates
+    limit: 1
+    description: |
+      TLS certificates for the webhook server and Extension Server.
+  otlp:
+    interface: otlp
+    optional: true
+    limit: 1
+    description: |
+      OTLP endpoint for controller and Envoy Proxy metrics.
+      Publishes alert/recording rules into the relation databag.
+
+resources:
+  envoy-gateway-image:
+    type: oci-image
+    description: Envoy Gateway controller OCI image
+    upstream-source: docker.io/envoyproxy/gateway:v1.6.3
+  ai-gateway-image:
+    type: oci-image
+    description: AI Gateway controller OCI image
+    upstream-source: docker.io/envoyproxy/ai-gateway:v0.5.0
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps: [astral-uv]
+  icon:
+    plugin: dump
+    source: .
+    stage:
+      - icon.svg
