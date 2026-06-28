@@ -57,11 +57,6 @@ provides:
     optional: true
 
 requires:
-  certificates:
-    interface: tls-certificates
-    limit: 1
-    description: |
-      TLS certificates for the webhook server and Extension Server.
   otlp:
     interface: otlp
     optional: true
@@ -74,19 +69,15 @@ resources:
   envoy-gateway-image:
     type: oci-image
     description: Envoy Gateway controller OCI image
-    upstream-source: docker.io/envoyproxy/gateway:v1.6.3
+    upstream-source: docker.io/envoyproxy/gateway:v1.7.0
   ai-gateway-image:
     type: oci-image
     description: AI Gateway controller OCI image
-    upstream-source: docker.io/envoyproxy/ai-gateway:v0.5.0
+    upstream-source: docker.io/envoyproxy/ai-gateway-controller:v0.6.0
 
 parts:
   charm:
     source: .
     plugin: uv
     build-snaps: [astral-uv]
-  icon:
-    plugin: dump
-    source: .
-    stage:
-      - icon.svg
+    build-packages: [git]

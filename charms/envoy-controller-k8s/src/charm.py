@@ -8,6 +8,7 @@
 # pyright: reportAttributeAccessIssue=false, reportInvalidTypeForm=false
 # Lightkube generic resource types (create_namespaced_resource) lack proper type stubs.
 
+import base64
 import logging
 from pathlib import Path
 from typing import Any, Optional
@@ -21,19 +22,15 @@ from canonical_service_mesh.k8s.resource_manager import (
 )
 from canonical_service_mesh.k8s.types.envoy import EnvoyProxy
 from canonical_service_mesh.models.envoy import (
-    BootstrapConfig,
     EnvoyProxySpec,
+    JSONPatchOperation,
     MetricsConfig,
     MetricSink,
     OpenTelemetrySink,
-    StatsTag,
+    ProxyBootstrap,
     TelemetryConfig,
 )
 from charmlibs.interfaces.otlp import OtlpRequirer, RuleStore
-from charmlibs.interfaces.tls_certificates import (
-    CertificateRequestAttributes,
-    TLSCertificatesRequiresV4,
-)
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from cosl.juju_topology import JujuTopology
 from lightkube import ApiError, Client
@@ -43,49 +40,56 @@ from lightkube.models.admissionregistration_v1 import (
     ServiceReference,
     WebhookClientConfig,
 )
+from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import LabelSelector, ObjectMeta
 from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfiguration
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
+from lightkube.resources.core_v1 import Secret, Service
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from ops.pebble import Layer
 
 logger = logging.getLogger(__name__)
 
 SOURCE_PATH = Path(__file__).parent
-CRDS_PATH = SOURCE_PATH.parent / "crds"
+CRDS_PATH = SOURCE_PATH / "crds"
 
 GATEWAY_API_SCOPE = "gateway-api-crds"
+ENVOY_GATEWAY_SCOPE = "envoy-gateway-crds"
 GIE_SCOPE = "gie-crds"
 AI_GATEWAY_SCOPE = "ai-gateway-crds"
 WEBHOOK_SCOPE = "extproc-webhook"
 ENVOY_PROXY_SCOPE = "default-envoy-proxy"
+CONTROL_PLANE_SERVICE_SCOPE = "control-plane-service"
 
 GATEWAY_CONTAINER = "envoy-gateway"
 AI_GATEWAY_CONTAINER = "ai-gateway"
 
-ENVOY_PROXY_NAME = "envoy-default"
-ENVOY_PROXY_NAMESPACE = "envoy-gateway-system"
+# Envoy Gateway hardcodes the control-plane name "envoy-gateway" in the proxy
+# bootstrap: proxies dial the xDS server at envoy-gateway.<ns>.svc:18000, and
+# certgen names the control-plane server-cert Secret "envoy-gateway" too. So the
+# charm must publish a Service of exactly this name and serve that Secret's cert.
+CONTROL_PLANE_NAME = "envoy-gateway"
+XDS_PORT = 18000
+WASM_PORT = 18002
+
 EXTENSION_SERVER_PORT = 1063
 WEBHOOK_PORT = 9443
+# The AI Gateway controller looks up its ExtProc webhook by this exact name
+# (`<name>.<namespace>`) at startup and exits if it is missing — see
+# maybePatchAdmissionWebhook in cmd/controller/main.go. Must not be renamed.
+MUTATING_WEBHOOK_NAME = "envoy-ai-gateway-gateway-pod-mutator"
 
 # Upstream component versions baked into this charm revision.
 # The charm track mirrors the Envoy Gateway minor version (e.g. 1.6/stable).
 # TODO: enforce sequential minor-version upgrades on upgrade-charm.
 #       See Discussion Points in specs/envoy.spec.md.
-ENVOY_GATEWAY_VERSION = "1.6.3"
-AI_GATEWAY_VERSION = "0.5.0"
+ENVOY_GATEWAY_VERSION = "1.7.0"
+AI_GATEWAY_VERSION = "0.6.0"
 GATEWAY_API_VERSION = "1.4.1"
 GIE_VERSION = "1.3.0"
-
-
-def _cert_sans(app_name: str, model_name: str) -> list[str]:
-    """DNS SANs for the webhook + extension server certificate."""
-    return [
-        f"{app_name}.{model_name}.svc.cluster.local",
-        f"{app_name}.{model_name}.svc",
-        f"{app_name}.{model_name}",
-        app_name,
-    ]
+# ExtProc sidecar image the AI Gateway controller injects; pin to the controller
+# version so it never falls back to the upstream ':latest' default.
+EXTPROC_IMAGE = f"docker.io/envoyproxy/ai-gateway-extproc:v{AI_GATEWAY_VERSION}"
 
 
 def _load_crd_yaml(directory: str) -> list:
@@ -113,16 +117,6 @@ class EnvoyControllerCharm(ops.CharmBase):
         self._lightkube_field_manager = self.app.name
         self._lightkube_client: Optional[Client] = None
 
-        self.tls = TLSCertificatesRequiresV4(
-            self,
-            relationship_name="certificates",
-            certificate_requests=[
-                CertificateRequestAttributes(
-                    common_name=f"{self.app.name}.{self.model.name}.svc.cluster.local",
-                    sans_dns=_cert_sans(self.app.name, self.model.name),
-                )
-            ],
-        )
         _rules = RuleStore(JujuTopology.from_charm(self)).add_promql_path(
             SOURCE_PATH / "prometheus_alert_rules"
         )
@@ -143,9 +137,6 @@ class EnvoyControllerCharm(ops.CharmBase):
         self.framework.observe(self.on.collect_unit_status, self._on_collect_status)
         self.framework.observe(self.on.envoy_gateway_pebble_ready, self._reconcile)
         self.framework.observe(self.on.ai_gateway_pebble_ready, self._reconcile)
-        self.framework.observe(self.on.secret_changed, self._reconcile)
-        self.framework.observe(self.on.secret_expired, self._reconcile)
-        self.framework.observe(self.tls.on.certificate_available, self._reconcile)
         self.framework.observe(self.on["otlp"].relation_changed, self._reconcile)
         self.framework.observe(self.on["otlp"].relation_broken, self._reconcile)
 
@@ -195,15 +186,30 @@ class EnvoyControllerCharm(ops.CharmBase):
             )
         )
 
-    @property
-    def _ca_bundle(self) -> str:
-        certs, _ = self.tls.get_assigned_certificates()
-        return str(certs[0].ca) if certs else ""
+    def _control_plane_secret(self) -> Optional[Secret]:
+        """Return the certgen-issued control-plane TLS Secret, or None if absent.
+
+        certgen names this Secret ``envoy-gateway``; it holds the server cert the
+        xDS/webhook servers present and the CA proxies validate against. lightkube
+        returns ``data`` already base64-encoded (the Secret wire format).
+        """
+        try:
+            return self.lightkube_client.get(
+                Secret, name=CONTROL_PLANE_NAME, namespace=self.model.name
+            )
+        except ApiError as e:
+            if e.status.code == 404:
+                return None
+            raise
 
     @property
-    def _tls_ready(self) -> bool:
-        certs, key = self.tls.get_assigned_certificates()
-        return bool(certs) and key is not None
+    def _ca_bundle(self) -> str:
+        # K8s webhook caBundle is a []byte field: base64-encoded PEM. The Secret's
+        # ca.crt is already base64(PEM), so it is the caBundle value verbatim.
+        secret = self._control_plane_secret()
+        if not secret or not secret.data:
+            return ""
+        return secret.data.get("ca.crt", "")
 
     @property
     def _trusted(self) -> bool:
@@ -228,15 +234,20 @@ class EnvoyControllerCharm(ops.CharmBase):
           0. Publish observability — Grafana dashboards and OTLP alert rules are pure
              databag operations; publish them unconditionally so they are available
              even when other preconditions are not yet met.
-          1. Check preconditions — trust, certificates relation, Pebble, TLS cert issuance.
-             Any unmet precondition halts reconciliation; status is set via _on_collect_status.
+          1. Check preconditions — trust and Pebble. Any unmet precondition halts
+             reconciliation; status is set via _on_collect_status.
           2. Apply CRDs — Gateway API and GIE always; AI Gateway CRDs only when enabled.
-          3. Push config and certs — controller config YAML and TLS material into containers.
-          4. Reconcile webhook — create/remove ExtProc MutatingWebhookConfiguration.
-          5. Reconcile EnvoyProxy — default resource with Juju-topology stats tags and OTLP sink.
-          6. Reconcile Pebble services — add layers and replan; stop AI Gateway when disabled.
+          3. Run certgen — mint the control-plane mTLS secrets; must precede the cert
+             push, which serves the certgen-issued cert.
+          4. Push config and certs — controller config YAML and the certgen control-plane
+             cert into containers.
+          5. Reconcile control-plane Service — the "envoy-gateway" Service proxies and the
+             API server dial for xDS (and, when AI is on, the webhook/extension server).
+          6. Reconcile webhook — create/remove ExtProc MutatingWebhookConfiguration.
+          7. Reconcile EnvoyProxy — default resource with Juju-topology stats tags and OTLP sink.
+          8. Reconcile Pebble services — add layers and replan; stop AI Gateway when disabled.
         """
-        # Step 0: observability — no cluster access or TLS needed
+        # Step 0: observability — no cluster access needed
         self.grafana_dashboards.update_dashboards()
         self.otlp.publish()
 
@@ -244,14 +255,8 @@ class EnvoyControllerCharm(ops.CharmBase):
         if not self._trusted:
             logger.warning("Charm is not trusted; skipping reconciliation")
             return
-        if not self.model.get_relation("certificates"):
-            logger.info("No certificates relation; skipping reconciliation")
-            return
         if not self.unit.get_container(GATEWAY_CONTAINER).can_connect():
             logger.info("Pebble not ready; skipping reconciliation")
-            return
-        if not self._tls_ready:
-            logger.info("TLS certificates not yet available; skipping reconciliation")
             return
 
         # Step 2: CRDs — raises _CrdsNotEstablishedError if API server not ready yet
@@ -260,13 +265,17 @@ class EnvoyControllerCharm(ops.CharmBase):
         except _CrdsNotEstablishedError:
             logger.info("CRDs applied but not yet Established; deferring controller start")
             return
-        # Step 3: config + certs
+        # Step 3: control-plane certs (must run before the cert push below)
+        self._reconcile_certgen()
+        # Step 4: config + certs
         self._reconcile_config_and_certs()
-        # Step 4: webhook
+        # Step 5: control-plane Service
+        self._reconcile_control_plane_service()
+        # Step 6: webhook
         self._reconcile_webhook()
-        # Step 5: default EnvoyProxy
+        # Step 7: default EnvoyProxy
         self._reconcile_envoy_proxy()
-        # Step 6: Pebble services
+        # Step 8: Pebble services
         self._reconcile_pebble_services()
 
     def _on_collect_status(self, event: ops.CollectStatusEvent):
@@ -276,14 +285,8 @@ class EnvoyControllerCharm(ops.CharmBase):
                 ops.BlockedStatus(f"Trust not granted. Run 'juju trust {self.app.name}'")
             )
             return
-        if not self.model.get_relation("certificates"):
-            event.add_status(ops.BlockedStatus("Missing relation: certificates"))
-            return
         if not self.unit.get_container(GATEWAY_CONTAINER).can_connect():
             event.add_status(ops.WaitingStatus("Waiting for Pebble (envoy-gateway container)"))
-            return
-        if not self._tls_ready:
-            event.add_status(ops.WaitingStatus("Waiting for TLS certificates"))
             return
         for container_name, service in [
             (GATEWAY_CONTAINER, "envoy-gateway"),
@@ -305,27 +308,30 @@ class EnvoyControllerCharm(ops.CharmBase):
         event.add_status(ops.ActiveStatus())
 
     def _on_remove(self, _event: ops.RemoveEvent):
-        """Remove the ExtProc webhook on app removal. CRDs are left in place.
+        """Remove app-scoped resources on app removal. CRDs are left in place.
 
-        The webhook is app-scoped, so it must only be removed when the whole
-        application is going away (planned_units == 0), not on a scale-down where
-        peer units still rely on it. KRM swallows the expected 404 via
-        ignore_missing; any other API error is allowed to surface.
+        The ExtProc webhook and the xDS Service are app-scoped (not Juju-managed),
+        so they must only be removed when the whole application is going away
+        (planned_units == 0), not on a scale-down where peer units still rely on
+        them. KRM swallows the expected 404 via ignore_missing; any other API error
+        is allowed to surface.
         """
         if self.app.planned_units() != 0:
-            logger.info("Unit removed but application remains; leaving webhook in place")
+            logger.info("Unit removed but application remains; leaving resources in place")
             return
         self._webhook_krm().delete(ignore_missing=True)
+        self._control_plane_service_krm().delete(ignore_missing=True)
 
     # ---- Reconcile steps ----
 
     def _reconcile_crds(self):
-        """Apply Gateway API + GIE CRDs always; AI Gateway CRDs conditionally.
+        """Apply Gateway API + Envoy Gateway + GIE CRDs always; AI Gateway CRDs conditionally.
 
         After applying, waits for all CRDs to reach Established=True before
         returning so that controllers do not start against unregistered schemas.
         """
         self._crd_krm(GATEWAY_API_SCOPE).reconcile(_load_crd_yaml("gateway-api"))
+        self._crd_krm(ENVOY_GATEWAY_SCOPE).reconcile(_load_crd_yaml("envoy-gateway"))
         self._crd_krm(GIE_SCOPE).reconcile(_load_crd_yaml("gie"))
         if self._ai_enabled:
             self._crd_krm(AI_GATEWAY_SCOPE).reconcile(_load_crd_yaml("ai-gateway"))
@@ -336,16 +342,27 @@ class EnvoyControllerCharm(ops.CharmBase):
             raise _CrdsNotEstablishedError()
 
     def _reconcile_config_and_certs(self):
-        """Push controller config files and TLS material into containers."""
-        certs, key = self.tls.get_assigned_certificates()
-        if not certs or key is None:
+        """Push controller config and the certgen control-plane cert into containers.
+
+        Envoy Gateway reads its xDS-server TLS from ``/certs/{tls.crt,tls.key,ca.crt}``,
+        and the AI Gateway controller defaults its webhook server to the same path. The
+        cert MUST be the certgen ``envoy-gateway`` Secret: Envoy Proxy pods are wired by
+        Envoy Gateway to trust the certgen CA, so a cert from any other CA fails the
+        proxy<->control-plane mTLS handshake. certgen (step 3) runs first, so the Secret
+        exists by now; if it somehow does not, skip rather than serve a wrong cert.
+        """
+        secret = self._control_plane_secret()
+        if not secret or not secret.data:
+            logger.info("Control-plane cert Secret not present yet; skipping cert push")
             return
-        cert_pem = str(certs[0].certificate)
-        ca_pem = str(certs[0].ca)
-        key_pem = str(key)
+        cert_pem = base64.b64decode(secret.data["tls.crt"]).decode()
+        key_pem = base64.b64decode(secret.data["tls.key"]).decode()
+        ca_pem = base64.b64decode(secret.data["ca.crt"]).decode()
 
         extension_fqdn = (
-            f"{self.app.name}.{self.model.name}.svc.cluster.local" if self._ai_enabled else None
+            f"{CONTROL_PLANE_NAME}.{self.model.name}.svc.cluster.local"
+            if self._ai_enabled
+            else None
         )
         self._push_files(
             GATEWAY_CONTAINER,
@@ -353,21 +370,55 @@ class EnvoyControllerCharm(ops.CharmBase):
                 "/etc/envoy-gateway/config.yaml": self._construct_envoy_gateway_config(
                     extension_manager_fqdn=extension_fqdn,
                 ),
-                "/etc/envoy-gateway/tls/tls.crt": cert_pem,
-                "/etc/envoy-gateway/tls/tls.key": key_pem,
-                "/etc/envoy-gateway/tls/ca.crt": ca_pem,
+                "/certs/tls.crt": cert_pem,
+                "/certs/tls.key": key_pem,
+                "/certs/ca.crt": ca_pem,
             },
         )
         if self._ai_enabled:
             self._push_files(
                 AI_GATEWAY_CONTAINER,
                 {
-                    "/etc/ai-gateway/config.yaml": yaml.safe_dump({"logLevel": self._log_level}),
-                    "/etc/ai-gateway/tls/tls.crt": cert_pem,
-                    "/etc/ai-gateway/tls/tls.key": key_pem,
-                    "/etc/ai-gateway/tls/ca.crt": ca_pem,
+                    "/certs/tls.crt": cert_pem,
+                    "/certs/tls.key": key_pem,
+                    "/certs/ca.crt": ca_pem,
                 },
             )
+
+    def _reconcile_control_plane_service(self):
+        """Publish the Service clients use to reach the control plane.
+
+        Envoy Gateway hardcodes the proxy bootstrap to dial ``envoy-gateway.<ns>.svc``
+        on the xDS (18000) and wasm (18002) ports — names its own Helm chart supplies.
+        The charm app Service is named after the app, so without this Service the proxy
+        DNS lookup yields no endpoints ("no healthy upstream") and Gateways never reach
+        Programmed=True. When AI Gateway is enabled the same Service also fronts the
+        ExtProc webhook (9443) and Extension Server (1063): the certgen control-plane
+        cert's SANs are ``envoy-gateway.*``, so callers must dial this name for the TLS
+        handshake to validate.
+        """
+        self._control_plane_service_krm().reconcile([self._construct_control_plane_service()])
+
+    def _construct_control_plane_service(self) -> Service:
+        """Construct the ``envoy-gateway`` Service selecting the controller pods."""
+        ports = [
+            ServicePort(name="xds", port=XDS_PORT, targetPort=XDS_PORT),
+            ServicePort(name="wasm", port=WASM_PORT, targetPort=WASM_PORT),
+        ]
+        if self._ai_enabled:
+            ports.append(ServicePort(name="webhook", port=WEBHOOK_PORT, targetPort=WEBHOOK_PORT))
+            ports.append(
+                ServicePort(
+                    name="extension", port=EXTENSION_SERVER_PORT, targetPort=EXTENSION_SERVER_PORT
+                )
+            )
+        return Service(
+            metadata=ObjectMeta(name=CONTROL_PLANE_NAME, namespace=self.model.name),
+            spec=ServiceSpec(
+                selector={"app.kubernetes.io/name": self.app.name},
+                ports=ports,
+            ),
+        )
 
     def _reconcile_webhook(self):
         """Manage the ExtProc MutatingWebhookConfiguration."""
@@ -380,6 +431,26 @@ class EnvoyControllerCharm(ops.CharmBase):
     def _reconcile_envoy_proxy(self):
         """Manage the default EnvoyProxy resource (stats tags + OTLP sink)."""
         self._envoy_proxy_krm().reconcile([self._construct_envoy_proxy()])
+
+    def _reconcile_certgen(self):
+        """Provision the control-plane secrets Envoy Gateway requires via its certgen.
+
+        Upstream ships a one-shot ``certgen`` Job that mints the control-plane mTLS
+        secrets (``envoy``, ``envoy-gateway``, ``envoy-rate-limit``) and the
+        ``envoy-oidc-hmac`` secret that the OAuth2 filter signs OIDC state/session
+        cookies with. Without these the controller blocks on a missing ``envoy``
+        secret and never serves xDS. We have no Job, so we run certgen in-place in
+        the gateway container. It is idempotent — existing secrets are left untouched
+        (no ``--overwrite``) so values stay stable across reconciles and scaled units.
+        ``--disable-topology-injector`` stops certgen from patching an unrelated
+        injector webhook. ``ENVOY_GATEWAY_NAMESPACE`` must be set or certgen targets
+        the non-existent default ``envoy-gateway-system`` namespace.
+        """
+        container = self.unit.get_container(GATEWAY_CONTAINER)
+        container.exec(
+            ["envoy-gateway", "certgen", "--disable-topology-injector"],
+            environment={"ENVOY_GATEWAY_NAMESPACE": self.model.name},
+        ).wait()
 
     def _reconcile_pebble_services(self):
         """Add Pebble layers and replan controller services."""
@@ -435,27 +506,39 @@ class EnvoyControllerCharm(ops.CharmBase):
         )
 
     def _construct_envoy_proxy(self) -> EnvoyProxy:
-        """Construct the default EnvoyProxy resource (Juju-topology stats tags + OTLP sink)."""
-        stats_tags = [
-            StatsTag(tagName="juju_model", fixedValue=self.model.name),
-            StatsTag(tagName="juju_model_uuid", fixedValue=self.model.uuid),
-            StatsTag(tagName="juju_application", fixedValue=self.app.name),
-            StatsTag(tagName="juju_charm", fixedValue=self.meta.name),
+        """Construct the default EnvoyProxy resource (Juju-topology stats tags + OTLP sink).
+
+        EnvoyProxy has no native stats-tags field, so the Juju topology is stamped onto
+        every proxy metric by JSON-patching the Envoy bootstrap's stats_config.stats_tags.
+        """
+        topology = {
+            "juju_model": self.model.name,
+            "juju_model_uuid": self.model.uuid,
+            "juju_application": self.app.name,
+            "juju_charm": self.meta.name,
+        }
+        stats_tag_patches = [
+            JSONPatchOperation(
+                op="add",
+                path="/stats_config/stats_tags/-",
+                value={"tag_name": name, "fixed_value": value},
+            )
+            for name, value in topology.items()
         ]
         sink = self._otlp_metric_sink()
         telemetry = TelemetryConfig(metrics=MetricsConfig(sinks=[sink])) if sink else None
         spec = EnvoyProxySpec(
-            bootstrap=BootstrapConfig(statsTags=stats_tags),
+            bootstrap=ProxyBootstrap(type="JSONPatch", jsonPatches=stats_tag_patches),
             telemetry=telemetry,
         )
         return EnvoyProxy(
-            metadata=ObjectMeta(name=ENVOY_PROXY_NAME, namespace=ENVOY_PROXY_NAMESPACE),
+            metadata=ObjectMeta(name=self.app.name, namespace=self.model.name),
             spec=spec.model_dump(by_alias=True, exclude_none=True),
         )
 
     def _crds_established(self) -> bool:
         """Return True when all managed CRDs have Established=True in their status."""
-        scopes = [GATEWAY_API_SCOPE, GIE_SCOPE]
+        scopes = [GATEWAY_API_SCOPE, ENVOY_GATEWAY_SCOPE, GIE_SCOPE]
         if self._ai_enabled:
             scopes.append(AI_GATEWAY_SCOPE)
         for scope in scopes:
@@ -476,13 +559,13 @@ class EnvoyControllerCharm(ops.CharmBase):
     def _construct_extproc_webhook(self) -> MutatingWebhookConfiguration:
         """Construct the ExtProc sidecar-injector MutatingWebhookConfiguration."""
         return MutatingWebhookConfiguration(
-            metadata=ObjectMeta(name=f"{self.app.name}-{self.model.name}-extproc"),
+            metadata=ObjectMeta(name=f"{MUTATING_WEBHOOK_NAME}.{self.model.name}"),
             webhooks=[
                 MutatingWebhook(
                     name="ai-gateway-extproc.envoyproxy.io",
                     clientConfig=WebhookClientConfig(
                         service=ServiceReference(
-                            name=self.app.name,
+                            name=CONTROL_PLANE_NAME,
                             namespace=self.model.name,
                             port=WEBHOOK_PORT,
                             path="/mutate",
@@ -520,6 +603,7 @@ class EnvoyControllerCharm(ops.CharmBase):
                         "summary": "Envoy Gateway controller",
                         "command": "envoy-gateway server --config-path /etc/envoy-gateway/config.yaml",
                         "startup": "enabled",
+                        "environment": {"ENVOY_GATEWAY_NAMESPACE": self.model.name},
                         "on-check-failure": {"liveness": "restart"},
                     }
                 },
@@ -527,19 +611,35 @@ class EnvoyControllerCharm(ops.CharmBase):
                     "liveness": {
                         "override": "replace",
                         "level": "alive",
-                        "http": {"url": "http://localhost:19001/healthz"},
+                        "http": {"url": "http://localhost:8081/healthz"},
                     },
                     "readiness": {
                         "override": "replace",
                         "level": "ready",
-                        "http": {"url": "http://localhost:19001/readyz"},
+                        "http": {"url": "http://localhost:8081/readyz"},
                     },
                 },
             }
         )
 
     def _construct_ai_gateway_layer(self) -> Layer:
-        """Construct the Pebble layer for the AI Gateway controller."""
+        """Construct the Pebble layer for the AI Gateway controller.
+
+        The image ENTRYPOINT is ``/app`` (the controller binary); it takes flags,
+        not a config file. TLS defaults (``--tlsCertDir=/certs``, ``tls.crt``/
+        ``tls.key``/``ca.crt``) match the certs pushed in ``_reconcile_config_and_certs``.
+        Health is a gRPC probe upstream; Pebble has no gRPC check, so we TCP-probe
+        the extension-server port instead.
+        """
+        command = " ".join(
+            [
+                "/app",
+                f"-logLevel={self._log_level}",
+                f"--extProcImage={EXTPROC_IMAGE}",
+                f"--extProcLogLevel={self._log_level}",
+                f"--webhookPort={WEBHOOK_PORT}",
+            ]
+        )
         return Layer(
             {
                 "summary": "AI Gateway",
@@ -548,8 +648,9 @@ class EnvoyControllerCharm(ops.CharmBase):
                     "ai-gateway": {
                         "override": "replace",
                         "summary": "AI Gateway controller",
-                        "command": "ai-gateway-controller --config-path /etc/ai-gateway/config.yaml",
+                        "command": command,
                         "startup": "enabled",
+                        "environment": {"POD_NAMESPACE": self.model.name},
                         "on-check-failure": {"liveness": "restart"},
                     }
                 },
@@ -557,12 +658,12 @@ class EnvoyControllerCharm(ops.CharmBase):
                     "liveness": {
                         "override": "replace",
                         "level": "alive",
-                        "http": {"url": "http://localhost:19002/healthz"},
+                        "tcp": {"port": EXTENSION_SERVER_PORT},
                     },
                     "readiness": {
                         "override": "replace",
                         "level": "ready",
-                        "http": {"url": "http://localhost:19002/readyz"},
+                        "tcp": {"port": EXTENSION_SERVER_PORT},
                     },
                 },
             }
@@ -616,6 +717,16 @@ class EnvoyControllerCharm(ops.CharmBase):
                 self.app.name, self.model.name, scope=ENVOY_PROXY_SCOPE
             ),
             resource_types={EnvoyProxy},
+            lightkube_client=self.lightkube_client,
+            logger=logger,
+        )
+
+    def _control_plane_service_krm(self) -> KubernetesResourceManager:
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=CONTROL_PLANE_SERVICE_SCOPE
+            ),
+            resource_types={Service},
             lightkube_client=self.lightkube_client,
             logger=logger,
         )

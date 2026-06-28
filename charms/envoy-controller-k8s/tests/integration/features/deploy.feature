@@ -15,7 +15,7 @@ Feature: Charm deployment
     Given the self-signed-certificates charm is deployed
     When the envoy-controller-k8s charm is deployed without trust
     And the certificates relation is established with self-signed-certificates
-    Then the charm is blocked with message "Trust not granted — run 'juju trust envoy-controller-k8s'"
+    Then the charm is blocked with message "Trust not granted. Run 'juju trust envoy-controller-k8s'"
 
   Scenario: Charm blocks without certificates relation
     When the envoy-controller-k8s charm is deployed with trust

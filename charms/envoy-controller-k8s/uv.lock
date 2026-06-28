@@ -28,7 +28,7 @@ wheels = [
 [[package]]
 name = "canonical-service-mesh"
 version = "0.0.2"
-source = { git = "file:///home/ivdi/Work/repo/service-mesh?subdirectory=canonical_service_mesh&rev=feat%2FSMS-783-models-for-envoy-charms#fe3f651e23f0d6172d69f0235ddb6fdfb3da179d" }
+source = { git = "https://github.com/canonical/service-mesh.git?subdirectory=canonical_service_mesh&rev=feat%2FSMS-783-models-for-envoy-charms#29485ba5e0ba9addfddf8f4f04191b98b8397651" }
 dependencies = [
     { name = "httpx" },
     { name = "lightkube" },
@@ -484,7 +484,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "canonical-service-mesh", git = "file:///home/ivdi/Work/repo/service-mesh?subdirectory=canonical_service_mesh&rev=feat%2FSMS-783-models-for-envoy-charms" },
+    { name = "canonical-service-mesh", git = "https://github.com/canonical/service-mesh.git?subdirectory=canonical_service_mesh&rev=feat%2FSMS-783-models-for-envoy-charms" },
     { name = "charmlibs-interfaces-otlp" },
     { name = "charmlibs-interfaces-tls-certificates" },
     { name = "codespell", marker = "extra == 'dev'" },
