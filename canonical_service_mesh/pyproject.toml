@@ -20,12 +20,13 @@ classifiers = [
 dependencies = [
     "httpx",
     "lightkube>=0.11.0",
-    "ops>=2.5",
+    "ops>=2.23",
     "pydantic>=2",
 ]
 
 [dependency-groups]
 dev = [
+    "ops[testing]",
     "pytest",
     "pytest-cov",
     "ruff",
