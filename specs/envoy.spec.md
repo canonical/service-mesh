@@ -45,16 +45,14 @@ Go-based controller in `envoy-gateway-system` that watches Gateway API resources
 - **Backend API and EnvoyPatchPolicy** enabled for AI service backends.
 - **InferencePool** (`inference.networking.k8s.io/v1`) registered as a recognized backend resource for inference-aware routing.
 
-**Envoy Gateway control-plane CRDs (`gateway.envoyproxy.io`).** The `gateway-helm` chart above does not only deploy the controller — it also installs Envoy Gateway's own implementation-specific CRD group, separate from the vendor-neutral Gateway API of Layer 1. This group (8 CRDs) holds the resources Envoy Gateway adds on top of the Gateway API: `EnvoyProxy`, `ClientTrafficPolicy`, `BackendTrafficPolicy`, `SecurityPolicy`, `EnvoyPatchPolicy`, `EnvoyExtensionPolicy`, `Backend`, and `HTTPRouteFilter`. Because the charm installs CRDs itself (via KRM) rather than through Helm, it must **vendor this group too** — bundled under `crds/envoy-gateway/` and applied unconditionally alongside the Gateway API CRDs, version-matched to the Envoy Gateway release. The charm actively reconciles a default **`EnvoyProxy`** resource (carrying Juju-topology stats tags and the OTLP telemetry sink onto the data plane), so this CRD must be Established before controllers start; the remaining CRDs in the group are registered because the controller watches the full group.
-
-### Layer 4: AI Gateway CRDs (v0.6.0)
+### Layer 4: AI Gateway CRDs (v0.5.0)
 ```
 helm upgrade -i aieg-crd oci://docker.io/envoyproxy/ai-gateway-crds-helm \
   --version "${ENVOY_AI_GATEWAY_VERSION}" \
   --namespace envoy-ai-gateway-system \
   --create-namespace
 ```
-CRDs for AI-specific resources (6 total): `AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `MCPRoute`, `GatewayConfig`, `QuotaPolicy`. As of v0.6.0 the core types (`AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, …) serve **`v1beta1`** as the storage version (v1alpha1 is retained, served, non-storage); the controller's field indexing requires the `v1beta1` resources to be registered or it exits at startup (`no matches for aigateway.envoyproxy.io/v1beta1`). `QuotaPolicy` is v1alpha1-only.
+CRDs for AI-specific resources (5 total): `AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `MCPRoute`, `GatewayConfig`.
 
 ### Layer 5: AI Gateway Controller (v0.5.0)
 ```
@@ -123,10 +121,6 @@ One pod with two Pebble workload containers:
 - **Envoy Gateway controller** — Go binary, watches Gateway API resources, translates to xDS, provisions Envoy Proxy pods
 - **AI Gateway controller** — Go binary, watches AI Gateway CRs, serves Extension Server (gRPC port 1063), serves ExtProc sidecar admission webhook (port 9443)
 
-> **⚠️ BLOCKER: two controllers cannot share one pod.** Both Envoy Gateway and the AI Gateway controller are controller-runtime apps that bind their manager metrics on **`:8080`**, and containers in a single Kubernetes pod share one network namespace — so the second process to start fails with `listen tcp :8080: bind: address already in use`. This is **not configurable**: controller-runtime defaults `BindAddress` to `:8080` (only `"0"` disables it) and reads **no env override**; Envoy Gateway v1.7.0 hardcodes `nil` metrics options in its production `New()` entrypoint (only its unit test passes `BindAddress: "0"`), and AI Gateway v0.6.0's `ctrl.Options` never sets `Metrics:` (none of its 26 flags touch the manager metrics listener). Neither exposes a flag/config/env to move or disable manager metrics. A secondary `:9443` clash (EG topology-injector webhook vs. AI ExtProc webhook) is independently avoidable (EG `Provider.Kubernetes.TopologyInjector.Disable` + AI `--webhookPort`), but `:8080` blocks regardless.
->
-> **Consequence:** the single-pod, two-container design above is **not achievable without forking/patching a controller image** (e.g. patching EG to pass `BindAddress: "0"`, as its own test does — at the cost of an image-maintenance burden and that controller's lost manager metrics). The fork-free resolution is to run the AI Gateway controller in its **own pod** — a charm-managed Kubernetes `Deployment` (via lightkube, image `docker.io/envoyproxy/ai-gateway-controller:v0.6.0`) or a separate charm. This is an **open design decision**; until it is resolved, **AI Gateway is disabled** (`enable-ai-gateway=false`) and the charm ships as a plain Envoy Gateway operator. All other AI-layer plumbing (certgen control-plane secrets, webhook caBundle base64, webhook name contract, v1beta1 CRDs, ExtProc image pin) is complete and verified — the controller reaches manager-start before hitting the port clash.
-
 #### Requires Trust
 
 Deployed with `juju deploy --trust` or `juju trust`. The charm's ServiceAccount receives `cluster-admin`, eliminating the need to manage RBAC resources.
@@ -137,9 +131,9 @@ All charm-managed Kubernetes objects (CRDs and the webhook) are managed through 
 
 | Resource | Count | Purpose |
 |---|---|---|
-| CRDs (Gateway API + Envoy Gateway + GIE + AI Gateway) | ~31 | Applied from bundled YAML on install (via KRM) |
+| CRDs (Gateway API + GIE + AI Gateway) | ~23 | Applied from bundled YAML on install (via KRM) |
 | MutatingWebhookConfiguration (ExtProc sidecar injector) | 1 | Injects AI Gateway ExtProc sidecar into Envoy Proxy pods (via KRM) |
-| `EnvoyProxy` (`gateway.envoyproxy.io/v1alpha1`) | 1 | Default proxy configuration, named after the controller's Juju application (`self.app.name`) in the model namespace. Carries the OTLP metrics sink (endpoint from the `otlp` relation) **and** fixed Juju-topology stats tags (see [Proxy Metrics Topology](#proxy-metrics-topology)). Referenced by the ingress charm's `GatewayClass.spec.parametersRef` (via KRM). |
+| `EnvoyProxy` (`gateway.envoyproxy.io/v1alpha1`) | 1 | Default proxy configuration. Carries the OTLP metrics sink (endpoint from the `otlp` relation) **and** fixed Juju-topology stats tags (see [Proxy Metrics Topology](#proxy-metrics-topology)). Referenced by the ingress charm's `GatewayClass.spec.parametersRef` (via KRM). |
 
 #### Pebble-managed
 
@@ -147,46 +141,25 @@ All charm-managed Kubernetes objects (CRDs and the webhook) are managed through 
 |---|---|
 | Controller processes | Pebble services (one per container) |
 | Controller config files | `container.push()` |
-| Controller health | Pebble health checks per controller, `on-check-failure: restart`. Envoy Gateway exposes its controller-runtime health probe on HTTP `:8081` (`/healthz` liveness, `/readyz` readiness) — **not** the `:19001` metrics port. The AI Gateway controller exposes only a **gRPC** health service on `:1063` (no HTTP `/healthz`); since Pebble has no gRPC check, the charm uses a **TCP** check against `:1063` (the extension-server port) instead. The AI Gateway controller image's ENTRYPOINT is `/app` (the controller binary takes flags, not a config file): the charm runs it with `-logLevel`, `--extProcImage`, `--extProcLogLevel`, and `--webhookPort=9443`. |
-| Controller namespace | Envoy Gateway resolves its own namespace from the `ENVOY_GATEWAY_NAMESPACE` env var (Helm injects it via the downward API). The charm sets it to the Juju **model namespace** so the leader-election Lease and the certgen control-plane secrets are created there; left unset it defaults to `envoy-gateway-system`, which the charm never creates, and both the controller and certgen fail on `namespaces "envoy-gateway-system" not found`. |
-| TLS certs | Received from `tls-certificates` relation, pushed to containers via Pebble. **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); served from the certgen-issued `envoy-gateway` Secret, no relation.)** |
+| Controller health | Pebble health checks (`/healthz`, `/readyz`) per controller, `on-check-failure: restart` |
+| TLS certs | Received from `tls-certificates` relation, pushed to containers via Pebble |
 
 #### TLS Certificate Contract
 
-The ExtProc admission webhook and the Extension Server are both fronted by the charm's own Kubernetes **Service** (both controllers run in the same pod). The `MutatingWebhookConfiguration` **must** be named `envoy-ai-gateway-gateway-pod-mutator.<model>`: at startup the AI Gateway controller looks up exactly this name (`<const>.<POD_NAMESPACE>`), requires it to hold exactly one webhook, and patches the `caBundle` into it from its own cert dir (`maybePatchAdmissionWebhook`, `cmd/controller/main.go`). If the object is missing the controller exits with code 1 and the `ai-gateway` Pebble service restart-loops. The config references the backend via **`clientConfig.service`** (namespace/name/port `9443`) — **not** `clientConfig.url` — so the API server dials the Service DNS name. For the API server's TLS handshake to succeed, the served certificate's SANs must contain that exact name. The charm therefore requests, over `tls-certificates`, a single server certificate whose **DNS SANs** are:
+The ExtProc admission webhook and the Extension Server are both fronted by the charm's own Kubernetes **Service** (both controllers run in the same pod). The `MutatingWebhookConfiguration` references the backend via **`clientConfig.service`** (namespace/name/port `9443`) — **not** `clientConfig.url` — so the API server dials the Service DNS name. For the API server's TLS handshake to succeed, the served certificate's SANs must contain that exact name. The charm therefore requests, over `tls-certificates`, a single server certificate whose **DNS SANs** are:
 
 - `<app>.<model>.svc.cluster.local` (primary; also the computed Extension Server FQDN, port `1063`)
 - `<app>.<model>.svc`
 - `<app>.<model>`
 - `<app>` (bare, defensive)
 
-The **issuing CA** from the same relation is reused as the `MutatingWebhookConfiguration.caBundle` (base64-encoded, since `caBundle` is a Kubernetes `[]byte` field — sending raw PEM fails with `illegal base64 data at input byte 0`), guaranteeing the webhook's trust anchor matches the served cert. The AI Gateway controller independently patches the same `caBundle` from `/certs/ca.crt` at startup; because both read the CA from the same `tls-certificates` relation the values are identical, so the two writers do not fight. If the SAN does not match the dialed name, every admission call fails (`x509: certificate is valid for ...`) and Envoy Proxy pods silently never receive the ExtProc sidecar — hence the SAN set is pinned here as a contract and asserted by a unit test.
-
-The same relation certificate (cert, key, CA) is **also** pushed to `/certs/{tls.crt,tls.key,ca.crt}` in **both** controller containers. Envoy Gateway hardcodes this path for its xDS-server TLS; the AI Gateway controller defaults to it too (`--tlsCertDir=/certs`, names `tls.crt`/`tls.key`/`ca.crt`) for the mutating-webhook server, so no override flags are needed. Upstream Helm has a `certgen` job populate this path; since the charm eliminates certgen, the relation cert serves both — without it the `envoy-gateway` process exits at startup (`failed to load TLS config: open /certs/tls.crt: no such file or directory`). The data-plane half of this trust chain (Envoy Proxy pods presenting client certs signed by the same CA) is provisioned when a Gateway is created and is out of scope for the controller charm reaching `active`.
-
-#### Course Correction: Why the `tls-certificates` Path Failed
-
-> **This subsection supersedes the relation-based TLS design described above.** The original design (sourcing the xDS-server cert and the webhook cert from a `tls-certificates` relation, and eliminating certgen) was implemented and deployed, but failed on the live cluster for two independent reasons. The shipped charm instead **keeps certgen and drops the `tls-certificates` relation entirely**. The text above is retained to document the original reasoning; the items below are what actually works.
-
-**Premise of the original design.** Envoy Gateway's xDS server (and the AI Gateway mutating-webhook server) need a serving cert at `/certs`. The original plan was to obtain that cert from a `tls-certificates` relation and skip certgen, reusing one relation cert for both purposes. This does not work, because:
-
-**Failure 1 — no `envoy-gateway` Service (Gateway never reaches `Programmed=True`).** Envoy Gateway hardcodes the proxy bootstrap to dial its xDS/wasm endpoints at `envoy-gateway.<namespace>.svc` on ports `18000` (xDS) and `18002` (wasm) — the Service name its own Helm chart creates. There is **no config override** for this host. The charm's Juju-created application Service is named after the charm app (`envoy-controller-k8s`), so no Service named `envoy-gateway` exists; the proxy's DNS lookup returns no endpoints and Envoy logs `no healthy upstream`. The Gateway stays `Programmed=False` (`NoResources`) indefinitely because the data plane can never connect to the control plane.
-
-**Failure 2 — cert-trust mismatch (`CERTIFICATE_VERIFY_FAILED`).** Envoy Gateway provisions the **data-plane** trust chain itself from its own self-signed **certgen CA**: the proxy pods receive a client cert and CA bundle via the `envoy` Secret, signed by a certgen CA with `CN=envoy-gateway`. The proxies therefore validate the xDS server's cert **against the certgen CA**. The `tls-certificates` relation cert, however, is signed by a *different* CA (e.g. `self-signed-certificates`). Pushing the relation cert into `/certs` makes the xDS server present a cert the proxies cannot verify, so the mTLS handshake fails with `CERTIFICATE_VERIFY_FAILED: unable to get local issuer certificate`. There is no single point where both halves of the mTLS chain can be made to share the relation CA without re-implementing certgen.
-
-**The path actually taken.**
-
-- **Keep certgen, drop the relation.** The charm runs `envoy-gateway certgen` (as upstream Helm does) to mint the control-plane Secrets under one self-signed CA, and **removes the `tls-certificates` relation**. The server cert served from `/certs` is read from the certgen-issued `envoy-gateway` Secret, so it is signed by the same CA the proxies already trust — both halves of the mTLS chain share one CA by construction.
-- **Charm-managed `envoy-gateway` Service.** The charm reconciles (server-side apply, via KRM) a `Service` named `envoy-gateway` in the model namespace, selecting the controller pods (`app.kubernetes.io/name: envoy-controller-k8s`), exposing `18000` (xDS) and `18002` (wasm). When AI Gateway is enabled it additionally exposes `9443` (ExtProc webhook) and `1063` (Extension Server). This is the name the proxy bootstrap dials, so DNS resolves and the upstream is healthy.
-- **Webhook trust aligned to certgen.** The `MutatingWebhookConfiguration.caBundle` is set from the certgen CA (`ca.crt` from the certgen control-plane Secret, already base64-encoded PEM as `caBundle` requires), and the webhook `clientConfig.service` points at the **`envoy-gateway`** Service — whose certgen cert SANs are `envoy-gateway.*` — so the API server's TLS handshake to the webhook validates. (Under the original design the webhook dialed the app-named Service, whose relation-cert SANs did not match.)
-
-**Result:** a single certgen CA spans control plane and data plane; the proxy connects over mTLS, and the Gateway reaches `Programmed=True` (verified live: control plane `active`, proxy pods `2/2`, no `CERTIFICATE_VERIFY_FAILED`).
+The **issuing CA** from the same relation is reused verbatim as the `MutatingWebhookConfiguration.caBundle`, guaranteeing the webhook's trust anchor matches the served cert. If the SAN does not match the dialed name, every admission call fails (`x509: certificate is valid for ...`) and Envoy Proxy pods silently never receive the ExtProc sidecar — hence the SAN set is pinned here as a contract and asserted by a unit test.
 
 #### Relations
 
 | Interface | Direction | Purpose |
 |---|---|---|
-| `tls-certificates` | requires | TLS certs for webhook server + Extension Server. **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); the shipped charm drops this relation and uses certgen.)** |
+| `tls-certificates` | requires | TLS certs for webhook server + Extension Server |
 | `otlp` | requires | OTLP endpoint + alert/recording rules for controller and Envoy Proxy metrics |
 | `grafana_dashboard` | provides | Ships Grafana dashboard JSON for both controller health and Envoy Proxy data plane metrics. Both use standard Juju topology labels (proxy metrics are tagged via the default `EnvoyProxy` — see [Proxy Metrics Topology](#proxy-metrics-topology)). |
 
@@ -226,6 +199,99 @@ Layers 1 and 2 (Gateway API CRDs + Gateway Inference Extension CRDs) will eventu
 
 ---
 
+## Implementation Course Correction & Revised Architecture
+
+> **This section supersedes the original design above wherever they conflict — it is the authoritative as-built/as-planned record.** Everything before this point captures the **original design** as first specified (single control-plane pod with two controllers, certs from a `tls-certificates` relation). During implementation on a live cluster, two load-bearing assumptions of that design broke. The original text is retained deliberately as a record of the reasoning and the dead ends; this section documents the **walls that were hit** and the **revised architecture** adopted in response.
+>
+> **Legend:** ✅ **Built & verified live** · 🔵 **Revised design (agreed direction, not yet implemented)**
+
+### Wall 1 — Two controllers cannot share one pod ✅ (diagnosed)
+
+The original design runs the Envoy Gateway controller and the AI Gateway controller as two Pebble containers in **one pod**. Both are `controller-runtime` applications that bind their manager metrics on **`:8080`** by default, and containers in a single Kubernetes pod share one network namespace — so the second process to start dies with `listen tcp :8080: bind: address already in use`.
+
+This is **not configurable away**: controller-runtime defaults `Metrics.BindAddress` to `:8080` (only the literal `"0"` disables it) and reads **no env override**; Envoy Gateway (verified through **v1.8.1**) hardcodes `nil` metrics options in its production `New()` entrypoint (`internal/provider/kubernetes/kubernetes.go` — `New()` calls `newProvider(..., nil, ...)`; only its unit test passes `BindAddress: "0"`); AI Gateway **v0.6.0** never sets `ctrl.Options.Metrics` (none of its flags reach the manager metrics listener). Neither exposes a flag/config/CRD/env to move or disable manager metrics. A secondary `:9443` clash (EG topology-injector webhook vs. AI ExtProc webhook) is independently avoidable, but `:8080` blocks regardless.
+
+The only single-pod fix is to **fork/patch a controller image** (e.g. set `Metrics.BindAddress: "0"` at build time — viable since we build our own rocks, but it carries a per-version rebase burden, costs that controller's metrics, and still leaves `:9443`, dual leader-election, and shared-restart fragility).
+
+#### Resolution: split into two charms 🔵
+
+Run each controller in its **own pod** as its **own charm** — the topology upstream Helm itself uses (two Deployments). This eliminates the entire co-location conflict class (not just `:8080`), requires no image fork, stays on the upstream-tested path, and gives the two control planes independent lifecycle, scaling, and upgrade cadence.
+
+- **`envoy-controller-k8s`** — the Envoy Gateway control plane (this charm). Ships as a plain Envoy Gateway operator.
+- **`envoy-ai-gateway-k8s`** *(new)* — the AI Gateway controller in its own pod.
+
+The original `enable-ai-gateway` config boolean is **removed**; AI is enabled by **relating** the AI charm to the controller charm (see *The EG ↔ AI relation* below) — the relation *is* the on/off switch.
+
+### Wall 2 — The `tls-certificates` cert path failed ✅ (fixed)
+
+The original design sources the xDS-server cert (and the AI webhook cert) from a `tls-certificates` relation and **eliminates upstream's `certgen`**, reusing one relation cert for both. This failed on the live cluster for two independent reasons:
+
+- **Failure 1 — no `envoy-gateway` Service → Gateway never reaches `Programmed=True`.** Envoy Gateway hardcodes the proxy bootstrap to dial xDS/wasm at `envoy-gateway.<namespace>.svc` on ports `18000`/`18002` — the Service name its own Helm chart creates. There is **no override**. The Juju app Service is named after the charm (`envoy-controller-k8s`), so no `envoy-gateway` Service exists; the proxy's DNS lookup returns nothing and Envoy logs `no healthy upstream`. The Gateway stays `Programmed=False` (`NoResources`).
+- **Failure 2 — cert-trust mismatch (`CERTIFICATE_VERIFY_FAILED`).** Envoy Gateway provisions the proxy's trust chain itself from its own self-signed **certgen CA** (`CN=envoy-gateway`): proxies receive a client cert + CA bundle via the `envoy` Secret and validate the xDS server cert **against the certgen CA**. A `tls-certificates` relation cert is signed by a *different* CA (e.g. `self-signed-certificates`), so the proxy's mTLS handshake fails with `unable to get local issuer certificate`. There is no point where both halves of the mTLS chain can share the relation CA without re-implementing certgen.
+
+#### Resolution: keep certgen, drop the relation ✅
+
+- **Keep `certgen`, remove `tls-certificates`.** The charm runs upstream's `envoy-gateway certgen` (in the gateway container) to mint the control-plane Secrets under one self-signed CA. The cert served from `/certs` is read from the certgen-issued **`envoy-gateway`** Secret — signed by the same CA the proxies already trust, so both halves of the mTLS chain share one CA by construction. certgen is **idempotent** (no `--overwrite`, so values are stable across reconciles/scaled units) and run with `--disable-topology-injector`.
+- **Charm-managed `envoy-gateway` Service.** The charm reconciles (SSA via KRM) a `Service` named **`envoy-gateway`** in the model namespace, selecting the controller pods (`app.kubernetes.io/name: envoy-controller-k8s`), exposing `18000` (xDS) and `18002` (wasm). This is the name the proxy bootstrap dials, so DNS resolves and the upstream is healthy.
+- **Result (verified live):** one certgen CA spans control + data plane; proxy connects over mTLS; Gateway reaches `Programmed=True` (control plane `active`, proxy pods `2/2`, no `CERTIFICATE_VERIFY_FAILED`).
+
+### Revised Architecture: Two Charms 🔵
+
+#### Charm A — `envoy-controller-k8s` (Envoy Gateway control plane) ✅
+
+Plain Envoy Gateway operator: installs Gateway API CRDs + the `gateway.envoyproxy.io` control-plane CRD group + the stable GIE `InferencePool`, runs the Envoy Gateway controller, owns certgen and the `envoy-gateway` Service, and manages the default `EnvoyProxy` resource. **No `tls-certificates` relation.** No AI controller, no AI CRDs, no ExtProc webhook in this charm.
+
+#### Charm B — `envoy-ai-gateway-k8s` (AI Gateway control plane) 🔵 *(new)*
+
+The AI Gateway controller in its own pod. Owns:
+- the **`aigateway.envoyproxy.io` CRDs** (6: `AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `MCPRoute`, `GatewayConfig`, `QuotaPolicy`);
+- the **ExtProc sidecar-injector `MutatingWebhookConfiguration`** and **its serving cert** — this hop is **apiserver → AI-controller webhook**, entirely internal to the AI side, so the cert is self-contained in this charm (self-signed in-charm, or via its own `tls-certificates` relation). It does **not** cross the EG↔AI relation and does **not** use EG's certgen;
+- injecting the ExtProc sidecar into Envoy Proxy pods (proxy ↔ ExtProc is **intra-pod localhost** — no cross-pod cert).
+
+#### The EG ↔ AI relation 🔵
+
+A relation between the two charms is **required**, not just a convenience gate: Envoy Gateway must be *configured* to call the AI controller via EG's **Extension Server protocol** (gRPC) to fine-tune xDS. EG's config must carry `extensionManager.service.fqdn = <ai-controller-svc>.<ns>.svc.cluster.local`, `port: 1063`, the `xdsTranslator` hooks, and `extensionApis.enableBackend: true` / `enableEnvoyPatchPolicy: true`. EG cannot know the AI controller's service address until related — hence the relation.
+
+- **AI charm → EG charm** (required payload): AI extension-server FQDN + port `1063`, and the signal to enable the extensionManager hooks + Backend API.
+- **EG charm → AI charm** (lighter): `controllerName`/GatewayClass + namespace + a readiness signal, so the AI charm can gate itself.
+- **The relation is the AI on/off switch** (replaces `enable-ai-gateway`): unrelated → EG runs plain; relate → EG writes `extensionManager` and AI comes alive; unrelate → EG reverts to plain. Without the relation the AI controller has nothing to fine-tune, so it is inert by construction.
+- **Caveat:** Envoy Gateway reads its `EnvoyGateway` config at startup and does **not** hot-reload it, so the EG charm's relation-changed handler must rewrite the config and **restart the EG Pebble service**.
+
+#### Certificate ownership (three hops) 🔵
+
+| Hop | Direction | Trust source | Owner |
+|---|---|---|---|
+| Control-plane xDS mTLS | EG controller ↔ Envoy Proxy | certgen CA (`envoy`/`envoy-gateway` Secrets) | **`envoy-controller-k8s`** (certgen) ✅ |
+| ExtProc admission webhook | kube-apiserver → AI webhook (`:9443`) | AI charm's own cert; `caBundle` set by AI charm | **`envoy-ai-gateway-k8s`** (self-managed) |
+| Extension Server gRPC | EG controller → AI controller (`:1063`) | **plaintext by default** (no TLS block in upstream's required EG values) — no cert needed; optional later hardening would carry the AI server caBundle over the relation | — |
+
+ExtProc ↔ proxy is localhost inside the proxy pod (no cert). Splitting cleanly separates the two cert domains the single charm had conflated: **EG charm → certgen**; **AI charm → its webhook cert**.
+
+#### CRD ownership split 🔵
+
+- **`envoy-controller-k8s`** owns: Gateway API CRDs + `gateway.envoyproxy.io` control-plane group (8) + stable GIE `InferencePool`.
+- **`envoy-ai-gateway-k8s`** owns: `aigateway.envoyproxy.io` CRDs (6).
+
+Each group is cluster-scoped; the **single-owner-per-cluster** constraint (see [Scaling Behavior](#scaling-behavior)) applies independently to each charm.
+
+### As-Built Corrections (apply regardless of the split) ✅
+
+Factual corrections to the original design discovered during implementation:
+
+- **Versions & images.** Envoy Gateway **v1.7.0**, AI Gateway **v0.6.0**. The AI controller image is `docker.io/envoyproxy/ai-gateway-controller` — the originally specced `envoyproxy/ai-gateway` does **not** exist on Docker Hub (caused `ImagePullBackOff`). The two control planes must be **version-coherent**: AIGW v0.6.0 → EG v1.7.0; AIGW v0.7.0 / v1.0.0 → EG v1.8.1. Bundled CRDs must be regenerated to match whichever pair is pinned.
+- **Envoy Gateway control-plane CRD group.** `gateway-helm` also installs EG's own `gateway.envoyproxy.io` group (8 CRDs: `EnvoyProxy`, `ClientTrafficPolicy`, `BackendTrafficPolicy`, `SecurityPolicy`, `EnvoyPatchPolicy`, `EnvoyExtensionPolicy`, `Backend`, `HTTPRouteFilter`). Since the charm installs CRDs itself, it must **vendor this group too** (applied unconditionally; `EnvoyProxy` must be `Established` before controllers start). Total CRD count ≈ **31** with AI.
+- **AI CRD storage version.** As of v0.6.0 the core AI types serve **`v1beta1`** as storage version (v1alpha1 retained, served, non-storage); the controller's field indexing requires the `v1beta1` resources to be registered or it exits at startup (`no matches for aigateway.envoyproxy.io/v1beta1`).
+- **`ENVOY_GATEWAY_NAMESPACE`.** Must point at the Juju **model namespace** (Helm injects it via the downward API). Left unset it defaults to `envoy-gateway-system`, which the charm never creates → controller and certgen fail on `namespaces "envoy-gateway-system" not found`.
+- **`/certs`.** EG hardcodes this path for xDS-server TLS; the charm serves the certgen `envoy-gateway` Secret here (cert/key/CA). Without it `envoy-gateway` exits at startup (`open /certs/tls.crt: no such file or directory`).
+- **Health checks.** EG exposes its controller-runtime health probe on HTTP **`:8081`** (`/healthz`, `/readyz`) — *not* a metrics port. The AI controller exposes only a **gRPC** health service on `:1063`; since Pebble has no gRPC check, use a **TCP** check on `:1063`.
+- **`caBundle` encoding.** Kubernetes `caBundle` is a `[]byte` field, so it must be **base64-encoded** PEM (raw PEM fails with `illegal base64 data at input byte 0`).
+- **ExtProc image pin.** Pass `--extProcImage docker.io/envoyproxy/ai-gateway-extproc:v<AI version>` to the AI controller so it never falls back to the upstream `:latest` default.
+- **`EnvoyProxy` naming.** The default `EnvoyProxy` is named after the controller's Juju application; the ingress charm's `GatewayClass.spec.parametersRef` references it by that name (part of the cross-charm contract).
+- **Cleanup on remove.** App-scoped resources (the `envoy-gateway` Service; the ExtProc webhook on the AI charm) are deleted **only on last-unit removal** (`planned_units == 0`), left in place on scale-down. CRDs are always left in place (removing them cascade-deletes cluster-wide custom resources).
+- **CRD bundling.** Bundled CRD YAML lives under `src/crds/` (packed with `src/`), subdivided `gateway-api/`, `envoy-gateway/`, `gie/`, `ai-gateway/`.
+
+---
+
 ## Substrate
 
 **Kubernetes charm(s)** — Ops framework, deployed on a Juju Kubernetes model.
@@ -234,25 +300,22 @@ Layers 1 and 2 (Gateway API CRDs + Gateway Inference Extension CRDs) will eventu
 
 ## Installation Approach
 
-The charm uses **Pebble + lightkube** (Option C) with `--trust` and `tls-certificates` relation. **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); the shipped charm uses `--trust` only, runs certgen, and adds a charm-managed `envoy-gateway` Service.)**
+The charm uses **Pebble + lightkube** (Option C) with `--trust` and `tls-certificates` relation:
 
 | Concern | Mechanism |
 |---|---|
 | Controller processes | Pebble workload containers (one per controller) |
 | Controller config files | `container.push()` via Pebble |
-| TLS certs | `tls-certificates` relation → `container.push()`. **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); the shipped charm serves the certgen-issued `envoy-gateway` Secret from `/certs` and drops the relation.)** |
+| TLS certs | `tls-certificates` relation → `container.push()` |
 | RBAC | Eliminated by trust (`cluster-admin`) |
-| CRDs (~31) | KRM `reconcile()` (server-side apply) from bundled YAML |
-| ExtProc MutatingWebhookConfiguration | KRM `reconcile()` (server-side apply; CA from `tls-certificates` relation). **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); `caBundle` is the certgen CA and the webhook targets the `envoy-gateway` Service.)** |
+| CRDs (~23) | KRM `reconcile()` (server-side apply) from bundled YAML |
+| ExtProc MutatingWebhookConfiguration | KRM `reconcile()` (server-side apply; CA from `tls-certificates` relation) |
 | Default `EnvoyProxy` (OTLP sink + Juju-topology stats tags) | KRM `reconcile()` (server-side apply; endpoint from `otlp` relation) |
-| Control-plane secrets (`envoy`, `envoy-gateway`, `envoy-rate-limit` mTLS + `envoy-oidc-hmac`) | Upstream `envoy-gateway certgen` run in-container; idempotent (existing secrets untouched, no `--overwrite`) |
 | Envoy Proxy pods, Services, xDS | Created automatically by the Envoy Gateway controller at runtime |
 | ExtProc sidecar injection | Handled by the webhook + AI Gateway controller at runtime |
 | ExtProc config Secrets | Created automatically by the AI Gateway controller at runtime |
 
-The charm does **not** use Helm at runtime. Upstream Helm chart complexity (RBAC, ConfigMaps) is replaced by Juju-native mechanisms; the one piece kept verbatim is **certgen**.
-
-The charm runs upstream's **`envoy-gateway certgen`** in the gateway container instead of replicating it. Without it the controller blocks waiting on a missing `envoy` secret and never serves xDS. certgen mints the control-plane mTLS secrets (`envoy`, `envoy-gateway`, `envoy-rate-limit`) plus `envoy-oidc-hmac`, all in the charm's own namespace (`ENVOY_GATEWAY_NAMESPACE` must point at the model namespace or certgen targets the non-existent default `envoy-gateway-system`). It is **idempotent** — existing secrets are left untouched (no `--overwrite`), so values stay stable across reconciles and scaled units; `--disable-topology-injector` stops it patching an unrelated injector webhook. The `envoy-oidc-hmac` secret is read by Envoy Gateway during GatewayClass reconcile and injected into the proxy OAuth2 filter via xDS to sign OIDC state/nonce cookies; it is only consumed by native `SecurityPolicy.spec.oidc` (the `envoy-ingress-k8s` charm authenticates via `SecurityPolicy.spec.extAuth`, which does not use it).
+The charm does **not** use Helm at runtime. All upstream Helm chart complexity (RBAC, certgen, ConfigMaps) is replaced by Juju-native mechanisms.
 
 ---
 
@@ -270,17 +333,16 @@ The charm runs upstream's **`envoy-gateway certgen`** in the gateway container i
 | State | Effect |
 |---|---|
 | `true` | Installs AI Gateway CRDs, runs AI Gateway controller container, configures extension manager in Envoy Gateway config, creates ExtProc MutatingWebhookConfiguration. Full AI Gateway functionality. |
-| `false` (default) | Only runs Envoy Gateway controller with standard Gateway API + GIE support. No AI CRDs, no AI Gateway controller container, no extension manager config, no ExtProc webhook. Plain Envoy Gateway operator for general-purpose ingress. **Destructive when toggled from `true` → `false`:** removing the AI Gateway CRDs cascade-deletes all AI Gateway custom resources cluster-wide (`AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `MCPRoute`, `GatewayConfig`, `QuotaPolicy`). Only disable AI Gateway when no AI Gateway custom resources are in use. |
+| `false` (default) | Only runs Envoy Gateway controller with standard Gateway API + GIE support. No AI CRDs, no AI Gateway controller container, no extension manager config, no ExtProc webhook. Plain Envoy Gateway operator for general-purpose ingress. **Destructive when toggled from `true` → `false`:** removing the AI Gateway CRDs cascade-deletes all AI Gateway custom resources cluster-wide (`AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `MCPRoute`, `GatewayConfig`). Only disable AI Gateway when no AI Gateway custom resources are in use. |
 
 ### Internally Computed (not exposed)
 
 | Setting | Derivation |
 |---|---|
 | Extension manager FQDN | `<self.app.name>.<self.model.name>.svc.cluster.local` — both controllers are in the same pod |
-| TLS cert SANs | DNS SANs `<app>.<model>.svc.cluster.local`, `<app>.<model>.svc`, `<app>.<model>`, `<app>` — covers both the webhook Service name (port 9443) and the Extension Server FQDN (port 1063). **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); the charm no longer requests certs. The certgen-issued `envoy-gateway` cert carries SANs `envoy-gateway.<model>.svc.cluster.local` etc., and the webhook/Extension Server are fronted by the `envoy-gateway` Service.)** |
+| TLS cert SANs | DNS SANs `<app>.<model>.svc.cluster.local`, `<app>.<model>.svc`, `<app>.<model>`, `<app>` — covers both the webhook Service name (port 9443) and the Extension Server FQDN (port 1063) |
 | Proxy stats tags | Fixed `EnvoyProxy` stats tags `juju_model`, `juju_model_uuid`, `juju_application`, `juju_charm` (from `self.model`/`self.app`) — stamped onto all Envoy Proxy metrics (no `juju_unit`) |
-| Upstream versions | Baked into the charm revision (Gateway API v1.4.1, GIE v1.3.0, Envoy Gateway v1.7.0, AI Gateway v0.6.0) |
-| ExtProc sidecar image | Pinned to `docker.io/envoyproxy/ai-gateway-extproc:v<AI Gateway version>` and passed to the controller via `--extProcImage` so it never falls back to the upstream `:latest` default |
+| Upstream versions | Baked into the charm revision (Gateway API v1.4.1, GIE v1.3.0, Envoy Gateway v1.6.3, AI Gateway v0.5.0) |
 | Controller name | Always `gateway.envoyproxy.io/gatewayclass-controller` |
 | Extension APIs | Always `enableEnvoyPatchPolicy: true`, `enableBackend: true` |
 
@@ -308,13 +370,10 @@ _reconcile():
      - Is the charm trusted? (cluster-admin SA exists)
      - Are Pebble containers connected?
      - Is the tls-certificates relation established and certs available?
-       # Superseded (see Course Correction): no cert precondition. The shipped
-       # charm runs certgen and pushes the certgen-issued cert; it does not gate on a relation.
      → If any precondition unmet: set appropriate waiting/blocked status, return
 
   2. Apply CRDs
      - Always apply Gateway API CRDs (~17)
-     - Always apply Envoy Gateway control-plane CRDs (8: `gateway.envoyproxy.io` group)
      - Always apply GIE CRDs (1: `InferencePool`, stable `inference.networking.k8s.io` group only)
      - If enable-ai-gateway: apply AI Gateway CRDs (5)
      - If not enable-ai-gateway: remove AI Gateway CRDs if present (destructive — cascade-deletes AI custom resources cluster-wide)
@@ -327,21 +386,16 @@ _reconcile():
 
   4. Push TLS certs
      - Write CA cert, server cert, server key to both containers via Pebble
-       # Superseded (see Course Correction): the shipped charm first runs `envoy-gateway certgen`,
-       # then reads the certgen-issued `envoy-gateway` Secret and pushes its cert/key/CA to /certs,
-       # and reconciles the `envoy-gateway` Service (ports 18000/18002; +9443/1063 when AI enabled).
 
   5. Manage MutatingWebhookConfiguration
      - If enable-ai-gateway: ensure ExtProc sidecar injector webhook exists, targeting the charm's Service via `clientConfig.service` (port 9443), with `caBundle` set to the issuing CA from the tls-certificates relation
-       # Superseded (see Course Correction): the webhook targets the `envoy-gateway` Service
-       # (whose certgen cert SANs are `envoy-gateway.*`), and `caBundle` is the certgen CA.
      - If not enable-ai-gateway: ensure webhook is removed
 
   6. Manage Pebble services
      - Ensure Envoy Gateway controller service is running with correct config
      - If enable-ai-gateway: ensure AI Gateway controller service is running
      - If not enable-ai-gateway: ensure AI Gateway controller service is stopped
-     - The Envoy Gateway service defines Pebble health checks (HTTP `/healthz` liveness, `/readyz` readiness on `:8081`) with `on-check-failure: restart` for automatic recovery from crash loops. The AI Gateway controller only serves a gRPC health endpoint on `:1063`, so its check must be a TCP/gRPC-style probe rather than HTTP.
+     - Each controller service defines Pebble health checks (HTTP `/healthz` liveness, `/readyz` readiness) with `on-check-failure: restart` for automatic recovery from crash loops
 
   7. Evaluate controller health
      - Read Pebble check status for each running controller
@@ -369,20 +423,20 @@ If multiple statuses of the same priority are collected, the **first one added**
 - `config-changed`
 - `upgrade-charm`
 - `pebble-ready` (both containers)
-- All relation events for every relation the charm has — `certificates`, `otlp`, `grafana-dashboard` (`-relation-joined`, `-changed`, `-broken`, `-departed`) **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); no `certificates` relation. Relations are `otlp` and `grafana-dashboard`.)**
-- `secret-changed` / `secret-expired` — **required for TLS cert rotation:** `tls-certificates` (v4) delivers renewed certs via Juju secrets, not via `certificates-relation-changed`. Without observing these, the charm would never re-push a rotated cert and the webhook/Extension-Server cert would silently expire. **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); certs come from certgen, so these observers are not needed; certgen re-runs on every reconcile.)**
+- All relation events for every relation the charm has — `certificates`, `otlp`, `grafana-dashboard` (`-relation-joined`, `-changed`, `-broken`, `-departed`)
+- `secret-changed` / `secret-expired` — **required for TLS cert rotation:** `tls-certificates` (v4) delivers renewed certs via Juju secrets, not via `certificates-relation-changed`. Without observing these, the charm would never re-push a rotated cert and the webhook/Extension-Server cert would silently expire.
 - `update-status` — periodic safety net so a unit that missed an event still re-converges
 - `collect-status` — sets the final unit status (see Status Resolution)
-- `remove` (on last-unit removal — `planned_units == 0` — delete the app-scoped ExtProc webhook and the `envoy-gateway` control-plane Service; left in place on scale-down. CRDs are left in place; Juju handles pod/namespace teardown)
+- `remove` (cleanup webhook only — CRDs are left in place, Juju handles pod/namespace teardown)
 
 ### Status Model
 
 | Status | Condition | Message |
 |---|---|---|
-| `blocked` | Trust not granted | `Trust not granted. Run 'juju trust envoy-controller-k8s'` |
-| `blocked` | TLS certificates relation not established | `Missing relation: certificates` **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); no cert relation gate.)** |
+| `blocked` | Trust not granted | `Trust not granted — run 'juju trust envoy-controller-k8s'` |
+| `blocked` | TLS certificates relation not established | `Missing relation: certificates` |
 | `waiting` | Pebble containers not yet connected | `Waiting for Pebble (envoy-gateway container)` |
-| `waiting` | TLS certs requested but not yet available | `Waiting for TLS certificates` **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); no cert wait gate.)** |
+| `waiting` | TLS certs requested but not yet available | `Waiting for TLS certificates` |
 | `waiting` | A controller Pebble health check is failing (e.g., crash-looping) | `Waiting for envoy-gateway controller to become healthy` |
 | `maintenance` | Applying CRDs | `Applying CRDs` |
 | `maintenance` | Pushing config | `Configuring envoy-gateway controller` |
@@ -408,9 +462,9 @@ If multiple statuses of the same priority are collected, the **first one added**
 
 ### Cleanup on Remove
 
-- **Only on last-unit removal** (`planned_units == 0`): the ExtProc `MutatingWebhookConfiguration` and the charm-managed `envoy-gateway` control-plane Service are deleted (both are app-scoped, not per-unit; `ignore_missing` swallows the expected 404). On a scale-down where peer units remain, they are left in place.
+- Remove the ExtProc MutatingWebhookConfiguration (if it exists)
 - **CRDs are left in place** — removing CRDs would cascade-delete all custom resources cluster-wide (Gateways, HTTPRoutes, AIGatewayRoutes, etc.), which is destructive and may affect other applications
-- Juju handles pod, StatefulSet, Service (the Juju app Service), and namespace teardown
+- Juju handles pod, StatefulSet, Service, and namespace teardown
 
 ---
 
@@ -443,7 +497,7 @@ The charm supports scaling via `juju scale-application envoy-controller-k8s N`.
 - **Webhook serving** is stateless — the K8s Service load-balances across all pods. Multiple pods improve webhook availability.
 - **Extension Server (gRPC)** is stateless — any pod can serve requests.
 - **All units run `_reconcile()` identically** — every unit applies CRDs, manages the webhook, pushes config, and starts controllers. Cluster-scoped writes go through **KRM**, which makes concurrent multi-unit execution safe by construction:
-  - **Concurrent applies** use **server-side apply** with a shared, **app-scoped `field_manager`** (not per-unit). SSA is conflict-free across co-managers sharing a field manager, so N units applying the same ~31 CRDs + 1 webhook converge without `409 Conflict`.
+  - **Concurrent applies** use **server-side apply** with a shared, **app-scoped `field_manager`** (not per-unit). SSA is conflict-free across co-managers sharing a field manager, so N units applying the same ~23 CRDs + 1 webhook converge without `409 Conflict`.
   - **Concurrent deletes** (e.g., the AI Gateway CRD removal on `enable-ai-gateway: false`) are **unconditional** (no `resourceVersion` precondition) and run with `ignore_missing=True`, so a peer that already deleted the object yields a `404` that KRM swallows — no race, no error.
 - **No Juju leadership gating** — all units behave identically. KRM's SSA + label-based reconcile + `ignore_missing` removes the need for leader-only coordination of cluster-scoped writes. This simplifies the model and avoids edge cases where the Juju leader is unhealthy but non-leader units are fine.
 - **K8s API failures are not masked** — any non-404 error KRM raises (`K8sApiError` for transport/unreachable-API failures, or `RuntimeError` aggregating delete failures) propagates out of `_reconcile()`. These are treated as legitimate failures: the unit goes to **`error`** state (per the Status Model) so the operator sees them, rather than being silently downgraded to `waiting`. Only the expected `404`-on-delete case is swallowed (by KRM's `ignore_missing`).
@@ -463,19 +517,19 @@ The CRDs managed by this charm are **cluster-scoped** and global. KRM stamps **a
 ### Unit Tests
 
 - Framework: `pytest` with `ops.testing` (state-transition testing, formerly Scenario)
-- Mock Pebble, lightkube, and `tls-certificates` interactions **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); no `tls-certificates` mock. Tests mock the lightkube `Secret` get returning the certgen control-plane Secret.)**
+- Mock Pebble, lightkube, and `tls-certificates` interactions
 - Test cases:
   - Reconciler sets `blocked` when trust is missing
   - Reconciler sets `waiting` when Pebble not connected
-  - Reconciler sets `waiting` when TLS certs not available **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); no cert wait gate. Replaced by: certgen runs in the model namespace; control-plane `envoy-gateway` Service is reconciled with the right ports/selector.)**
+  - Reconciler sets `waiting` when TLS certs not available
   - Reconciler applies CRDs and starts controllers when all preconditions met
   - Config generation produces correct Envoy Gateway YAML (with/without AI features)
   - `enable-ai-gateway: false` omits extension manager config, stops AI controller, removes webhook
   - `log-level` changes propagate to controller config
   - Status messages match the defined status model
-  - Webhook resource includes correct CA bundle from TLS relation **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); `caBundle` is the certgen CA from the control-plane Secret.)**
-  - Webhook `clientConfig` uses `service` (not `url`) targeting the charm's Service on port 9443 **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); targets the `envoy-gateway` Service.)**
-  - TLS cert request includes the pinned DNS SAN set (`<app>.<model>.svc.cluster.local`, `<app>.<model>.svc`, `<app>.<model>`, `<app>`) **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); the charm makes no cert request; this test is removed.)**
+  - Webhook resource includes correct CA bundle from TLS relation
+  - Webhook `clientConfig` uses `service` (not `url`) targeting the charm's Service on port 9443
+  - TLS cert request includes the pinned DNS SAN set (`<app>.<model>.svc.cluster.local`, `<app>.<model>.svc`, `<app>.<model>`, `<app>`)
   - Controller health: collect-status reports `waiting` (not `active`) when a Pebble health check is failing
   - Ingress route conflict: two route specs with the same path resolve to `blocked` with a conflict message (pure logic, no live cluster needed)
 
@@ -488,7 +542,7 @@ The CRDs managed by this charm are **cluster-scoped** and global. KRM stamps **a
 
 | Feature File | Scope |
 |---|---|
-| `deploy.feature` | Deploy with/without trust, with/without tls-certificates relation, status verification. **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); no `tls-certificates` relation. Covers trust on/off and that the data plane reaches `Programmed=True` via the `envoy-gateway` Service.)** |
+| `deploy.feature` | Deploy with/without trust, with/without tls-certificates relation, status verification |
 | `crds.feature` | Gateway API, GIE, and AI Gateway CRDs exist/absent based on `enable-ai-gateway` toggle |
 | `controllers.feature` | Pebble services running/stopped based on `enable-ai-gateway` toggle |
 | `webhook.feature` | ExtProc MutatingWebhookConfiguration created/removed based on `enable-ai-gateway` toggle, CA bundle verification |
@@ -514,7 +568,7 @@ End-to-end traffic flow tests (AI routing, ExtProc processing, model inference) 
 ### Testing Notes
 
 - **Shared controller fixture**: every `envoy-ingress-k8s` feature requires a running `envoy-controller-k8s` stack (the ingress charm creates real `Gateway`/`HTTPRoute` resources that need a live GatewayClass controller). To avoid redeploying per scenario, the controller stack (controller + `self-signed-certificates`) is deployed **once per feature file** via a **module-scoped** fixture; Background steps are idempotent "ensure deployed" steps. Module scoping (rather than session scoping) isolates cluster-scoped state between feature files, so a scenario in one file that mutates shared cluster-scoped state (e.g., `crds.feature` toggling `enable-ai-gateway` off, which removes the AI Gateway CRDs) cannot leak that state into another file. Within a single feature file, scenarios are assumed to run top-to-bottom in authored order, so any destructive/state-mutating scenario (e.g., "AI CRDs removed when disabled") is authored **last**. Pure logic (databag parsing, HTTPRoute generation, conflict detection) is covered by unit tests rather than live-cluster scenarios.
-- **Composite "active" step**: the step `the envoy-controller-k8s charm is deployed with trust and active` encapsulates the required `tls-certificates` relation (the charm cannot reach `active` without it). Step definitions surface the underlying Juju status on failure to aid diagnosis. Where a feature's Background depends on certs, the `self-signed-certificates` relation is made explicit in the feature file. **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); the controller reaches `active` with trust alone — no `tls-certificates`/`self-signed-certificates` relation is involved.)**
+- **Composite "active" step**: the step `the envoy-controller-k8s charm is deployed with trust and active` encapsulates the required `tls-certificates` relation (the charm cannot reach `active` without it). Step definitions surface the underlying Juju status on failure to aid diagnosis. Where a feature's Background depends on certs, the `self-signed-certificates` relation is made explicit in the feature file.
 - **Cross-model conflict scenario**: `ingress.feature`'s conflicting-routes scenario uses cross-model relations (CMR) — a single ingress charm related to two requirers in different models. This is the most complex/slow scenario and should be tagged so it can be run independently of the fast suite. The conflict-detection *logic* is also covered by a unit test so a CMR/infra flake never leaves it untested.
 - **Upgrade tests deferred**: the sequential upgrade logic (version-jump blocking, CRD `Established` ordering) requires multiple published charm revisions to exercise end-to-end. Integration upgrade scenarios are deferred until multiple revisions are published; the version-jump and CRD-ordering logic is unit-tested in the meantime.
 
@@ -526,7 +580,7 @@ End-to-end traffic flow tests (AI routing, ExtProc processing, model inference) 
 
 | Relation Name | Interface | Direction | Purpose |
 |---|---|---|---|
-| `certificates` | `tls-certificates` | requires | TLS certs for webhook server + Extension Server. **(Superseded — see [Course Correction](#course-correction-why-the-tls-certificates-path-failed); the shipped charm drops this relation and uses certgen.)** |
+| `certificates` | `tls-certificates` | requires | TLS certs for webhook server + Extension Server |
 | `otlp` | `otlp` | requires | OTLP endpoint for controller **and** Envoy Proxy metrics; publishes alert/recording rules into the relation databag via the `otlp` lib's `RuleStore`. Envoy Gateway pushes proxy metrics via the default `EnvoyProxy`'s `telemetry.metrics.sinks` OpenTelemetry sink, configured with the endpoint received from the OTLP relation. Proxy metrics carry Juju topology labels (see Proxy Metrics Topology), so the lib's automatic topology injection into alert rules matches both control-plane and data-plane series. |
 | `grafana-dashboard` | `grafana_dashboard` | provides | Ships bundled Grafana dashboard JSON for both Envoy Gateway controller health and Envoy Proxy data plane metrics (connections, latency, error rates). Dashboards use standard Juju topology variables (`$juju_model`, `$juju_application`) — proxy metrics are tagged with this app's Juju topology via the default `EnvoyProxy` stats tags — with `gateway_name`/`gateway_namespace` available for per-gateway breakdown. |
 
@@ -555,7 +609,7 @@ Charm 2 needs to know that Charm 1 (Envoy Gateway controller) is running before 
 - During `_reconcile()`, Charm 2 uses **lightkube** to check if a GatewayClass with that controller name has an `Accepted` condition — indicating the controller is running and has claimed it.
 - If the GatewayClass is not yet accepted, Charm 2 sets `waiting` status: `Waiting for GatewayClass controller to become available`.
 - If the GatewayClass is accepted, Charm 2 proceeds to create/update the Gateway resource.
-- Charm 2's `GatewayClass` sets `spec.parametersRef` to the default `EnvoyProxy` resource managed by Charm 1 (by name/namespace), so proxies inherit the OTLP sink and Juju-topology stats tags. The `EnvoyProxy` is named after Charm 1's Juju application; that name is part of the cross-charm contract.
+- Charm 2's `GatewayClass` sets `spec.parametersRef` to the default `EnvoyProxy` resource managed by Charm 1 (by name/namespace), so proxies inherit the OTLP sink and Juju-topology stats tags. The `EnvoyProxy` name is part of the cross-charm contract (hardcoded for v1, alongside the controller name).
 
 This avoids a cross-charm relation while still giving the user clear status feedback.
 
@@ -605,14 +659,13 @@ envoy-controller-k8s/
 ├── uv.lock                  # Locked dependency versions (managed by uv)
 ├── src/
 │   ├── charm.py             # Main charm class, _reconcile()
-│   ├── grafana_dashboards/  # Bundled dashboard JSON files
-│   └── crds/                # Bundled CRD YAML files (~31), packed with src/
-│       ├── gateway-api/
-│       ├── envoy-gateway/    # gateway.envoyproxy.io control-plane CRDs (8)
-│       ├── gie/
-│       └── ai-gateway/
+│   └── grafana_dashboards/  # Bundled dashboard JSON files
 ├── lib/                     # Charm libs (tls-certificates, grafana-dashboard, etc.)
 ├── templates/               # Envoy Gateway + AI Gateway config templates
+├── crds/                    # Bundled CRD YAML files (~23)
+│   ├── gateway-api/
+│   ├── gie/
+│   └── ai-gateway/
 ├── tests/
 │   ├── unit/
 │   └── integration/
@@ -639,4 +692,3 @@ Topics to revisit in future iterations:
 | 1 | **Cross-charm relation vs lightkube probe** | Charm 2 currently discovers Charm 1 via a lightkube GatewayClass status check (see Cross-Charm Discovery). A dedicated relation (e.g., `envoy-gateway-provider`) would give cleaner lifecycle coupling, avoid hardcoding the controller name, and enable Charm 2 to block with a clear message when the relation is missing. Revisit if the lightkube probe proves fragile or if more data needs to flow between charms. |
 | 2 | **Charmhub revision availability** | The sequential upgrade strategy (see Upgrade Strategy) depends on intermediate charm revisions remaining available on Charmhub indefinitely. If old revisions can be garbage-collected or delisted, users may be unable to perform the required intermediate upgrade. Verify Charmhub's retention policy for published revisions and whether revisions can be guaranteed to stay available forever. |
 | 3 | **Exposing API info over relation data** | We should have a way to share the supported API versions (gateway and inference extensions) to client charms. Likely this should be added to the existing gateway-metadata relation. This would probably end up requiring a relation between envoy-controller-k8s and envoy-ingress-k8s.
-| 4 | **Envoy Gateway ↔ AI Gateway image/version coherence** | The AI Gateway controller image is `docker.io/envoyproxy/ai-gateway-controller` (the originally specced `envoyproxy/ai-gateway` does not exist on Docker Hub — caused an ImagePullBackOff). Beyond the repo name, the two control planes must be version-coherent: each AI Gateway release targets a specific Envoy Gateway release. Known pairings: AIGW v0.6.0 → EG v1.7.0; AIGW v0.7.0 / v1.0.0 → EG v1.8.1. We chose Option A (EG **v1.7.0** + AIGW **v0.6.0**). The bundled CRDs under `crds/` must be regenerated to match whichever pair is pinned, and the resource coordinates kept in lockstep on every bump. |
