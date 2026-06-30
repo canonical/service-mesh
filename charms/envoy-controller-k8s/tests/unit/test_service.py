@@ -19,29 +19,14 @@ def _reconciled_service(krm_mocks):
 
 
 def test_control_plane_service_fronts_xds_and_wasm(ctx, krm_mocks):
-    # GIVEN AI Gateway disabled (default)
+    # GIVEN a default deployment
     state_in = make_state()
     # WHEN the charm reconciles
     ctx.run(ctx.on.config_changed(), state_in)
     # THEN it publishes the envoy-gateway Service selecting the controller pods,
-    # exposing only the xDS and wasm ports the proxy bootstrap dials
+    # exposing the xDS and wasm ports the proxy bootstrap dials
     svc = _reconciled_service(krm_mocks)
     assert svc.metadata.name == charm.CONTROL_PLANE_NAME
     assert svc.metadata.namespace == state_in.model.name
     assert svc.spec.selector == {"app.kubernetes.io/name": "envoy-controller-k8s"}
     assert {p.port for p in svc.spec.ports} == {charm.XDS_PORT, charm.WASM_PORT}
-
-
-def test_control_plane_service_adds_ai_ports_when_enabled(ctx, krm_mocks):
-    # GIVEN AI Gateway enabled
-    # WHEN the charm reconciles
-    ctx.run(ctx.on.config_changed(), make_state(config={"enable-ai-gateway": True}))
-    # THEN the Service additionally fronts the ExtProc webhook and Extension Server,
-    # whose certgen cert SANs are envoy-gateway.* so callers must dial this name
-    svc = _reconciled_service(krm_mocks)
-    assert {p.port for p in svc.spec.ports} == {
-        charm.XDS_PORT,
-        charm.WASM_PORT,
-        charm.WEBHOOK_PORT,
-        charm.EXTENSION_SERVER_PORT,
-    }

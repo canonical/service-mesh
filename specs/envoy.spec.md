@@ -218,7 +218,7 @@ The only single-pod fix is to **fork/patch a controller image** (e.g. set `Metri
 Run each controller in its **own pod** as its **own charm** — the topology upstream Helm itself uses (two Deployments). This eliminates the entire co-location conflict class (not just `:8080`), requires no image fork, stays on the upstream-tested path, and gives the two control planes independent lifecycle, scaling, and upgrade cadence.
 
 - **`envoy-controller-k8s`** — the Envoy Gateway control plane (this charm). Ships as a plain Envoy Gateway operator.
-- **`envoy-ai-gateway-k8s`** *(new)* — the AI Gateway controller in its own pod.
+- **`envoy-ai-controller-k8s`** *(new)* — the AI Gateway controller in its own pod.
 
 The original `enable-ai-gateway` config boolean is **removed**; AI is enabled by **relating** the AI charm to the controller charm (see *The EG ↔ AI relation* below) — the relation *is* the on/off switch.
 
@@ -241,7 +241,7 @@ The original design sources the xDS-server cert (and the AI webhook cert) from a
 
 Plain Envoy Gateway operator: installs Gateway API CRDs + the `gateway.envoyproxy.io` control-plane CRD group + the stable GIE `InferencePool`, runs the Envoy Gateway controller, owns certgen and the `envoy-gateway` Service, and manages the default `EnvoyProxy` resource. **No `tls-certificates` relation.** No AI controller, no AI CRDs, no ExtProc webhook in this charm.
 
-#### Charm B — `envoy-ai-gateway-k8s` (AI Gateway control plane) 🔵 *(new)*
+#### Charm B — `envoy-ai-controller-k8s` (AI Gateway control plane) 🔵 *(new)*
 
 The AI Gateway controller in its own pod. Owns:
 - the **`aigateway.envoyproxy.io` CRDs** (6: `AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `MCPRoute`, `GatewayConfig`, `QuotaPolicy`);
@@ -262,7 +262,7 @@ A relation between the two charms is **required**, not just a convenience gate: 
 | Hop | Direction | Trust source | Owner |
 |---|---|---|---|
 | Control-plane xDS mTLS | EG controller ↔ Envoy Proxy | certgen CA (`envoy`/`envoy-gateway` Secrets) | **`envoy-controller-k8s`** (certgen) ✅ |
-| ExtProc admission webhook | kube-apiserver → AI webhook (`:9443`) | AI charm's own cert; `caBundle` set by AI charm | **`envoy-ai-gateway-k8s`** (self-managed) |
+| ExtProc admission webhook | kube-apiserver → AI webhook (`:9443`) | AI charm's own cert; `caBundle` set by AI charm | **`envoy-ai-controller-k8s`** (self-managed) |
 | Extension Server gRPC | EG controller → AI controller (`:1063`) | **plaintext by default** (no TLS block in upstream's required EG values) — no cert needed; optional later hardening would carry the AI server caBundle over the relation | — |
 
 ExtProc ↔ proxy is localhost inside the proxy pod (no cert). Splitting cleanly separates the two cert domains the single charm had conflated: **EG charm → certgen**; **AI charm → its webhook cert**.
@@ -270,7 +270,7 @@ ExtProc ↔ proxy is localhost inside the proxy pod (no cert). Splitting cleanly
 #### CRD ownership split 🔵
 
 - **`envoy-controller-k8s`** owns: Gateway API CRDs + `gateway.envoyproxy.io` control-plane group (8) + stable GIE `InferencePool`.
-- **`envoy-ai-gateway-k8s`** owns: `aigateway.envoyproxy.io` CRDs (6).
+- **`envoy-ai-controller-k8s`** owns: `aigateway.envoyproxy.io` CRDs (6).
 
 Each group is cluster-scoped; the **single-owner-per-cluster** constraint (see [Scaling Behavior](#scaling-behavior)) applies independently to each charm.
 
@@ -661,11 +661,11 @@ envoy-controller-k8s/
 │   ├── charm.py             # Main charm class, _reconcile()
 │   └── grafana_dashboards/  # Bundled dashboard JSON files
 ├── lib/                     # Charm libs (tls-certificates, grafana-dashboard, etc.)
-├── templates/               # Envoy Gateway + AI Gateway config templates
-├── crds/                    # Bundled CRD YAML files (~23)
+├── templates/               # Envoy Gateway config templates
+├── crds/                    # Bundled CRD YAML files
 │   ├── gateway-api/
 │   ├── gie/
-│   └── ai-gateway/
+│   └── envoy-gateway/
 ├── tests/
 │   ├── unit/
 │   └── integration/
@@ -692,3 +692,6 @@ Topics to revisit in future iterations:
 | 1 | **Cross-charm relation vs lightkube probe** | Charm 2 currently discovers Charm 1 via a lightkube GatewayClass status check (see Cross-Charm Discovery). A dedicated relation (e.g., `envoy-gateway-provider`) would give cleaner lifecycle coupling, avoid hardcoding the controller name, and enable Charm 2 to block with a clear message when the relation is missing. Revisit if the lightkube probe proves fragile or if more data needs to flow between charms. |
 | 2 | **Charmhub revision availability** | The sequential upgrade strategy (see Upgrade Strategy) depends on intermediate charm revisions remaining available on Charmhub indefinitely. If old revisions can be garbage-collected or delisted, users may be unable to perform the required intermediate upgrade. Verify Charmhub's retention policy for published revisions and whether revisions can be guaranteed to stay available forever. |
 | 3 | **Exposing API info over relation data** | We should have a way to share the supported API versions (gateway and inference extensions) to client charms. Likely this should be added to the existing gateway-metadata relation. This would probably end up requiring a relation between envoy-controller-k8s and envoy-ingress-k8s.
+| 4 | **`extensionApis` left enabled unconditionally** | `envoy-controller-k8s` always sets `extensionApis.enableBackend` and `extensionApis.enableEnvoyPatchPolicy` to `true` in the Envoy Gateway config, rather than gating them behind the AI controller relation. Both are off by default upstream because they widen the attack surface: `Backend` lets routes target arbitrary hosts (egress/SSRF concerns), and `EnvoyPatchPolicy` allows raw JSON patches into the generated xDS (a powerful escape hatch that can override controller-managed config). They are enabled here because the AI extension server requires them and toggling the controller config dynamically on relation join/depart would force a controller restart and add reconcile complexity for marginal benefit — the CRDs are inert unless an operator authors the corresponding resources. Revisit if we want least-privilege-by-default: gate these flags behind the `envoy-extension-server` relation so a standalone Envoy Gateway deployment does not expose them. |
+| 5 | **Control-plane certificate rotation** | `_reconcile_certgen` runs `envoy-gateway certgen` once (idempotent, no `--overwrite`) to mint the control-plane mTLS Secrets (`envoy`, `envoy-gateway`, `envoy-rate-limit`, `envoy-oidc-hmac`); the charm skips certgen once the Secret exists, so the certs are never renewed. At expiry the xDS mTLS handshake breaks with no self-heal path. **This matches upstream behaviour**: the Envoy Gateway Helm chart runs certgen as a one-shot pre-install hook that issues certs with a static 5-year lifetime and no automatic refresh ([issue #3398](https://github.com/envoyproxy/gateway/issues/3398) is closed/Backlog), and the upstream-recommended path for rotation is to supply custom certs via cert-manager, which certgen will not overwrite ([custom-cert docs](https://gateway.envoyproxy.io/docs/install/custom-cert/)). The only material difference here is that this is a long-lived operator rather than a Helm Job. Given the 5-year lifetime and upstream's stance, this is deferred (not a day-one blocker). Preferred Juju-native fix mirrors the upstream story: feed certs from a `tls-certificates` relation instead of certgen, which yields rotation for free — cleaner than bolting `--overwrite` + restart onto certgen. |
+| 6 | **Single cluster-wide controller (decided)** | **Decision:** exactly one `envoy-controller-k8s` per cluster, owning the single cluster-scoped `envoy` GatewayClass that all ingress charms reference by that constant name (no controller↔ingress relation). A second controller — or a non-Juju install (Helm/kubectl) — that finds an existing `envoy` GatewayClass it does not own goes `BlockedStatus` (`Existing 'envoy' GatewayClass; see logs`) and refuses to touch the class, rather than silently fighting over the singleton. Ownership is read off the object itself: KRM stamps `app.kubernetes.io/instance=<model>-<app>` on resources it manages, so a class carrying our stamp is ours, and one without it (or with another app's) is foreign — no ownership bookkeeping needed (`_foreign_gateway_class_owner`). The rejected alternative was coexistence via a unique per-deployment `controllerName` + configurable class name shared with the ingress; deferred because it makes the class name part of the cross-charm contract (config or relation) and breaks the zero-config `"envoy"` discovery. Revisit only if running alongside a separate Envoy Gateway install becomes a real requirement. Note: the guard covers the GatewayClass, not a second Envoy Gateway *control plane* installed out-of-band (that collides on control-plane ports, a separate concern). |

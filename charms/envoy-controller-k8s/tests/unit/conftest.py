@@ -73,9 +73,11 @@ def krm_mocks():
 
     Yields a namespace with:
       - ``crd``: dict of scope -> KRM mock (populated as the charm calls _crd_krm)
-      - ``webhook``: the webhook KRM mock
       - ``proxy``: the EnvoyProxy KRM mock
       - ``service``: the control-plane Service KRM mock
+      - ``gateway_class``: the shared GatewayClass KRM mock
+      - ``foreign_owner``: the _foreign_gateway_class_owner mock (defaults to None, i.e.
+        no pre-existing foreign "envoy" class; set return_value to a str to simulate one)
     """
     crd: dict = {}
 
@@ -83,17 +85,22 @@ def krm_mocks():
         return crd.setdefault(scope, MagicMock())
 
     with patch.object(EnvoyControllerCharm, "_crd_krm", side_effect=crd_factory), patch.object(
-        EnvoyControllerCharm, "_webhook_krm"
-    ) as webhook, patch.object(EnvoyControllerCharm, "_envoy_proxy_krm") as proxy, patch.object(
+        EnvoyControllerCharm, "_envoy_proxy_krm"
+    ) as proxy, patch.object(
         EnvoyControllerCharm, "_control_plane_service_krm"
     ) as service, patch.object(
+        EnvoyControllerCharm, "_gateway_class_krm"
+    ) as gateway_class, patch.object(
+        EnvoyControllerCharm, "_foreign_gateway_class_owner", return_value=None
+    ) as foreign_owner, patch.object(
         EnvoyControllerCharm, "_crds_established", return_value=True
     ):
         yield SimpleNamespace(
             crd=crd,
-            webhook=webhook.return_value,
             proxy=proxy.return_value,
             service=service.return_value,
+            gateway_class=gateway_class.return_value,
+            foreign_owner=foreign_owner,
         )
 
 
@@ -118,7 +125,7 @@ def make_state(
                         [
                             {
                                 "endpoint": otlp_endpoint,
-                                "protocol": "http",
+                                "protocol": "grpc",
                                 "telemetries": ["metrics"],
                                 "insecure": True,
                             }
@@ -140,7 +147,6 @@ def make_state(
                 )
             },
         ),
-        scenario.Container("ai-gateway", can_connect=can_connect),
     }
     return scenario.State(
         leader=leader,

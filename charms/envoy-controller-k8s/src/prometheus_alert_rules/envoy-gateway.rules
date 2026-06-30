@@ -1,0 +1,27 @@
+groups:
+  - name: EnvoyGatewayControllerRules
+    rules:
+      - alert: EnvoyGatewayControllerDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Envoy Gateway controller is down"
+          description: "The Envoy Gateway controller has been unreachable for more than 5 minutes; no xDS config will be pushed to proxies."
+      - alert: EnvoyGatewayReconcileErrors
+        expr: rate(controller_runtime_reconcile_errors_total[5m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Envoy Gateway controller reconcile errors"
+          description: "The Envoy Gateway controller has been reporting reconcile errors for more than 15 minutes; Gateway/HTTPRoute changes may not be applied."
+      - alert: EnvoyGatewayWorkqueueBacklog
+        expr: workqueue_depth > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Envoy Gateway controller workqueue backlog"
+          description: "The Envoy Gateway controller workqueue has had pending items for more than 15 minutes, indicating reconciliation is falling behind."

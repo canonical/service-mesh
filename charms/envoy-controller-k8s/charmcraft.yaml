@@ -7,8 +7,7 @@ title: Envoy Gateway Controller
 summary: A Juju charm to deploy and operate the Envoy Gateway control plane
 description: |
   envoy-controller-k8s deploys and manages the Envoy Gateway control plane stack
-  including Gateway API CRDs, Gateway Inference Extension CRDs, and optional
-  AI Gateway components.
+  including Gateway API CRDs and Gateway Inference Extension CRDs.
 
 links:
   documentation: https://discourse.charmhub.io/t/envoy-controller-k8s-docs-index
@@ -26,8 +25,6 @@ platforms:
 containers:
   envoy-gateway:
     resource: envoy-gateway-image
-  ai-gateway:
-    resource: ai-gateway-image
 
 charm-libs:
   - lib: grafana_k8s.grafana_dashboard
@@ -39,17 +36,8 @@ config:
       type: string
       default: "info"
       description: |
-        Logging level for both Envoy Gateway and AI Gateway controllers.
+        Logging level for the Envoy Gateway controller.
         Valid values: debug, info, warn, error.
-    enable-ai-gateway:
-      type: boolean
-      default: false
-      description: |
-        Enable AI Gateway features. When true, installs AI Gateway CRDs,
-        runs AI Gateway controller, configures extension manager, and
-        creates the ExtProc MutatingWebhookConfiguration.
-        Disabling removes AI Gateway CRDs and may cascade-delete
-        cluster-wide AI custom resources.
 
 provides:
   grafana-dashboard:
@@ -70,10 +58,6 @@ resources:
     type: oci-image
     description: Envoy Gateway controller OCI image
     upstream-source: docker.io/envoyproxy/gateway:v1.7.0
-  ai-gateway-image:
-    type: oci-image
-    description: AI Gateway controller OCI image
-    upstream-source: docker.io/envoyproxy/ai-gateway-controller:v0.6.0
 
 parts:
   charm:
