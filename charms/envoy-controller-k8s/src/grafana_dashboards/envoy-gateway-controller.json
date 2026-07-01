@@ -1,0 +1,113 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "description": "Envoy Gateway controller health: availability, reconciliation throughput and errors.",
+  "editable": true,
+  "graphTooltip": 0,
+  "schemaVersion": 39,
+  "refresh": "30s",
+  "time": { "from": "now-1h", "to": "now" },
+  "timezone": "",
+  "title": "Envoy Gateway - Controller Health",
+  "uid": "envoy-gateway-controller",
+  "templating": {
+    "list": [
+      { "name": "datasource", "query": "prometheus", "type": "datasource", "hide": 0 }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "stat",
+      "title": "Controller availability",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "Down" }, "1": { "text": "Up" } } }
+          ],
+          "thresholds": {
+            "mode": "absolute",
+            "steps": [
+              { "color": "red", "value": null },
+              { "color": "green", "value": 1 }
+            ]
+          }
+        },
+        "overrides": []
+      },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "max(up)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "type": "timeseries",
+      "title": "Reconcile rate",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (controller) (rate(controller_runtime_reconcile_total[5m]))",
+          "legendFormat": "{{controller}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "timeseries",
+      "title": "Reconcile errors",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 0 },
+      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (controller) (rate(controller_runtime_reconcile_errors_total[5m]))",
+          "legendFormat": "{{controller}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "timeseries",
+      "title": "Workqueue depth",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (name) (workqueue_depth)",
+          "legendFormat": "{{name}}",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "timeseries",
+      "title": "Controller memory (RSS)",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
+      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
+      "targets": [
+        {
+          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "process_resident_memory_bytes",
+          "legendFormat": "RSS",
+          "refId": "A"
+        }
+      ]
+    }
+  ]
+}

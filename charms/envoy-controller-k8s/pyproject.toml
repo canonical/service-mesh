@@ -1,0 +1,79 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+[project]
+name = "envoy-controller-k8s"
+version = "0.0"
+requires-python = ">=3.10"
+
+dependencies = [
+    "canonical-service-mesh @ git+https://github.com/canonical/service-mesh.git@feat/SMS-783-models-for-envoy-charms#subdirectory=canonical_service_mesh",
+    "charmlibs-interfaces-tls_certificates",
+    "charmlibs-interfaces-otlp",
+    "ops~=2.5",
+    "pydantic>=2",
+    "cosl",
+]
+
+[project.optional-dependencies]
+dev = [
+    "ruff",
+    "codespell",
+    "pyright",
+    "pytest",
+    "coverage[toml]",
+    "pytest-mock",
+    "ops[testing]",
+    "pytest-asyncio==0.21.2",
+    "jubilant",
+    "pytest-jubilant<2",
+    "pytest-bdd",
+    "lightkube",
+]
+
+[tool.coverage.run]
+branch = true
+
+[tool.coverage.report]
+show_missing = true
+
+[tool.pytest.ini_options]
+minversion = "6.0"
+log_cli_level = "INFO"
+asyncio_mode = "auto"
+addopts = "--tb=native --verbose --capture=no --log-cli-level=INFO"
+markers = [
+    "cmr: slow cross-model relation tests",
+]
+
+[tool.ruff]
+line-length = 99
+extend-exclude = ["__pycache__", "*.egg_info"]
+
+[tool.ruff.lint]
+select = ["E", "W", "F", "C", "N", "R", "D", "I001"]
+extend-ignore = [
+    "D203",
+    "D204",
+    "D213",
+    "D215",
+    "D400",
+    "D404",
+    "D406",
+    "D407",
+    "D408",
+    "D409",
+    "D413",
+]
+ignore = ["E501", "D107"]
+per-file-ignores = {"tests/*" = ["D100","D101","D102","D103","D104"]}
+
+[tool.ruff.lint.pydocstyle]
+convention = "google"
+
+[tool.codespell]
+skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"
+
+[tool.pyright]
+extraPaths = ["src", "lib"]
+include = ["src/**.py"]

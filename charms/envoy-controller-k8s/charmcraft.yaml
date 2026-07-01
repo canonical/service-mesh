@@ -1,0 +1,77 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: envoy-controller-k8s
+type: charm
+title: Envoy Gateway Controller
+summary: A Juju charm to deploy and operate the Envoy Gateway control plane
+description: |
+  envoy-controller-k8s deploys and manages the Envoy Gateway control plane stack
+  including Gateway API CRDs and Gateway Inference Extension CRDs.
+
+links:
+  documentation: https://discourse.charmhub.io/t/envoy-controller-k8s-docs-index
+  website: https://charmhub.io/envoy-controller-k8s
+  source: https://github.com/canonical/envoy-controller-k8s-operator
+  issues: https://github.com/canonical/envoy-controller-k8s-operator/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@26.04:amd64:
+
+containers:
+  envoy-gateway:
+    resource: envoy-gateway-image
+
+charm-libs:
+  - lib: grafana_k8s.grafana_dashboard
+    version: "0"
+
+config:
+  options:
+    log-level:
+      type: string
+      default: "info"
+      description: |
+        Logging level for the Envoy Gateway controller.
+        Valid values: debug, info, warn, error.
+
+provides:
+  grafana-dashboard:
+    interface: grafana_dashboard
+    optional: true
+
+requires:
+  otlp:
+    interface: otlp
+    optional: true
+    limit: 1
+    description: |
+      OTLP endpoint for controller and Envoy Proxy metrics.
+      Publishes alert/recording rules into the relation databag.
+  envoy-extension-server:
+    interface: envoy_extension_server
+    optional: true
+    limit: 1
+    description: |
+      gRPC endpoint of a server implementing Envoy Gateway's Extension Server
+      protocol. When related, the endpoint is wired into Envoy Gateway's
+      extensionManager so it delegates xDS fine-tuning to that server (the Envoy
+      AI Gateway controller is one such server). The control plane runs fine
+      without it; the relation is optional.
+
+resources:
+  envoy-gateway-image:
+    type: oci-image
+    description: Envoy Gateway controller OCI image
+    upstream-source: docker.io/envoyproxy/gateway:v1.7.0
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps: [astral-uv]
+    build-packages: [git]
