@@ -26,14 +26,14 @@ def test_log_level_propagates_to_config(ctx, krm_mocks):
     # WHEN the controller config is rendered
     cfg = _render_config(ctx, krm_mocks, config={"log-level": "debug"})
     # THEN it is reflected in the Envoy Gateway logging config
-    assert cfg["envoyGateway"]["logging"]["level"]["default"] == "debug"
+    assert cfg["logging"]["level"]["default"] == "debug"
 
 
 def test_extension_apis_always_enabled(ctx, krm_mocks):
     # Backend + EnvoyPatchPolicy are required by the AI extension server and are kept
     # enabled unconditionally (see Discussion Points in specs/envoy.spec.md).
     cfg = _render_config(ctx, krm_mocks)
-    assert cfg["envoyGateway"]["extensionApis"] == {
+    assert cfg["extensionApis"] == {
         "enableEnvoyPatchPolicy": True,
         "enableBackend": True,
     }
@@ -44,7 +44,7 @@ def test_no_otlp_sink_without_relation(ctx, krm_mocks):
     # WHEN the config is rendered
     cfg = _render_config(ctx, krm_mocks)
     # THEN no control-plane telemetry sink is configured
-    assert "telemetry" not in cfg["envoyGateway"]
+    assert "telemetry" not in cfg
 
 
 def test_otlp_sink_configured_when_related(ctx, krm_mocks):
@@ -52,7 +52,7 @@ def test_otlp_sink_configured_when_related(ctx, krm_mocks):
     # WHEN the config is rendered
     cfg = _render_config(ctx, krm_mocks, otlp_endpoint="http://collector:4317")
     # THEN the Envoy Gateway OpenTelemetry metric sink targets the parsed host and port
-    sinks = cfg["envoyGateway"]["telemetry"]["metrics"]["sinks"]
+    sinks = cfg["telemetry"]["metrics"]["sinks"]
     assert len(sinks) == 1
     assert sinks[0]["openTelemetry"]["host"] == "collector"
     assert sinks[0]["openTelemetry"]["port"] == 4317
@@ -64,14 +64,14 @@ def test_otlp_sink_defaults_to_grpc_port(ctx, krm_mocks):
     cfg = _render_config(ctx, krm_mocks, otlp_endpoint="http://collector")
     # THEN the sink falls back to the OTLP/gRPC default (4317), not the HTTP default
     # — EG's OpenTelemetry sink exports over gRPC.
-    sinks = cfg["envoyGateway"]["telemetry"]["metrics"]["sinks"]
+    sinks = cfg["telemetry"]["metrics"]["sinks"]
     assert sinks[0]["openTelemetry"]["port"] == 4317
 
 
 def test_no_extension_manager_without_relation(ctx, krm_mocks):
     # GIVEN no extension-server relation, THEN EG is not pointed at any extension server
     cfg = _render_config(ctx, krm_mocks)
-    assert "extensionManager" not in cfg["envoyGateway"]
+    assert "extensionManager" not in cfg
 
 
 def test_no_extension_manager_when_provider_not_published(ctx, krm_mocks):
@@ -84,7 +84,7 @@ def test_no_extension_manager_when_provider_not_published(ctx, krm_mocks):
         extension_server_fqdn=None,
         extension_server_port=None,
     )
-    assert "extensionManager" not in cfg["envoyGateway"]
+    assert "extensionManager" not in cfg
 
 
 def test_extension_manager_wired_when_related(ctx, krm_mocks):
@@ -97,7 +97,7 @@ def test_extension_manager_wired_when_related(ctx, krm_mocks):
         extension_server_fqdn="ai.envoy-test.svc.cluster.local",
         extension_server_port="1063",
     )
-    em = cfg["envoyGateway"]["extensionManager"]
+    em = cfg["extensionManager"]
     assert em["service"]["fqdn"] == {
         "hostname": "ai.envoy-test.svc.cluster.local",
         "port": 1063,

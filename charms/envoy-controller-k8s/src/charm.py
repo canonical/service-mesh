@@ -557,7 +557,7 @@ class EnvoyControllerCharm(ops.CharmBase):
             {
                 "apiVersion": "gateway.envoyproxy.io/v1alpha1",
                 "kind": "EnvoyGateway",
-                "envoyGateway": envoy_gateway,
+                **envoy_gateway,
             }
         )
 
