@@ -3,6 +3,8 @@
 
 """Envoy Gateway config-generation regression tests for the controller charm."""
 
+import json
+
 import yaml
 from conftest import make_state
 
@@ -64,6 +66,63 @@ def test_otlp_sink_defaults_to_grpc_port(ctx, krm_mocks):
     # — EG's OpenTelemetry sink exports over gRPC.
     sinks = cfg["envoyGateway"]["telemetry"]["metrics"]["sinks"]
     assert sinks[0]["openTelemetry"]["port"] == 4317
+
+
+def test_no_extension_manager_without_relation(ctx, krm_mocks):
+    # GIVEN no extension-server relation, THEN EG is not pointed at any extension server
+    cfg = _render_config(ctx, krm_mocks)
+    assert "extensionManager" not in cfg["envoyGateway"]
+
+
+def test_no_extension_manager_when_provider_not_published(ctx, krm_mocks):
+    # GIVEN the relation exists but the provider has not published its address yet,
+    # THEN no extensionManager is added — EG must never dial a non-existent endpoint.
+    cfg = _render_config(
+        ctx,
+        krm_mocks,
+        extension_server=True,
+        extension_server_fqdn=None,
+        extension_server_port=None,
+    )
+    assert "extensionManager" not in cfg["envoyGateway"]
+
+
+def test_extension_manager_wired_when_related(ctx, krm_mocks):
+    # GIVEN a ready extension server, THEN its gRPC endpoint is wired into extensionManager
+    # with the hook set the extension server needs to fine-tune translated xDS.
+    cfg = _render_config(
+        ctx,
+        krm_mocks,
+        extension_server=True,
+        extension_server_fqdn="ai.envoy-test.svc.cluster.local",
+        extension_server_port="1063",
+    )
+    em = cfg["envoyGateway"]["extensionManager"]
+    assert em["service"]["fqdn"] == {
+        "hostname": "ai.envoy-test.svc.cluster.local",
+        "port": 1063,
+    }
+    hooks = em["hooks"]["xdsTranslator"]
+    assert hooks["post"] == ["Translation", "Cluster", "Route"]
+    assert hooks["translation"] == {
+        "listener": {"includeAll": True},
+        "route": {"includeAll": True},
+        "cluster": {"includeAll": True},
+        "secret": {"includeAll": True},
+    }
+
+
+def test_controller_identity_published_to_extension_server(ctx, krm_mocks):
+    # The requirer advertises its control-plane identity back so the provider can gate
+    # itself to this GatewayClass/namespace.
+    state_out = ctx.run(
+        ctx.on.config_changed(), make_state(extension_server=True)
+    )
+    rel = state_out.get_relations("envoy-extension-server")[0]
+    assert json.loads(rel.local_app_data["controller_name"]) == (
+        charm.ENVOY_GATEWAY_CONTROLLER_NAME
+    )
+    assert "namespace" in rel.local_app_data
 
 
 def test_envoy_proxy_carries_juju_topology_stats_tags(ctx, krm_mocks):

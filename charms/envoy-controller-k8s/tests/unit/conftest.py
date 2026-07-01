@@ -112,9 +112,29 @@ def make_state(
     planned_units: int = 1,
     leader: bool = True,
     otlp_endpoint: str | None = None,
+    extension_server: bool = False,
+    extension_server_fqdn: str | None = "ai.envoy-test.svc.cluster.local",
+    extension_server_port: str | None = "1063",
 ) -> scenario.State:
-    """Build a State for the controller charm with sensible defaults."""
+    """Build a State for the controller charm with sensible defaults.
+
+    Set ``extension_server=True`` to add the relation. Pass ``extension_server_fqdn``
+    /``extension_server_port`` as None to model a related-but-not-yet-published provider.
+    """
     relations = set()
+    if extension_server:
+        remote = {}
+        if extension_server_fqdn is not None:
+            remote["extension_server_fqdn"] = json.dumps(extension_server_fqdn)
+        if extension_server_port is not None:
+            remote["extension_server_port"] = json.dumps(extension_server_port)
+        relations.add(
+            scenario.Relation(
+                "envoy-extension-server",
+                interface="envoy_extension_server",
+                remote_app_data=remote,
+            )
+        )
     if otlp_endpoint:
         relations.add(
             scenario.Relation(

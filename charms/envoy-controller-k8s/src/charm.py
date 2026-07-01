@@ -17,6 +17,7 @@ from urllib.parse import urlparse
 
 import ops
 import yaml
+from canonical_service_mesh.interfaces.envoy_extension_server import ExtensionServerRequirer
 from canonical_service_mesh.k8s.resource_manager import (
     KubernetesResourceManager,
     create_charm_default_labels,
@@ -138,6 +139,7 @@ class EnvoyControllerCharm(ops.CharmBase):
             rules=_rules,
         )
         self.grafana_dashboards = GrafanaDashboardProvider(self)
+        self.ext_server = ExtensionServerRequirer(self)
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.start, self._reconcile)
@@ -148,6 +150,12 @@ class EnvoyControllerCharm(ops.CharmBase):
         self.framework.observe(self.on.envoy_gateway_pebble_ready, self._reconcile)
         self.framework.observe(self.on["otlp"].relation_changed, self._reconcile)
         self.framework.observe(self.on["otlp"].relation_broken, self._reconcile)
+        self.framework.observe(
+            self.on["envoy-extension-server"].relation_changed, self._reconcile
+        )
+        self.framework.observe(
+            self.on["envoy-extension-server"].relation_broken, self._reconcile
+        )
 
     # ---- Properties ----
 
@@ -246,10 +254,16 @@ class EnvoyControllerCharm(ops.CharmBase):
           7. Reconcile GatewayClass — the shared "envoy" class ingress charms reference.
           8. Reconcile Pebble services — add the gateway layer and replan.
         """
-        # Step 0: observability + workload version — no cluster access needed
+        # Step 0: observability + identity + workload version — no cluster access needed
         self.unit.set_workload_version(ENVOY_GATEWAY_VERSION)
         self.grafana_dashboards.update_dashboards()
         self.otlp.publish()
+        # Advertise our control-plane identity so a related extension server can gate
+        # itself to this GatewayClass/namespace. No-op (leader-gated) without a relation.
+        self.ext_server.publish_controller_identity(
+            controller_name=ENVOY_GATEWAY_CONTROLLER_NAME,
+            namespace=self.model.name,
+        )
 
         # Step 1: preconditions
         if not self._trusted:
@@ -517,6 +531,11 @@ class EnvoyControllerCharm(ops.CharmBase):
 
         ``extensionApis`` (Backend + EnvoyPatchPolicy) is left enabled unconditionally;
         see the Discussion Points in specs/envoy.spec.md for the rationale and tradeoff.
+
+        When an extension server is related, its gRPC endpoint is wired into
+        ``extensionManager`` so Envoy Gateway delegates xDS fine-tuning to it. The block
+        is omitted when unrelated (or the provider has not published yet) so the
+        controller never dials a non-existent endpoint.
         """
         envoy_gateway: dict[str, Any] = {
             "logging": {"level": {"default": self._log_level}},
@@ -529,6 +548,11 @@ class EnvoyControllerCharm(ops.CharmBase):
         if sink:
             telemetry = TelemetryConfig(metrics=MetricsConfig(sinks=[sink]))
             envoy_gateway["telemetry"] = telemetry.model_dump(by_alias=True, exclude_none=True)
+        extension = self.ext_server.get_extension_server_data()
+        if extension and extension.extension_server_fqdn and extension.extension_server_port:
+            envoy_gateway["extensionManager"] = self._extension_manager(
+                extension.extension_server_fqdn, int(extension.extension_server_port)
+            )
         return yaml.safe_dump(
             {
                 "apiVersion": "gateway.envoyproxy.io/v1alpha1",
@@ -536,6 +560,30 @@ class EnvoyControllerCharm(ops.CharmBase):
                 "envoyGateway": envoy_gateway,
             }
         )
+
+    @staticmethod
+    def _extension_manager(fqdn: str, port: int) -> dict[str, Any]:
+        """Build the extensionManager block pointing at an extension server.
+
+        The xdsTranslator hooks mirror what the extension server needs to fine-tune the
+        translated xDS: all listener/route/cluster/secret resources are passed through,
+        and it runs post the Translation/Cluster/Route stages (Envoy AI Gateway's
+        required hook set; see the upstream envoy-gateway-values.yaml).
+        """
+        return {
+            "hooks": {
+                "xdsTranslator": {
+                    "translation": {
+                        "listener": {"includeAll": True},
+                        "route": {"includeAll": True},
+                        "cluster": {"includeAll": True},
+                        "secret": {"includeAll": True},
+                    },
+                    "post": ["Translation", "Cluster", "Route"],
+                }
+            },
+            "service": {"fqdn": {"hostname": fqdn, "port": port}},
+        }
 
     def _construct_envoy_proxy(self) -> EnvoyProxy:
         """Construct the default EnvoyProxy resource (Juju-topology stats tags + OTLP sink).

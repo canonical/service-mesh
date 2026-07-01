@@ -52,6 +52,16 @@ requires:
     description: |
       OTLP endpoint for controller and Envoy Proxy metrics.
       Publishes alert/recording rules into the relation databag.
+  envoy-extension-server:
+    interface: envoy_extension_server
+    optional: true
+    limit: 1
+    description: |
+      gRPC endpoint of a server implementing Envoy Gateway's Extension Server
+      protocol. When related, the endpoint is wired into Envoy Gateway's
+      extensionManager so it delegates xDS fine-tuning to that server (the Envoy
+      AI Gateway controller is one such server). The control plane runs fine
+      without it; the relation is optional.
 
 resources:
   envoy-gateway-image:
