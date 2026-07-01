@@ -74,42 +74,46 @@ def krm_mocks():
     on ``reconcile``/``delete`` calls without touching the cluster.
     """
     with patch.object(
-        EnvoyIngressCharm, "_gateway_class_krm"
-    ) as gateway_class, patch.object(
         EnvoyIngressCharm, "_gateway_krm"
     ) as gateway, patch.object(
         EnvoyIngressCharm, "_httproute_krm"
     ) as httproute, patch.object(
         EnvoyIngressCharm, "_security_policy_krm"
     ) as security_policy, patch.object(
+        EnvoyIngressCharm, "_ext_auth_backend_krm"
+    ) as ext_auth_backend, patch.object(
         EnvoyIngressCharm, "_tls_secret_krm"
     ) as tls_secret:
         yield SimpleNamespace(
-            gateway_class=gateway_class.return_value,
             gateway=gateway.return_value,
             httproute=httproute.return_value,
             security_policy=security_policy.return_value,
+            ext_auth_backend=ext_auth_backend.return_value,
             tls_secret=tls_secret.return_value,
         )
 
 
-def ingress_data(name: str, model: str, port: int = 8080):
+def ingress_data(name: str, model: str, port: int = 8080, strip_prefix: bool = False):
     """Build a minimal stand-in for IngressRequirerData used by the charm."""
-    return SimpleNamespace(app=SimpleNamespace(name=name, model=model, port=port))
+    return SimpleNamespace(
+        app=SimpleNamespace(name=name, model=model, port=port, strip_prefix=strip_prefix)
+    )
 
 
 def ready_ingress(*entries):
     """Patch _ready_ingress_data to return crafted (relation, data) tuples.
 
-    Each entry is (app_name, model, port). The relation is a MagicMock whose
-    ``app.name`` matches the requirer app name (used by conflict detection).
+    Each entry is (app_name, model[, port[, strip_prefix]]). The relation is a
+    MagicMock whose ``app.name`` matches the requirer app name (used by conflict
+    detection).
     """
     tuples = []
     for name, model, *rest in entries:
         port = rest[0] if rest else 8080
+        strip_prefix = rest[1] if len(rest) > 1 else False
         relation = MagicMock()
         relation.app.name = name
-        tuples.append((relation, ingress_data(name, model, port)))
+        tuples.append((relation, ingress_data(name, model, port, strip_prefix)))
     return patch.object(EnvoyIngressCharm, "_ready_ingress_data", return_value=tuples)
 
 

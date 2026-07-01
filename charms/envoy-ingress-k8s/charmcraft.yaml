@@ -6,10 +6,10 @@ type: charm
 title: Envoy Gateway Ingress
 summary: A Juju charm to manage Envoy Gateway ingress resources
 description: |
-  envoy-ingress-k8s manages user-facing Gateway API resources (GatewayClass,
-  Gateway, HTTPRoute, SecurityPolicy) for an Envoy Gateway control plane
-  deployed by envoy-controller-k8s. It provides ingress to related charms and
-  configures TLS and external authentication on the gateway.
+  envoy-ingress-k8s manages user-facing Gateway API resources (Gateway,
+  HTTPRoute, SecurityPolicy) for an Envoy Gateway control plane deployed by
+  envoy-controller-k8s. It provides ingress to related charms and configures
+  TLS and external authentication on the gateway.
 
 links:
   documentation: https://discourse.charmhub.io/t/envoy-ingress-k8s-docs-index

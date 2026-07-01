@@ -5,10 +5,10 @@
 
 """A Juju charm for managing Envoy Gateway ingress resources.
 
-This charm declares the user-facing Gateway API objects (GatewayClass, Gateway,
-HTTPRoute) and Envoy Gateway SecurityPolicy resources via lightkube. It has no
-workload container: the Envoy Gateway control plane (envoy-controller-k8s) runs
-the controller process that reconciles these objects into running Envoy proxies.
+This charm declares the user-facing Gateway API objects (Gateway, HTTPRoute) and
+Envoy Gateway SecurityPolicy resources via lightkube, referencing the shared
+GatewayClass owned by the control plane (envoy-controller-k8s). It has no workload
+container: the control plane reconciles these objects into running Envoy proxies.
 """
 
 # pyright: reportAttributeAccessIssue=false, reportInvalidTypeForm=false
@@ -16,13 +16,14 @@ the controller process that reconciles these objects into running Envoy proxies.
 
 import logging
 from typing import Dict, List, Optional, Tuple
+from urllib.parse import urlparse
 
 import ops
 from canonical_service_mesh.k8s.resource_manager import (
     KubernetesResourceManager,
     create_charm_default_labels,
 )
-from canonical_service_mesh.k8s.types.envoy import SecurityPolicy
+from canonical_service_mesh.k8s.types.envoy import Backend, SecurityPolicy
 from canonical_service_mesh.k8s.types.gateway_api import (
     Gateway,
     GatewayClass,
@@ -42,9 +43,12 @@ from canonical_service_mesh.models import (
     SecretObjectReference,
 )
 from canonical_service_mesh.models.envoy import (
+    BackendEndpoint,
     BackendObjectRef,
+    BackendSpec,
     ExtAuth,
     ExtAuthHTTPService,
+    FQDNEndpoint,
     LocalPolicyTargetRef,
     SecurityPolicySpec,
 )
@@ -62,17 +66,22 @@ from lightkube.resources.rbac_authorization_v1 import ClusterRole
 
 logger = logging.getLogger(__name__)
 
-# The controller name Envoy Gateway claims; the controller charm runs a manager
-# that watches GatewayClasses with this exact controllerName and sets Accepted.
-ENVOY_GATEWAY_CONTROLLER_NAME = "gateway.envoyproxy.io/gatewayclass-controller"
+# The single, cluster-scoped GatewayClass owned by the controller charm. This charm
+# only references it (on its Gateways and the Accepted probe); it does not create it.
+# Hardcoded on both charms as the cross-charm contract (there is no relation).
+GATEWAY_CLASS_NAME = "envoy"
+
+# The Envoy Gateway Backend CRD, used to reference the forward-auth provider by FQDN.
+ENVOY_BACKEND_GROUP = "gateway.envoyproxy.io"
+ENVOY_BACKEND_KIND = "Backend"
 
 INGRESS_RELATION = "ingress"
 FORWARD_AUTH_RELATION = "forward-auth"
 
-GATEWAY_CLASS_SCOPE = "gateway-class"
 GATEWAY_SCOPE = "gateway"
 HTTPROUTE_SCOPE = "httproute"
 SECURITY_POLICY_SCOPE = "security-policy"
+EXT_AUTH_BACKEND_SCOPE = "ext-auth-backend"
 TLS_SECRET_SCOPE = "gateway-tls"
 
 HTTP_LISTENER_NAME = "http"
@@ -169,19 +178,16 @@ class EnvoyIngressCharm(ops.CharmBase):
 
         Steps:
           1. Preconditions — trust. Without it no cluster writes are possible.
-          2. GatewayClass — register Envoy Gateway as the Gateway API implementation.
-          3. Discovery gate — wait until the controller marks the GatewayClass Accepted.
-          4. TLS secret — mirror the relation cert into a K8s TLS Secret for HTTPS.
-          5. Gateway — HTTP listener always, HTTPS listener when certificates are present.
-          6. HTTPRoutes — one per ingress relation, dropping conflicting paths.
-          7. SecurityPolicy — extAuth when forward-auth is related.
-          8. Publish — ingress URLs to requirers and gateway metadata to consumers.
+          2. Discovery gate — wait until the controller's GatewayClass is Accepted.
+          3. TLS secret — mirror the relation cert into a K8s TLS Secret for HTTPS.
+          4. Gateway — HTTP listener always, HTTPS listener when certificates are present.
+          5. HTTPRoutes — one per ingress relation, dropping conflicting paths.
+          6. SecurityPolicy — extAuth when forward-auth is related.
+          7. Publish — ingress URLs to requirers and gateway metadata to consumers.
         """
         if not self._trusted:
             logger.warning("Charm is not trusted; skipping reconciliation")
             return
-
-        self._reconcile_gateway_class()
 
         if not self._gateway_class_accepted():
             logger.info("GatewayClass not yet Accepted by the controller; waiting")
@@ -219,12 +225,11 @@ class EnvoyIngressCharm(ops.CharmBase):
         event.add_status(ops.ActiveStatus(f"Serving at {address}"))
 
     def _on_remove(self, _event: ops.RemoveEvent):
-        """Tear down cluster-scoped/app-scoped resources when the app is removed."""
+        """Tear down the charm's resources when the last unit is removed."""
         if self.app.planned_units() != 0:
             logger.info("Unit removed but application remains; leaving resources in place")
             return
         for krm in (
-            self._gateway_class_krm(),
             self._gateway_krm(),
             self._httproute_krm(),
             self._security_policy_krm(),
@@ -233,14 +238,6 @@ class EnvoyIngressCharm(ops.CharmBase):
             krm.delete(ignore_missing=True)
 
     # ---- Reconcile steps ----
-
-    def _reconcile_gateway_class(self):
-        """Create the GatewayClass that binds these resources to Envoy Gateway."""
-        gateway_class = GatewayClass(
-            metadata=ObjectMeta(name=self.app.name),
-            spec={"controllerName": ENVOY_GATEWAY_CONTROLLER_NAME},
-        )
-        self._gateway_class_krm().reconcile([gateway_class])
 
     def _reconcile_tls_secret(self):
         """Mirror the relation certificate into a kubernetes.io/tls Secret."""
@@ -289,7 +286,7 @@ class EnvoyIngressCharm(ops.CharmBase):
                     ),
                 )
             )
-        spec = IstioGatewaySpec(gatewayClassName=self.app.name, listeners=listeners)
+        spec = IstioGatewaySpec(gatewayClassName=GATEWAY_CLASS_NAME, listeners=listeners)
         gateway = Gateway(
             metadata=ObjectMeta(name=self.app.name, namespace=self.model.name),
             spec=spec.model_dump(by_alias=True, exclude_none=True),
@@ -302,17 +299,21 @@ class EnvoyIngressCharm(ops.CharmBase):
         for relation, data in self._ready_ingress_data():
             if relation.app.name in self._conflicting_apps():
                 continue
-            routes.append(self._construct_httproute(relation.app.name, data))
+            routes.extend(self._construct_httproutes(relation.app.name, data))
         self._httproute_krm().reconcile(routes)
 
     def _reconcile_security_policy(self):
-        """Manage the SecurityPolicy that applies extAuth to the Gateway."""
-        krm = self._security_policy_krm()
+        """Manage the ext-auth Backend + SecurityPolicy that apply extAuth to the Gateway."""
+        sp_krm = self._security_policy_krm()
+        backend_krm = self._ext_auth_backend_krm()
         info = self.forward_auth.get_provider_info()
         if not info or not info.decisions_address:
-            krm.delete(ignore_missing=True)
+            sp_krm.delete(ignore_missing=True)
+            backend_krm.delete(ignore_missing=True)
             return
-        krm.reconcile([self._construct_security_policy(info.decisions_address)])
+        backend, policy = self._construct_ext_auth(info.decisions_address)
+        backend_krm.reconcile([backend])
+        sp_krm.reconcile([policy])
 
     # ---- Publish ----
 
@@ -339,37 +340,111 @@ class EnvoyIngressCharm(ops.CharmBase):
 
     # ---- Construct helpers ----
 
-    def _construct_httproute(self, app_name: str, data) -> HTTPRoute:
-        """Build an HTTPRoute routing the app's default path to its backend service."""
+    def _construct_httproutes(self, app_name: str, data) -> List[HTTPRoute]:
+        """Build the HTTPRoute(s) routing the app's default path to its backend.
+
+        Without TLS the backend route attaches to the HTTP listener. With TLS the
+        backend route attaches to the HTTPS listener and a second route on the HTTP
+        listener redirects plaintext traffic to HTTPS (so the advertised
+        https:// URL actually routes — see C2).
+
+        Each route is created in the backend's own namespace (the requirer's model),
+        co-located with the Service it references. This keeps the backendRef in the
+        same namespace as the route so no ReferenceGrant is needed for cross-model
+        requirers; the Gateway accepts these routes via its allowedRoutes=All
+        listeners.
+        """
+        namespace = data.app.model
         path = self._route_path(data.app.name, data.app.model)
+        match = HTTPRouteMatch(path=HTTPPathMatch(type="PathPrefix", value=path))
+        backend = BackendRef(
+            name=data.app.name,
+            namespace=data.app.model,
+            port=data.app.port,
+        )
+        # C1: strip the {model}-{app} prefix so the backend sees "/..." not "/{model}-{app}/...".
+        filters = []
+        if data.app.strip_prefix:
+            filters.append(
+                {
+                    "type": "URLRewrite",
+                    "urlRewrite": {"path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/"}},
+                }
+            )
+
+        if not self._tls_ready:
+            backend_route = self._httproute(
+                name=app_name,
+                namespace=namespace,
+                listener=HTTP_LISTENER_NAME,
+                rules=[HTTPRouteRule(matches=[match], backendRefs=[backend], filters=filters)],
+            )
+            return [backend_route]
+
+        backend_route = self._httproute(
+            name=app_name,
+            namespace=namespace,
+            listener=HTTPS_LISTENER_NAME,
+            rules=[HTTPRouteRule(matches=[match], backendRefs=[backend], filters=filters)],
+        )
+        redirect_route = self._httproute(
+            name=f"{app_name}-redirect",
+            namespace=namespace,
+            listener=HTTP_LISTENER_NAME,
+            rules=[
+                HTTPRouteRule(
+                    matches=[match],
+                    filters=[
+                        {
+                            "type": "RequestRedirect",
+                            "requestRedirect": {"scheme": "https", "statusCode": 301},
+                        }
+                    ],
+                )
+            ],
+        )
+        return [backend_route, redirect_route]
+
+    def _httproute(
+        self, name: str, namespace: str, listener: str, rules: List[HTTPRouteRule]
+    ) -> HTTPRoute:
+        """Build an HTTPRoute, in the given namespace, attached to one Gateway listener."""
         spec = HTTPRouteResourceSpec(
             parentRefs=[
                 ParentRef(
                     name=self.app.name,
                     namespace=self.model.name,
-                    sectionName=HTTP_LISTENER_NAME,
+                    sectionName=listener,
                 )
             ],
-            rules=[
-                HTTPRouteRule(
-                    matches=[HTTPRouteMatch(path=HTTPPathMatch(type="PathPrefix", value=path))],
-                    backendRefs=[
-                        BackendRef(
-                            name=data.app.name,
-                            namespace=data.app.model,
-                            port=data.app.port,
-                        )
-                    ],
-                )
-            ],
+            rules=rules,
         )
         return HTTPRoute(
-            metadata=ObjectMeta(name=app_name, namespace=self.model.name),
+            metadata=ObjectMeta(name=name, namespace=namespace),
             spec=spec.model_dump(by_alias=True, exclude_none=True),
         )
 
-    def _construct_security_policy(self, decisions_address: str) -> SecurityPolicy:
-        """Build a SecurityPolicy targeting the Gateway with extAuth at the auth backend."""
+    def _construct_ext_auth(self, decisions_address: str) -> Tuple[Backend, SecurityPolicy]:
+        """Build the ext-auth Backend + SecurityPolicy from the provider's decisions URL.
+
+        ``decisions_address`` is a URL (e.g. http://oauth2-proxy.iam.svc.cluster.local:4180/auth),
+        not a Service name, so its host/port are captured in an Envoy Gateway Backend
+        (FQDN endpoint) and the SecurityPolicy references that Backend.
+        """
+        parsed = urlparse(decisions_address)
+        hostname = parsed.hostname
+        if not hostname:
+            raise ValueError(f"forward-auth decisions_address has no host: {decisions_address!r}")
+        port = parsed.port or (HTTPS_PORT if parsed.scheme == "https" else HTTP_PORT)
+        path = parsed.path if parsed.path and parsed.path != "/" else None
+
+        backend = Backend(
+            metadata=ObjectMeta(name=self._ext_auth_backend_name, namespace=self.model.name),
+            spec=BackendSpec(
+                endpoints=[BackendEndpoint(fqdn=FQDNEndpoint(hostname=hostname, port=port))]
+            ).model_dump(by_alias=True, exclude_none=True),
+        )
+
         spec = SecurityPolicySpec(
             targetRef=LocalPolicyTargetRef(
                 group="gateway.networking.k8s.io",
@@ -380,26 +455,28 @@ class EnvoyIngressCharm(ops.CharmBase):
                 http=ExtAuthHTTPService(
                     backendRefs=[
                         BackendObjectRef(
-                            group="",
-                            kind="Service",
-                            name=decisions_address,
+                            group=ENVOY_BACKEND_GROUP,
+                            kind=ENVOY_BACKEND_KIND,
+                            name=self._ext_auth_backend_name,
                             namespace=self.model.name,
                         )
-                    ]
+                    ],
+                    path=path,
                 )
             ),
         )
-        return SecurityPolicy(
+        policy = SecurityPolicy(
             metadata=ObjectMeta(name=self.app.name, namespace=self.model.name),
             spec=spec.model_dump(by_alias=True, exclude_none=True),
         )
+        return backend, policy
 
     # ---- Discovery + routing helpers ----
 
     def _gateway_class_accepted(self) -> bool:
-        """Return True when the controller has marked our GatewayClass Accepted=True."""
+        """Return True when the controller has marked the GatewayClass Accepted=True."""
         try:
-            gc = self.lightkube_client.get(GatewayClass, name=self.app.name)
+            gc = self.lightkube_client.get(GatewayClass, name=GATEWAY_CLASS_NAME)
         except ApiError as e:
             if e.status.code == 404:
                 return False
@@ -445,6 +522,10 @@ class EnvoyIngressCharm(ops.CharmBase):
         return f"{self.app.name}-tls"
 
     @property
+    def _ext_auth_backend_name(self) -> str:
+        return f"{self.app.name}-ext-auth"
+
+    @property
     def _gateway_address(self) -> Optional[str]:
         """Return the host used in published URLs: external hostname or the LB address."""
         if self._external_hostname:
@@ -470,9 +551,6 @@ class EnvoyIngressCharm(ops.CharmBase):
             logger=logger,
         )
 
-    def _gateway_class_krm(self) -> KubernetesResourceManager:
-        return self._krm(GATEWAY_CLASS_SCOPE, GatewayClass)
-
     def _gateway_krm(self) -> KubernetesResourceManager:
         return self._krm(GATEWAY_SCOPE, Gateway)
 
@@ -481,6 +559,9 @@ class EnvoyIngressCharm(ops.CharmBase):
 
     def _security_policy_krm(self) -> KubernetesResourceManager:
         return self._krm(SECURITY_POLICY_SCOPE, SecurityPolicy)
+
+    def _ext_auth_backend_krm(self) -> KubernetesResourceManager:
+        return self._krm(EXT_AUTH_BACKEND_SCOPE, Backend)
 
     def _tls_secret_krm(self) -> KubernetesResourceManager:
         return self._krm(TLS_SECRET_SCOPE, Secret)
