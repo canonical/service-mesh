@@ -96,8 +96,8 @@ CERTGEN_SECRETS = ("envoy", "envoy-gateway", "envoy-rate-limit", "envoy-oidc-hma
 
 # Upstream component versions baked into this charm revision.
 # The charm track mirrors the Envoy Gateway minor version (e.g. 1.6/stable).
-# TODO: enforce sequential minor-version upgrades on upgrade-charm.
-#       See Discussion Points in specs/envoy.spec.md.
+# Sequential minor-version upgrades on upgrade-charm are not yet enforced; see
+# https://github.com/canonical/service-mesh/issues/112
 ENVOY_GATEWAY_VERSION = "1.7.0"
 GATEWAY_API_VERSION = "1.4.1"
 GIE_VERSION = "1.3.0"
@@ -157,8 +157,6 @@ class EnvoyControllerCharm(ops.CharmBase):
             self.on["envoy-extension-server"].relation_broken, self._reconcile
         )
 
-    # ---- Properties ----
-
     @property
     def lightkube_client(self) -> Client:
         """Return a lazily-initialised lightkube client for this charm."""
@@ -181,18 +179,15 @@ class EnvoyControllerCharm(ops.CharmBase):
         return None
 
     def _otlp_metric_sink(self) -> Optional[MetricSink]:
-        """Return an Envoy OpenTelemetry MetricSink for the OTLP endpoint, or None.
-
-        Envoy Gateway's OpenTelemetry sink (both control-plane and EnvoyProxy) exports
-        over OTLP **gRPC**, so the requirer asks for the ``grpc`` protocol and the port
-        falls back to the OTLP/gRPC default (4317), not the HTTP default (4318). The
-        relation provides a URL (e.g. ``http://collector:4317``); EG's sink expects a
-        host and port, so the URL is parsed here.
-        """
+        """Return an Envoy OpenTelemetry MetricSink for the OTLP endpoint, or None."""
         endpoint = self._otlp_endpoint
         if not endpoint:
             return None
-        parsed = urlparse(endpoint)
+        # EG's OpenTelemetry sink (control-plane and EnvoyProxy) exports over OTLP gRPC, so
+        # the requirer asks for grpc and the port falls back to the OTLP/gRPC default (4317),
+        # not the HTTP default (4318). The gRPC endpoint arrives as a bare host:port (no
+        # scheme), so prefix "//" when needed for urlparse to read the host and port.
+        parsed = urlparse(endpoint if "://" in endpoint else f"//{endpoint}")
         if not parsed.hostname:
             return None
         return MetricSink(
@@ -203,12 +198,10 @@ class EnvoyControllerCharm(ops.CharmBase):
         )
 
     def _control_plane_secret(self) -> Optional[Secret]:
-        """Return the certgen-issued control-plane TLS Secret, or None if absent.
-
-        certgen names this Secret ``envoy-gateway``; it holds the server cert the
-        xDS server presents and the CA proxies validate against. lightkube
-        returns ``data`` already base64-encoded (the Secret wire format).
-        """
+        """Return the certgen-issued control-plane TLS Secret, or None if absent."""
+        # certgen names this Secret "envoy-gateway"; it holds the server cert the xDS server
+        # presents and the CA proxies validate against. lightkube returns "data" already
+        # base64-encoded (the Secret wire format).
         try:
             return self.lightkube_client.get(
                 Secret, name=CONTROL_PLANE_NAME, namespace=self.model.name
@@ -231,8 +224,6 @@ class EnvoyControllerCharm(ops.CharmBase):
             if e.status.code in (401, 403):
                 return False
             raise
-
-    # ---- Lifecycle ----
 
     def _reconcile(self, _event: ops.EventBase):
         """Reconcile the entire state of the charm.
@@ -265,7 +256,6 @@ class EnvoyControllerCharm(ops.CharmBase):
             namespace=self.model.name,
         )
 
-        # Step 1: preconditions
         if not self._trusted:
             logger.warning("Charm is not trusted; skipping reconciliation")
             return
@@ -273,23 +263,17 @@ class EnvoyControllerCharm(ops.CharmBase):
             logger.info("Pebble not ready; skipping reconciliation")
             return
 
-        # Step 2: CRDs — raises _CrdsNotEstablishedError if API server not ready yet
         try:
             self._reconcile_crds()
         except _CrdsNotEstablishedError:
             logger.info("CRDs applied but not yet Established; deferring controller start")
             return
-        # Step 3: control-plane certs (must run before the cert push below)
+
         self._reconcile_certgen()
-        # Step 4: config + certs
         self._reconcile_config_and_certs()
-        # Step 5: control-plane Service
         self._reconcile_control_plane_service()
-        # Step 6: default EnvoyProxy
         self._reconcile_envoy_proxy()
-        # Step 7: shared GatewayClass (references the EnvoyProxy from step 6)
         self._reconcile_gateway_class()
-        # Step 8: Pebble services
         self._reconcile_pebble_services()
 
     def _on_collect_status(self, event: ops.CollectStatusEvent):
@@ -321,18 +305,15 @@ class EnvoyControllerCharm(ops.CharmBase):
         event.add_status(ops.ActiveStatus())
 
     def _on_remove(self, _event: ops.RemoveEvent):
-        """Remove app-scoped resources on app removal. CRDs are left in place.
-
-        The xDS Service, default EnvoyProxy, shared GatewayClass and certgen Secrets are
-        app-scoped (the GatewayClass is cluster-scoped but singly owned by this app), so
-        they must only be removed when the whole application is going away
-        (planned_units == 0), not on a scale-down where peer units still rely on them. KRM
-        swallows the expected 404 via ignore_missing; any other API error is allowed to
-        surface.
-        """
+        """Remove app-scoped resources on app removal. CRDs are left in place."""
+        # The xDS Service, default EnvoyProxy, shared GatewayClass and certgen Secrets are
+        # app-scoped (the GatewayClass is cluster-scoped but singly owned by this app), so
+        # remove them only when the whole application is going away (planned_units == 0),
+        # not on a scale-down where peer units still rely on them.
         if self.app.planned_units() != 0:
             logger.info("Unit removed but application remains; leaving resources in place")
             return
+        # KRM swallows the expected 404 via ignore_missing; any other API error surfaces.
         self._control_plane_service_krm().delete(ignore_missing=True)
         self._envoy_proxy_krm().delete(ignore_missing=True)
         self._gateway_class_krm().delete(ignore_missing=True)
@@ -350,36 +331,30 @@ class EnvoyControllerCharm(ops.CharmBase):
     # ---- Reconcile steps ----
 
     def _reconcile_crds(self):
-        """Apply Gateway API + Envoy Gateway + GIE CRDs.
-
-        After applying, waits for all CRDs to reach Established=True before
-        returning so that the controller does not start against unregistered schemas.
-        """
+        """Apply Gateway API + Envoy Gateway + GIE CRDs."""
         for scope, directory in CRD_SCOPES.items():
             self._crd_krm(scope).reconcile(_load_crd_yaml(directory))
 
+        # Wait for all CRDs to reach Established=True before returning so the controller
+        # does not start against unregistered schemas.
         if not self._crds_established():
             raise _CrdsNotEstablishedError()
 
     def _reconcile_config_and_certs(self):
-        """Push controller config and the certgen control-plane cert into the container.
-
-        The config push is unconditional: the controller is started with
-        ``--config-path /etc/envoy-gateway/config.yaml`` so the file must exist before
-        replan, and it does not depend on the cert Secret.
-
-        Envoy Gateway reads its xDS-server TLS from ``/certs/{tls.crt,tls.key,ca.crt}``.
-        The cert MUST be the certgen ``envoy-gateway`` Secret: Envoy Proxy pods are wired
-        by Envoy Gateway to trust the certgen CA, so a cert from any other CA fails the
-        proxy<->control-plane mTLS handshake. certgen (step 3) runs first, so the Secret
-        exists by now; if it somehow does not, push config but skip the certs rather than
-        serving a wrong cert.
-        """
+        """Push controller config and the certgen control-plane cert into the container."""
+        # The config push is unconditional: the controller starts with
+        # --config-path /etc/envoy-gateway/config.yaml, so the file must exist before replan,
+        # and it does not depend on the cert Secret.
         self._push_files(
             GATEWAY_CONTAINER,
             {"/etc/envoy-gateway/config.yaml": self._construct_envoy_gateway_config()},
         )
 
+        # Envoy Gateway reads its xDS-server TLS from /certs/{tls.crt,tls.key,ca.crt}. The
+        # cert MUST be the certgen "envoy-gateway" Secret: Envoy Proxy pods are wired by EG to
+        # trust the certgen CA, so a cert from any other CA fails the proxy<->control-plane
+        # mTLS handshake. certgen runs first, so the Secret exists by now; if it somehow does
+        # not, push config but skip the certs rather than serving a wrong cert.
         secret = self._control_plane_secret()
         if not secret or not secret.data:
             logger.info("Control-plane cert Secret not present yet; skipping cert push")
@@ -398,14 +373,11 @@ class EnvoyControllerCharm(ops.CharmBase):
         )
 
     def _reconcile_control_plane_service(self):
-        """Publish the Service clients use to reach the control plane.
-
-        Envoy Gateway hardcodes the proxy bootstrap to dial ``envoy-gateway.<ns>.svc``
-        on the xDS (18000) and wasm (18002) ports — names its own Helm chart supplies.
-        The charm app Service is named after the app, so without this Service the proxy
-        DNS lookup yields no endpoints ("no healthy upstream") and Gateways never reach
-        Programmed=True.
-        """
+        """Publish the Service clients use to reach the control plane."""
+        # Envoy Gateway hardcodes the proxy bootstrap to dial envoy-gateway.<ns>.svc on the
+        # xDS (18000) and wasm (18002) ports — names its own Helm chart supplies. The charm
+        # app Service is named after the app, so without this Service the proxy DNS lookup
+        # yields no endpoints ("no healthy upstream") and Gateways never reach Programmed=True.
         self._control_plane_service_krm().reconcile([self._construct_control_plane_service()])
 
     def _construct_control_plane_service(self) -> Service:
@@ -427,10 +399,8 @@ class EnvoyControllerCharm(ops.CharmBase):
         self._envoy_proxy_krm().reconcile([self._construct_envoy_proxy()])
 
     def _reconcile_gateway_class(self):
-        """Manage the shared "envoy" GatewayClass that ingress charms reference.
-
-        Skips (does not overwrite) a foreign "envoy" class; status blocks instead.
-        """
+        """Manage the shared "envoy" GatewayClass that ingress charms reference."""
+        # Skip (do not overwrite) a foreign "envoy" class; _on_collect_status blocks instead.
         foreign_owner = self._foreign_gateway_class_owner()
         if foreign_owner is not None:
             logger.warning(
@@ -446,13 +416,10 @@ class EnvoyControllerCharm(ops.CharmBase):
         self._gateway_class_krm().reconcile([self._construct_gateway_class()])
 
     def _foreign_gateway_class_owner(self) -> Optional[str]:
-        """Return the owner of a pre-existing "envoy" GatewayClass we do not manage.
-
-        Returns None if the class is absent or carries this app's KRM instance label.
-        Otherwise returns the foreign owner label ("<unmanaged>" if it has none) so the
-        cluster-wide singleton is never fought over by a second controller or a non-Juju
-        install.
-        """
+        """Return the owner of a pre-existing "envoy" GatewayClass we do not manage."""
+        # None if the class is absent or carries this app's KRM instance label; otherwise the
+        # foreign owner label ("<unmanaged>" if it has none), so the cluster-wide singleton is
+        # never fought over by a second controller or a non-Juju install.
         try:
             existing = self.lightkube_client.get(GatewayClass, name=GATEWAY_CLASS_NAME)
         except ApiError as e:
@@ -469,29 +436,25 @@ class EnvoyControllerCharm(ops.CharmBase):
         return owner or "<unmanaged>"
 
     def _reconcile_certgen(self):
-        """Provision the control-plane secrets Envoy Gateway requires via its certgen.
-
-        Upstream ships a one-shot ``certgen`` Job that mints the control-plane mTLS
-        secrets (``envoy``, ``envoy-gateway``, ``envoy-rate-limit``) and the
-        ``envoy-oidc-hmac`` secret that the OAuth2 filter signs OIDC state/session
-        cookies with. Without these the controller blocks on a missing ``envoy``
-        secret and never serves xDS. We have no Job, so we run certgen in-place in
-        the gateway container. It is idempotent — existing secrets are left untouched
-        (no ``--overwrite``) so values stay stable across reconciles and scaled units.
-        ``--disable-topology-injector`` stops certgen from patching an unrelated
-        injector webhook. ``ENVOY_GATEWAY_NAMESPACE`` must be set or certgen targets
-        the non-existent default ``envoy-gateway-system`` namespace.
-
-        certgen is skipped once *all* its Secrets exist so it is not re-run on every
-        event (including the 5-minute update-status), where a transient exec failure
-        would otherwise tip the whole charm into error state. The guard requires every
-        Secret (not just ``envoy-gateway``): if certgen is interrupted after creating
-        some but not the load-bearing ``envoy`` Secret, or one is deleted out-of-band,
-        keying on a single Secret would skip certgen forever and leave the controller
-        permanently blocked with no recovery path.
-        """
+        """Provision the control-plane secrets Envoy Gateway requires via its certgen."""
+        # Upstream ships a one-shot certgen Job that mints the control-plane mTLS secrets
+        # (envoy, envoy-gateway, envoy-rate-limit) and the envoy-oidc-hmac secret the OAuth2
+        # filter signs OIDC state/session cookies with. Without these the controller blocks on
+        # a missing "envoy" secret and never serves xDS.
+        #
+        # Skip once *all* Secrets exist so certgen is not re-run on every event (including the
+        # 5-minute update-status), where a transient exec failure would tip the charm into
+        # error state. The guard requires every Secret (not just envoy-gateway): if certgen is
+        # interrupted after creating some but not the load-bearing "envoy" Secret, or one is
+        # deleted out-of-band, keying on a single Secret would skip certgen forever and leave
+        # the controller permanently blocked with no recovery path.
         if self._certgen_complete():
             return
+        # We have no Job, so run certgen in-place in the gateway container. It is idempotent —
+        # existing secrets are left untouched (no --overwrite) so values stay stable across
+        # reconciles and scaled units. --disable-topology-injector stops certgen from patching
+        # an unrelated injector webhook. ENVOY_GATEWAY_NAMESPACE must be set or certgen targets
+        # the non-existent default "envoy-gateway-system" namespace.
         container = self.unit.get_container(GATEWAY_CONTAINER)
         try:
             container.exec(
@@ -524,19 +487,10 @@ class EnvoyControllerCharm(ops.CharmBase):
         gateway.add_layer("envoy-gateway", self._construct_gateway_layer(), combine=True)
         gateway.replan()
 
-    # ---- Construct helpers ----
-
     def _construct_envoy_gateway_config(self) -> str:
-        """Construct the Envoy Gateway controller config YAML.
-
-        ``extensionApis`` (Backend + EnvoyPatchPolicy) is left enabled unconditionally;
-        see the Discussion Points in specs/envoy.spec.md for the rationale and tradeoff.
-
-        When an extension server is related, its gRPC endpoint is wired into
-        ``extensionManager`` so Envoy Gateway delegates xDS fine-tuning to it. The block
-        is omitted when unrelated (or the provider has not published yet) so the
-        controller never dials a non-existent endpoint.
-        """
+        """Construct the Envoy Gateway controller config YAML."""
+        # extensionApis (Backend + EnvoyPatchPolicy) is left enabled unconditionally; see
+        # https://github.com/canonical/service-mesh/issues/110 for the rationale and tradeoff.
         envoy_gateway: dict[str, Any] = {
             "logging": {"level": {"default": self._log_level}},
             "extensionApis": {
@@ -548,6 +502,9 @@ class EnvoyControllerCharm(ops.CharmBase):
         if sink:
             telemetry = TelemetryConfig(metrics=MetricsConfig(sinks=[sink]))
             envoy_gateway["telemetry"] = telemetry.model_dump(by_alias=True, exclude_none=True)
+        # When an extension server is related, wire its gRPC endpoint into extensionManager so
+        # EG delegates xDS fine-tuning to it. Omitted when unrelated (or the provider has not
+        # published yet) so the controller never dials a non-existent endpoint.
         extension = self.ext_server.get_extension_server_data()
         if extension and extension.extension_server_fqdn and extension.extension_server_port:
             envoy_gateway["extensionManager"] = self._extension_manager(
@@ -563,13 +520,11 @@ class EnvoyControllerCharm(ops.CharmBase):
 
     @staticmethod
     def _extension_manager(fqdn: str, port: int) -> dict[str, Any]:
-        """Build the extensionManager block pointing at an extension server.
-
-        The xdsTranslator hooks mirror what the extension server needs to fine-tune the
-        translated xDS: all listener/route/cluster/secret resources are passed through,
-        and it runs post the Translation/Cluster/Route stages (Envoy AI Gateway's
-        required hook set; see the upstream envoy-gateway-values.yaml).
-        """
+        """Build the extensionManager block pointing at an extension server."""
+        # The xdsTranslator hooks mirror what the extension server needs to fine-tune the
+        # translated xDS: all listener/route/cluster/secret resources are passed through, and
+        # it runs post the Translation/Cluster/Route stages (Envoy AI Gateway's required hook
+        # set; see the upstream envoy-gateway-values.yaml).
         return {
             "hooks": {
                 "xdsTranslator": {
@@ -586,11 +541,9 @@ class EnvoyControllerCharm(ops.CharmBase):
         }
 
     def _construct_envoy_proxy(self) -> EnvoyProxy:
-        """Construct the default EnvoyProxy resource (Juju-topology stats tags + OTLP sink).
-
-        EnvoyProxy has no native stats-tags field, so the Juju topology is stamped onto
-        every proxy metric by JSON-patching the Envoy bootstrap's stats_config.stats_tags.
-        """
+        """Construct the default EnvoyProxy resource (Juju-topology stats tags + OTLP sink)."""
+        # EnvoyProxy has no native stats-tags field, so the Juju topology is stamped onto every
+        # proxy metric by JSON-patching the Envoy bootstrap's stats_config.stats_tags.
         topology = {
             "juju_model": self.model.name,
             "juju_model_uuid": self.model.uuid,
@@ -617,12 +570,10 @@ class EnvoyControllerCharm(ops.CharmBase):
         )
 
     def _construct_gateway_class(self) -> GatewayClass:
-        """Construct the shared "envoy" GatewayClass.
-
-        parametersRef binds every Gateway of this class to the default EnvoyProxy (the
-        cross-namespace attachment point) so proxies across all ingress models inherit
-        its OTLP sink and Juju-topology stats tags.
-        """
+        """Construct the shared "envoy" GatewayClass."""
+        # parametersRef binds every Gateway of this class to the default EnvoyProxy (the
+        # cross-namespace attachment point) so proxies across all ingress models inherit its
+        # OTLP sink and Juju-topology stats tags.
         spec = GatewayClassSpec(
             controllerName=ENVOY_GATEWAY_CONTROLLER_NAME,
             parametersRef=ParametersRef(
@@ -638,14 +589,11 @@ class EnvoyControllerCharm(ops.CharmBase):
         )
 
     def _crds_established(self) -> bool:
-        """Return True when every bundled CRD is present AND has Established=True.
-
-        Each expected CRD (from the bundled YAML) must be found in the deployed set and
-        carry Established=True. Checking presence — not just iterating whatever the list
-        returns — guards against an empty/lagging label-indexed list being mistaken for
-        "all established", which would green-light the controller against unregistered
-        schemas.
-        """
+        """Return True when every bundled CRD is present AND has Established=True."""
+        # Each expected CRD (from the bundled YAML) must be found in the deployed set and carry
+        # Established=True. Checking presence — not just iterating whatever the list returns —
+        # guards against an empty/lagging label-indexed list being mistaken for "all
+        # established", which would green-light the controller against unregistered schemas.
         for scope, directory in CRD_SCOPES.items():
             expected = {crd.metadata.name for crd in _load_crd_yaml(directory)}
             try:
@@ -669,14 +617,11 @@ class EnvoyControllerCharm(ops.CharmBase):
         return True
 
     def _construct_gateway_layer(self) -> Layer:
-        """Construct the Pebble layer for the Envoy Gateway controller.
-
-        Envoy Gateway does not hot-reload ``config.yaml``, and ``replan`` only
-        restarts a service when its *layer* changes — not when a pushed file does.
-        A hash of the rendered config is stamped into the service environment so a
-        config change (log-level, OTLP sink) alters the layer and ``replan``
-        restarts the controller to pick it up.
-        """
+        """Construct the Pebble layer for the Envoy Gateway controller."""
+        # Envoy Gateway does not hot-reload config.yaml, and replan only restarts a service
+        # when its *layer* changes — not when a pushed file does. Stamp a hash of the rendered
+        # config into the service environment so a config change (log-level, OTLP sink) alters
+        # the layer and replan restarts the controller to pick it up.
         config_hash = hashlib.sha256(
             self._construct_envoy_gateway_config().encode()
         ).hexdigest()
@@ -734,18 +679,14 @@ class EnvoyControllerCharm(ops.CharmBase):
 
     @staticmethod
     def _container_healthy(container: ops.Container) -> bool:
-        """Return True if the container has no failing ready-level checks.
-
-        Callers must ensure the service is in the plan first (see _on_collect_status);
-        a service that has not been started yet is "not healthy", not "healthy".
-        """
+        """Return True if the container has no failing ready-level checks."""
+        # Callers must ensure the service is in the plan first (see _on_collect_status); a
+        # service that has not been started yet is "not healthy", not "healthy".
         try:
             checks = container.get_checks(level=ops.pebble.CheckLevel.READY)
         except ops.pebble.Error:
             return True
         return all(c.status == ops.pebble.CheckStatus.UP for c in checks.values())
-
-    # ---- KRM factories ----
 
     def _crd_krm(self, scope: str) -> KubernetesResourceManager:
         return KubernetesResourceManager(

@@ -15,6 +15,7 @@ Feature: CRD management
       | httproutes.gateway.networking.k8s.io              |
       | grpcroutes.gateway.networking.k8s.io              |
       | referencegrants.gateway.networking.k8s.io         |
+      | backendtlspolicies.gateway.networking.k8s.io      |
 
   Scenario: Gateway Inference Extension CRDs are installed
     Then the following CRDs exist on the cluster:
