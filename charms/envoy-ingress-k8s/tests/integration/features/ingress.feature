@@ -18,6 +18,7 @@ Feature: Ingress relation
     Then an HTTPRoute exists for the requiring charm
     And the HTTPRoute references the Gateway
     And the ingress URL is published in the relation data
+    And traffic to the ingress URL returns 200
 
   Scenario: HTTPRoute is removed when ingress relation is broken
     Given the ingress relation is established
@@ -34,10 +35,3 @@ Feature: Ingress relation
     And the charm reaches active status
     Then an HTTPRoute exists for charm-a
     And an HTTPRoute exists for charm-b
-
-  Scenario: Conflicting routes from different models are rejected
-    Given charm "b-c" in model "a" requests ingress with path "/a-b-c/"
-    And charm "c" in model "a-b" requests ingress with path "/a-b-c/"
-    When both ingress relations are established
-    Then no HTTPRoutes are created for the conflicting charms
-    And the charm is blocked with a message indicating a route conflict

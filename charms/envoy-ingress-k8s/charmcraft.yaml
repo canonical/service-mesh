@@ -1,0 +1,71 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: envoy-ingress-k8s
+type: charm
+title: Envoy Gateway Ingress
+summary: A Juju charm to manage Envoy Gateway ingress resources
+description: |
+  envoy-ingress-k8s manages user-facing Gateway API resources (Gateway,
+  HTTPRoute, SecurityPolicy) for an Envoy Gateway control plane deployed by
+  envoy-controller-k8s. It provides ingress to related charms and configures
+  TLS and external authentication on the gateway.
+
+links:
+  documentation: https://discourse.charmhub.io/t/envoy-ingress-k8s-docs-index
+  website: https://charmhub.io/envoy-ingress-k8s
+  source: https://github.com/canonical/envoy-ingress-k8s-operator
+  issues: https://github.com/canonical/envoy-ingress-k8s-operator/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@24.04:amd64:
+
+config:
+  options:
+    external_hostname:
+      type: string
+      description: |
+        The DNS name the gateway is reached by. If unspecified, the gateway's
+        load-balancer address is used. Must be a bare hostname: no scheme
+        prefix and no port (e.g. "foo.example.com").
+
+provides:
+  ingress:
+    interface: ingress
+    optional: true
+    description: |
+      Provides ingress routing to a related application by creating an HTTPRoute
+      through the Gateway. If two requirers ask for the same path, no route is
+      created and the charm goes into a blocked state.
+  gateway-metadata:
+    interface: gateway_metadata
+    optional: true
+    description: |
+      Publishes Gateway info (name, namespace, listener addresses, ports) for
+      downstream consumers.
+
+requires:
+  certificates:
+    interface: tls-certificates
+    optional: true
+    limit: 1
+    description: |
+      TLS certificates for the Gateway HTTPS listeners.
+  forward-auth:
+    interface: forward_auth
+    optional: true
+    limit: 1
+    description: |
+      Connects to an external auth provider; configures a SecurityPolicy with
+      extAuth pointing at the related auth provider.
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps: [astral-uv]
+    build-packages: [git]
