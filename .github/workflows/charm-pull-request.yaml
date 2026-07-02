@@ -15,21 +15,49 @@ permissions:
 
 jobs:
   discover-charms:
-    name: Discover charms
+    name: Discover changed charms
     runs-on: ubuntu-latest
     outputs:
-      charms: ${{ steps.discover.outputs.charms }}
+      charms: ${{ steps.matrix.outputs.charms }}
     steps:
       - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: changes
         with:
-          sparse-checkout: charms
-          sparse-checkout-cone-mode: true
-      - id: discover
-        run: echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+          filters: |
+            envoy-ai-controller-k8s: charms/envoy-ai-controller-k8s/**
+            envoy-controller-k8s: charms/envoy-controller-k8s/**
+            envoy-ingress-k8s: charms/envoy-ingress-k8s/**
+            istio-beacon-k8s: charms/istio-beacon-k8s/**
+            istio-ingress-k8s: charms/istio-ingress-k8s/**
+            istio-k8s: charms/istio-k8s/**
+      - id: matrix
+        run: |
+          charms='[]'
+          if [ "${{ steps.changes.outputs.envoy-ai-controller-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/envoy-ai-controller-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.envoy-controller-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/envoy-controller-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.envoy-ingress-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/envoy-ingress-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.istio-beacon-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/istio-beacon-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.istio-ingress-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/istio-ingress-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.istio-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/istio-k8s"]')
+          fi
+          echo "charms=$charms" >> "$GITHUB_OUTPUT"
 
   pull-request:
     name: PR (${{ matrix.charm-path }})
     needs: discover-charms
+    if: ${{ needs.discover-charms.outputs.charms != '' && needs.discover-charms.outputs.charms != '[]' }}
     strategy:
       matrix:
         charm-path: ${{ fromJSON(needs.discover-charms.outputs.charms) }}

@@ -1,0 +1,197 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+"""Status-model and lifecycle regression tests for the AI controller charm."""
+
+import base64
+import dataclasses
+from unittest.mock import patch
+
+import httpx
+import ops
+import pytest
+import scenario
+from conftest import make_state
+from lightkube import ApiError
+
+import charm
+from charm import EnvoyAiControllerCharm
+
+
+def _api_error(code: int) -> ApiError:
+    request = httpx.Request("GET", "http://localhost")
+    response = httpx.Response(code, json={"message": "x", "code": code}, request=request)
+    return ApiError(request=request, response=response)
+
+
+def test_blocked_without_trust(ctx, mock_lightkube_client):
+    # GIVEN a trusted-cluster probe that is denied (charm not run with --trust)
+    mock_lightkube_client.list.side_effect = _api_error(403)
+    # WHEN the charm reconciles
+    state_out = ctx.run(ctx.on.config_changed(), make_state())
+    # THEN it blocks telling the operator exactly how to fix it
+    assert state_out.unit_status == ops.BlockedStatus(
+        "Trust not granted. Run 'juju trust envoy-ai-controller-k8s'"
+    )
+
+
+def test_waiting_without_pebble(ctx):
+    # GIVEN the workload container is not yet reachable
+    # WHEN the charm reconciles
+    state_out = ctx.run(ctx.on.config_changed(), make_state(can_connect=False))
+    # THEN it waits for Pebble
+    assert state_out.unit_status == ops.WaitingStatus(
+        "Waiting for Pebble (ai-gateway container)"
+    )
+
+
+def test_blocked_without_certificates_relation(ctx):
+    # GIVEN no certificates relation (the webhook serving cert has no source)
+    # WHEN the charm reconciles
+    state_out = ctx.run(ctx.on.config_changed(), make_state(certificates=False))
+    # THEN it blocks on the missing relation
+    assert state_out.unit_status == ops.BlockedStatus("Missing relation: certificates")
+
+
+def test_waiting_when_certificate_not_yet_issued(ctx, certs_absent):
+    # GIVEN the certificates relation is present but no cert has been issued yet
+    # WHEN the charm reconciles
+    state_out = ctx.run(ctx.on.config_changed(), make_state())
+    # THEN it waits for the certificate
+    assert state_out.unit_status == ops.WaitingStatus("Waiting for TLS certificate")
+
+
+def test_blocked_without_extension_server_relation(ctx, krm_mocks):
+    # GIVEN trust, Pebble, certs — but no Envoy Gateway relating in (the AI on/off switch)
+    # WHEN the charm reconciles
+    state_out = ctx.run(ctx.on.config_changed(), make_state(extension_server=False))
+    # THEN it blocks: the controller is useless without an EG control plane to extend
+    assert state_out.unit_status == ops.BlockedStatus(
+        "Missing relation: envoy-extension-server"
+    )
+
+
+def test_active_when_all_preconditions_met(ctx, krm_mocks):
+    # GIVEN trust, Pebble, certs, and the extension-server relation
+    # WHEN the charm reconciles
+    state_out = ctx.run(ctx.on.config_changed(), make_state())
+    # THEN it is active
+    assert state_out.unit_status == ops.ActiveStatus()
+
+
+def test_maintenance_while_crds_not_established(ctx, krm_mocks):
+    # GIVEN the CRDs are applied but not yet Established, so reconcile halts before
+    # the controller service is added to the plan
+    with patch.object(EnvoyAiControllerCharm, "_crds_established", return_value=False):
+        # WHEN the charm reconciles and status is collected
+        state_out = ctx.run(ctx.on.config_changed(), make_state())
+    # THEN it reports maintenance rather than falsely reporting Active
+    assert state_out.unit_status == ops.MaintenanceStatus(
+        "Setting up Envoy AI Gateway control plane"
+    )
+
+
+def test_waiting_when_controller_health_check_fails(ctx, krm_mocks):
+    # GIVEN the controller readiness check is failing (alive but not serving)
+    failing = frozenset(
+        {
+            scenario.CheckInfo(
+                name="readiness",
+                level=ops.pebble.CheckLevel.READY,
+                status=ops.pebble.CheckStatus.DOWN,
+            )
+        }
+    )
+    # WHEN the charm reconciles
+    state_out = ctx.run(ctx.on.config_changed(), make_state(controller_checks=failing))
+    # THEN it reports waiting, not active. Only liveness is restart-wired, so a sustained
+    # readiness failure stays in waiting rather than restart-looping.
+    assert state_out.unit_status == ops.WaitingStatus(
+        "Waiting for AI Gateway controller to become healthy"
+    )
+
+
+def test_extension_server_address_published_when_related(ctx, krm_mocks):
+    # GIVEN the extension-server relation is present
+    with patch.object(charm.ExtensionServerProvider, "publish_data") as publish:
+        # WHEN the charm reconciles
+        ctx.run(ctx.on.config_changed(), make_state())
+    # THEN it advertises its Extension Server gRPC endpoint to the EG control plane
+    publish.assert_called_once()
+    kwargs = publish.call_args.kwargs
+    assert kwargs["extension_server_fqdn"].startswith("envoy-ai-controller-k8s.")
+    assert kwargs["extension_server_fqdn"].endswith(".svc.cluster.local")
+    assert kwargs["extension_server_port"] == "1063"
+
+
+def test_webhook_uses_issuing_ca_as_ca_bundle(ctx, krm_mocks):
+    # The API server validates the webhook cert against caBundle, so caBundle must be the
+    # CA that issued the served cert.
+    with ctx(ctx.on.config_changed(), make_state()) as mgr:
+        webhook = mgr.charm._construct_webhook("CAPEM")
+        # The controller patches a hardcoded-named config at startup and exits if it is
+        # missing, so the name must match the upstream constant exactly.
+        assert (
+            webhook.metadata.name
+            == f"envoy-ai-gateway-gateway-pod-mutator.{mgr.charm.model.name}"
+        )
+    assert base64.b64decode(webhook.webhooks[0].clientConfig.caBundle) == b"CAPEM"
+    assert webhook.webhooks[0].clientConfig.service.path == "/mutate"
+    assert webhook.webhooks[0].clientConfig.service.port == 9443
+
+
+def test_webhook_scoped_to_envoy_gateway_pods(ctx, krm_mocks):
+    # The webhook must only intercept Envoy Gateway data-plane pods. Matching all pods
+    # would catch the controller's own pod and deadlock its (re)creation.
+    with ctx(ctx.on.config_changed(), make_state()) as mgr:
+        webhook = mgr.charm._construct_webhook("CAPEM")
+    assert webhook.webhooks[0].objectSelector.matchLabels == {
+        "app.kubernetes.io/managed-by": "envoy-gateway"
+    }
+
+
+def test_unexpected_api_error_is_not_swallowed(ctx, mock_lightkube_client):
+    # GIVEN the trust probe fails with a non-auth error (API unreachable, 500, ...)
+    mock_lightkube_client.list.side_effect = _api_error(500)
+    # WHEN trust is evaluated
+    with ctx(ctx.on.update_status(), make_state()) as mgr:
+        # THEN the error surfaces rather than being misreported as "untrusted"
+        with pytest.raises(ApiError):
+            _ = mgr.charm._trusted
+        # Reset so the manager's implicit exit-time reconcile sees a healthy client.
+        mock_lightkube_client.list.side_effect = None
+
+
+def test_remove_deletes_webhook_only_when_last_unit_leaves(ctx):
+    # GIVEN this is the final unit of the application
+    with patch.object(EnvoyAiControllerCharm, "_webhook_krm") as webhook:
+        # WHEN the unit is removed
+        ctx.run(ctx.on.remove(), make_state(planned_units=0))
+    # THEN the cluster-scoped ExtProc webhook is cleaned up (Juju owns the Service)
+    webhook.return_value.delete.assert_called_once()
+
+
+def test_remove_keeps_webhook_on_scale_down(ctx):
+    # GIVEN peer units of the application remain
+    with patch.object(EnvoyAiControllerCharm, "_webhook_krm") as webhook:
+        # WHEN this unit is removed
+        ctx.run(ctx.on.remove(), make_state(planned_units=1))
+    # THEN the shared webhook is left in place for the surviving units
+    webhook.return_value.delete.assert_not_called()
+
+
+def test_certificate_request_cn_within_x509_limit(ctx):
+    # GIVEN a long Juju model name that pushes the service FQDN past the 64-char X.509
+    # CN limit (regression: the charm crashed in certificates-relation-created when the
+    # FQDN was used as the CN under pytest-jubilant's long generated model names).
+    long_model = scenario.Model(name="test-controllers-7b72fb3c")
+    state = dataclasses.replace(make_state(), model=long_model)
+    with ctx(ctx.on.config_changed(), state) as mgr:
+        request = mgr.charm._certificate_request
+        fqdn = mgr.charm._service_fqdn
+    # THEN the CN stays within the X.509 limit and the FQDN is still a SAN (where the
+    # API server actually validates the webhook cert).
+    assert len(fqdn) > 64
+    assert len(request.common_name) <= 64
+    assert request.common_name == "envoy-ai-controller-k8s"
+    assert fqdn in request.sans_dns
