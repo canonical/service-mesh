@@ -89,14 +89,14 @@ CONTROL_PLANE_RESOURCE_TYPES = {
 }
 ISTIO_CRDS_COMPONENTS = ["base"]
 ISTIO_CRDS_LABEL = "istio-crds"
-ISTIO_CRDS_RESOURCE_TYPES = {
+ISTIO_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
+GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
+GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
+GATEWAY_API_CRDS_RESOURCE_TYPES = {
     CustomResourceDefinition,
     ValidatingAdmissionPolicy,
     ValidatingAdmissionPolicyBinding,
 }
-GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
-GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
-GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 
 # Rock image settings
 ROCK_REGISTRY = "docker.io/ubuntu"
