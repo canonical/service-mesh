@@ -4,6 +4,7 @@
 """Status-model and lifecycle regression tests for the AI controller charm."""
 
 import base64
+import dataclasses
 from unittest.mock import patch
 
 import httpx
@@ -177,3 +178,20 @@ def test_remove_keeps_webhook_on_scale_down(ctx):
         ctx.run(ctx.on.remove(), make_state(planned_units=1))
     # THEN the shared webhook is left in place for the surviving units
     webhook.return_value.delete.assert_not_called()
+
+
+def test_certificate_request_cn_within_x509_limit(ctx):
+    # GIVEN a long Juju model name that pushes the service FQDN past the 64-char X.509
+    # CN limit (regression: the charm crashed in certificates-relation-created when the
+    # FQDN was used as the CN under pytest-jubilant's long generated model names).
+    long_model = scenario.Model(name="test-controllers-7b72fb3c")
+    state = dataclasses.replace(make_state(), model=long_model)
+    with ctx(ctx.on.config_changed(), state) as mgr:
+        request = mgr.charm._certificate_request
+        fqdn = mgr.charm._service_fqdn
+    # THEN the CN stays within the X.509 limit and the FQDN is still a SAN (where the
+    # API server actually validates the webhook cert).
+    assert len(fqdn) > 64
+    assert len(request.common_name) <= 64
+    assert request.common_name == "envoy-ai-controller-k8s"
+    assert fqdn in request.sans_dns

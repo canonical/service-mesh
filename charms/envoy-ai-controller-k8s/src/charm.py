@@ -144,20 +144,21 @@ class EnvoyAiControllerCharm(ops.CharmBase):
 
     @property
     def _service_fqdn(self) -> str:
-        """Cluster-internal FQDN of the app Service Juju manages for this charm.
-
-        The extension-server gRPC endpoint and the ExtProc webhook are both reached
-        through Juju's application Service (its ports are opened via set_ports); no
-        charm-managed Service is needed.
-        """
+        """Cluster-internal FQDN of the app Service Juju manages for this charm."""
+        # The extension-server gRPC endpoint and the ExtProc webhook are both reached
+        # through Juju's application Service (its ports are opened via set_ports); no
+        # charm-managed Service is needed.
         return f"{self.app.name}.{self.model.name}.svc.cluster.local"
 
     @property
     def _certificate_request(self) -> CertificateRequestAttributes:
         """Cert request covering the names the API server may dial the webhook by."""
         app, model = self.app.name, self.model.name
+        # CN is capped at 64 chars by X.509; the service FQDN can exceed that with a long
+        # model name, so use the app name as CN and put every dial-able name in the SANs
+        # (which the API server validates against anyway).
         return CertificateRequestAttributes(
-            common_name=self._service_fqdn,
+            common_name=app,
             sans_dns=frozenset(
                 {
                     app,
@@ -291,14 +292,12 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         event.add_status(ops.ActiveStatus())
 
     def _on_remove(self, _event: ops.RemoveEvent):
-        """Remove the ExtProc webhook on app removal. CRDs are left in place.
-
-        The MutatingWebhookConfiguration is cluster-scoped and app-owned, so it must only
-        be removed when the whole application is going away (planned_units == 0), not on a
-        scale-down where peer units still rely on it. The application Service is managed by
-        Juju, so it is not touched here. KRM swallows the expected 404 via ignore_missing;
-        any other API error is allowed to surface.
-        """
+        """Remove the ExtProc webhook on app removal; CRDs are left in place."""
+        # The MutatingWebhookConfiguration is cluster-scoped and app-owned, so it must only
+        # be removed when the whole application is going away (planned_units == 0), not on a
+        # scale-down where peer units still rely on it. The application Service is managed by
+        # Juju, so it is not touched here. KRM swallows the expected 404 via ignore_missing;
+        # any other API error is allowed to surface.
         if self.app.planned_units() != 0:
             logger.info("Unit removed but application remains; leaving resources in place")
             return
@@ -307,11 +306,9 @@ class EnvoyAiControllerCharm(ops.CharmBase):
     # ---- Reconcile steps ----
 
     def _reconcile_crds(self):
-        """Apply the aigateway.envoyproxy.io CRDs and wait for Established.
-
-        The controller indexes the v1beta1 schemas at startup and exits if they are
-        not registered, so the controller is not started until every CRD is Established.
-        """
+        """Apply the aigateway.envoyproxy.io CRDs and wait for Established."""
+        # The controller indexes the v1beta1 schemas at startup and exits if they are
+        # not registered, so the controller is not started until every CRD is Established.
         for scope, directory in CRD_SCOPES.items():
             self._crd_krm(scope).reconcile(_load_crd_yaml(directory))
 
@@ -358,12 +355,7 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         return str(certs[0].ca), str(certs[0].certificate), str(key)
 
     def _construct_webhook(self, ca_pem: str) -> MutatingWebhookConfiguration:
-        """Construct the ExtProc sidecar-injector MutatingWebhookConfiguration.
-
-        The API server dials the webhook Service over TLS, validating the served cert
-        against caBundle, so caBundle must be the CA that issued the serving cert.
-        ``caBundle`` is a k8s ``[]byte`` field, so the PEM is base64-encoded on the wire.
-        """
+        """Construct the ExtProc sidecar-injector MutatingWebhookConfiguration."""
         webhook = MutatingWebhook(
             name=self._service_fqdn,
             admissionReviewVersions=["v1"],
@@ -378,6 +370,9 @@ class EnvoyAiControllerCharm(ops.CharmBase):
                 matchLabels={"app.kubernetes.io/managed-by": "envoy-gateway"}
             ),
             clientConfig=WebhookClientConfig(
+                # The API server dials the webhook Service over TLS, validating the served
+                # cert against caBundle, so caBundle must be the CA that issued the serving
+                # cert. caBundle is a k8s []byte field, so the PEM is base64-encoded on wire.
                 caBundle=base64.b64encode(ca_pem.encode()).decode(),
                 service=ServiceReference(
                     name=self.app.name,
@@ -402,13 +397,11 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         )
 
     def _construct_pebble_layer(self) -> Layer:
-        """Construct the Pebble layer for the AI Gateway controller.
-
-        The controller's gRPC health service listens on the Extension Server port, so
-        Pebble probes that port over TCP (Pebble has no gRPC check). Only liveness is
-        wired to restart; a sustained readiness failure leaves the unit "waiting"
-        (controller alive but not serving) rather than restart-looping.
-        """
+        """Construct the Pebble layer for the AI Gateway controller."""
+        # The controller's gRPC health service listens on the Extension Server port, so
+        # Pebble probes that port over TCP (Pebble has no gRPC check). Only liveness is
+        # wired to restart; a sustained readiness failure leaves the unit "waiting"
+        # (controller alive but not serving) rather than restart-looping.
         args = [
             COMMAND,
             f"-logLevel={self._log_level}",
@@ -467,11 +460,9 @@ class EnvoyAiControllerCharm(ops.CharmBase):
 
     @staticmethod
     def _container_healthy(container: ops.Container) -> bool:
-        """Return True if the container has no failing ready-level checks.
-
-        Callers must ensure the service is in the plan first (see _on_collect_status);
-        a service that has not been started yet is "not healthy", not "healthy".
-        """
+        """Return True if the container has no failing ready-level checks."""
+        # Callers must ensure the service is in the plan first (see _on_collect_status);
+        # a service that has not been started yet is "not healthy", not "healthy".
         try:
             checks = container.get_checks(level=ops.pebble.CheckLevel.READY)
         except ops.pebble.Error:
