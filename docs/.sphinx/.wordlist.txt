@@ -32,6 +32,7 @@ installable
 integrations
 JSON
 Juju
+JWT
 Kubeflow
 kubernetes
 Kubernetes
@@ -49,6 +50,7 @@ MicroOVN
 microservice
 microservices
 misconfiguration
+misconfigured
 MyST
 namespace
 namespaces
@@ -61,6 +63,7 @@ Permalink
 pre
 Quickstart
 ReadMe
+requirer
 reST
 reStructuredText
 roadmap
