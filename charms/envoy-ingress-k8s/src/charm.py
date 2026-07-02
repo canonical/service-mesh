@@ -341,19 +341,10 @@ class EnvoyIngressCharm(ops.CharmBase):
     # ---- Construct helpers ----
 
     def _construct_httproutes(self, app_name: str, data) -> List[HTTPRoute]:
-        """Build the HTTPRoute(s) routing the app's default path to its backend.
-
-        Without TLS the backend route attaches to the HTTP listener. With TLS the
-        backend route attaches to the HTTPS listener and a second route on the HTTP
-        listener redirects plaintext traffic to HTTPS (so the advertised
-        https:// URL actually routes — see C2).
-
-        Each route is created in the backend's own namespace (the requirer's model),
-        co-located with the Service it references. This keeps the backendRef in the
-        same namespace as the route so no ReferenceGrant is needed for cross-model
-        requirers; the Gateway accepts these routes via its allowedRoutes=All
-        listeners.
-        """
+        """Build the HTTPRoute(s) routing the app's default path to its backend."""
+        # Route lives in the requirer's own namespace, co-located with the Service it
+        # references, so the backendRef needs no ReferenceGrant for cross-model requirers;
+        # the Gateway accepts it via its allowedRoutes=All listeners.
         namespace = data.app.model
         path = self._route_path(data.app.name, data.app.model)
         match = HTTPRouteMatch(path=HTTPPathMatch(type="PathPrefix", value=path))
@@ -381,6 +372,8 @@ class EnvoyIngressCharm(ops.CharmBase):
             )
             return [backend_route]
 
+        # With TLS the backend attaches to the HTTPS listener; a companion HTTP route
+        # 301-redirects plaintext traffic to HTTPS so the advertised https:// URL routes.
         backend_route = self._httproute(
             name=app_name,
             namespace=namespace,
@@ -425,12 +418,10 @@ class EnvoyIngressCharm(ops.CharmBase):
         )
 
     def _construct_ext_auth(self, decisions_address: str) -> Tuple[Backend, SecurityPolicy]:
-        """Build the ext-auth Backend + SecurityPolicy from the provider's decisions URL.
-
-        ``decisions_address`` is a URL (e.g. http://oauth2-proxy.iam.svc.cluster.local:4180/auth),
-        not a Service name, so its host/port are captured in an Envoy Gateway Backend
-        (FQDN endpoint) and the SecurityPolicy references that Backend.
-        """
+        """Build the ext-auth Backend + SecurityPolicy from the provider's decisions URL."""
+        # decisions_address is a URL (e.g. http://oauth2-proxy.iam.svc:4180/auth), not a
+        # Service name, so its host/port go into an Envoy Gateway Backend (FQDN endpoint)
+        # that the SecurityPolicy then references.
         parsed = urlparse(decisions_address)
         hostname = parsed.hostname
         if not hostname:
@@ -497,11 +488,9 @@ class EnvoyIngressCharm(ops.CharmBase):
         return ready
 
     def _conflicting_apps(self) -> set:
-        """Return the set of requirer app names whose route path collides with another app.
-
-        Two requirers conflict when their generated default paths are identical but
-        they are different applications. All apps sharing a contested path are dropped.
-        """
+        """Return the set of requirer app names whose route path collides with another app."""
+        # Different apps that generate an identical default path conflict; every app
+        # sharing a contested path is dropped so no requirer silently hijacks another's route.
         path_to_apps: Dict[str, set] = {}
         for relation, data in self._ready_ingress_data():
             path = self._route_path(data.app.name, data.app.model)

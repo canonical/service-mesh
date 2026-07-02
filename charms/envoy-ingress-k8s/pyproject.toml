@@ -28,9 +28,10 @@ dev = [
     "ops[testing]",
     "pytest-asyncio==0.21.2",
     "jubilant",
-    "pytest-jubilant",
+    "pytest-jubilant<2",
     "pytest-bdd",
     "lightkube",
+    "requests",
 ]
 
 [tool.coverage.run]
