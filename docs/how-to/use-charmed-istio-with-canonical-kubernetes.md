@@ -18,7 +18,7 @@ The following requirements must be met for Canonical Kubernetes to work with Cha
 
 - `socketLB.hostNamespaceOnly: true` (Helm) or `bpf-lb-sock-hostns-only: "true"` (Cilium CLI)
 
-To set this with cononical-k8s run
+To set this with Canonical k8s run
 
 ```sh
 sudo k8s kubectl patch configmap -n kube-system cilium-config --type merge --patch '{"data":{"bpf-lb-sock-hostns-only": "true"}}'
