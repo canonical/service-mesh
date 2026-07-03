@@ -3,12 +3,14 @@
 
 """Status-model and reconcile regression tests for the ingress charm."""
 
+import dataclasses
 from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
 import ops
 import pytest
+import scenario
 from conftest import make_state, ready_ingress
 from lightkube import ApiError
 
@@ -28,7 +30,7 @@ def test_blocked_without_trust(ctx, mock_lightkube_client):
     state_out = ctx.run(ctx.on.config_changed(), make_state())
     # THEN it blocks telling the operator exactly how to fix it
     assert state_out.unit_status == ops.BlockedStatus(
-        "Trust not granted — run 'juju trust envoy-ingress-k8s'"
+        "Trust not granted. Run 'juju trust envoy-ingress-k8s'"
     )
 
 
@@ -256,3 +258,18 @@ def test_remove_keeps_resources_on_scale_down(ctx, krm_mocks):
     ctx.run(ctx.on.remove(), make_state(planned_units=1))
     # THEN shared resources are left in place
     krm_mocks.gateway.delete.assert_not_called()
+
+
+def test_certificate_request_omits_cn_and_covers_fqdn_san(ctx):
+    # GIVEN a long Juju model name that pushes the service FQDN past the 64-char X.509
+    # CN limit (regression: the FQDN as CN crashes under long generated model names).
+    long_model = scenario.Model(name="test-ingress-controllers-7b72fb3c")
+    state = dataclasses.replace(make_state(), model=long_model)
+    with ctx(ctx.on.config_changed(), state) as mgr:
+        request = mgr.charm._certificate_request
+        host = f"{mgr.charm.app.name}.{mgr.charm.model.name}.svc.cluster.local"
+    # THEN no CN is set (the spec requires CN to match a SAN, so we omit it) and the FQDN
+    # is a SAN, where TLS clients actually validate the served cert.
+    assert len(host) > 64
+    assert not request.common_name
+    assert host in request.sans_dns

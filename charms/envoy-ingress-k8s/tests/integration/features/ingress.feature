@@ -28,10 +28,10 @@ Feature: Ingress relation
     Then no HTTPRoutes exist for the previously related charm
 
   Scenario: Multiple ingress relations create separate HTTPRoutes
-    Given charm-a that requires ingress is deployed
-    And charm-b that requires ingress is deployed
-    When the ingress relation is established with charm-a
-    And the ingress relation is established with charm-b
+    Given productpage that requires ingress is deployed
+    And productpage-b that requires ingress is deployed
+    When the ingress relation is established with productpage
+    And the ingress relation is established with productpage-b
     And the charm reaches active status
-    Then an HTTPRoute exists for charm-a
-    And an HTTPRoute exists for charm-b
+    Then an HTTPRoute exists for productpage
+    And an HTTPRoute exists for productpage-b

@@ -3,22 +3,28 @@
 
 """Ingress relation steps: deploy requirers, assert HTTPRoutes, verify routing."""
 
-from jubilant import Juju
+from jubilant import Juju, all_active
 from pytest_bdd import given, then, when
 
 from tests.integration import helpers
 from tests.integration.helpers import APP_NAME
 
-BOOKINFO = "bookinfo-productpage-k8s"
+PRODUCTPAGE_CHARM = "bookinfo-productpage-k8s"
+DETAILS_CHARM = "bookinfo-details-k8s"
 BOOKINFO_CHANNEL = "latest/stable"
-CHARM_A = "charm-a"
-CHARM_B = "charm-b"
+PRODUCTPAGE = "productpage"
+PRODUCTPAGE_B = "productpage-b"
 
 
 def _deploy_requirer(juju: Juju, app: str) -> None:
-    """Deploy a bookinfo requirer as ``app`` if not already present."""
-    if app not in juju.status().apps:
-        juju.deploy(BOOKINFO, app=app, channel=BOOKINFO_CHANNEL, trust=True)
+    """Deploy a bookinfo productpage as ``app``, backed by its own details service."""
+    if app in juju.status().apps:
+        return
+    details = f"{app}-details"
+    juju.deploy(PRODUCTPAGE_CHARM, app=app, channel=BOOKINFO_CHANNEL, trust=True)
+    juju.deploy(DETAILS_CHARM, app=details, channel=BOOKINFO_CHANNEL, trust=True)
+    juju.integrate(f"{app}:details", f"{details}:details")
+    juju.wait(lambda s: all_active(s, app, details), timeout=1000, delay=5, successes=3)
 
 
 def _ingress_related(juju: Juju, app: str) -> bool:
@@ -36,46 +42,46 @@ def _integrate(juju: Juju, app: str) -> None:
 
 @given("a charm that requires ingress is deployed")
 def a_requirer_is_deployed(juju: Juju) -> None:
-    """Deploy the primary ingress requirer (charm-a)."""
-    _deploy_requirer(juju, CHARM_A)
+    """Deploy the primary ingress requirer (productpage)."""
+    _deploy_requirer(juju, PRODUCTPAGE)
 
 
-@given("charm-a that requires ingress is deployed")
-def charm_a_deployed(juju: Juju) -> None:
-    """Deploy the charm-a ingress requirer."""
-    _deploy_requirer(juju, CHARM_A)
+@given("productpage that requires ingress is deployed")
+def productpage_deployed(juju: Juju) -> None:
+    """Deploy the productpage ingress requirer."""
+    _deploy_requirer(juju, PRODUCTPAGE)
 
 
-@given("charm-b that requires ingress is deployed")
-def charm_b_deployed(juju: Juju) -> None:
-    """Deploy the charm-b ingress requirer."""
-    _deploy_requirer(juju, CHARM_B)
+@given("productpage-b that requires ingress is deployed")
+def productpage_b_deployed(juju: Juju) -> None:
+    """Deploy the productpage-b ingress requirer."""
+    _deploy_requirer(juju, PRODUCTPAGE_B)
 
 
 @given("the ingress relation is established")
 @when("the ingress relation is established")
 def ingress_relation_established(juju: Juju) -> None:
-    """Relate the primary requirer (charm-a) to the charm's ingress endpoint."""
-    _integrate(juju, CHARM_A)
+    """Relate the primary requirer (productpage) to the charm's ingress endpoint."""
+    _integrate(juju, PRODUCTPAGE)
 
 
-@when("the ingress relation is established with charm-a")
-def ingress_relation_established_a(juju: Juju) -> None:
-    """Relate charm-a to the charm's ingress endpoint."""
-    _integrate(juju, CHARM_A)
+@when("the ingress relation is established with productpage")
+def ingress_relation_established_productpage(juju: Juju) -> None:
+    """Relate productpage to the charm's ingress endpoint."""
+    _integrate(juju, PRODUCTPAGE)
 
 
-@when("the ingress relation is established with charm-b")
-def ingress_relation_established_b(juju: Juju) -> None:
-    """Relate charm-b to the charm's ingress endpoint."""
-    _integrate(juju, CHARM_B)
+@when("the ingress relation is established with productpage-b")
+def ingress_relation_established_productpage_b(juju: Juju) -> None:
+    """Relate productpage-b to the charm's ingress endpoint."""
+    _integrate(juju, PRODUCTPAGE_B)
 
 
 @when("the ingress relation is removed")
 def ingress_relation_removed(juju: Juju) -> None:
     """Remove the primary requirer's ingress relation."""
-    if _ingress_related(juju, CHARM_A):
-        juju.remove_relation(f"{CHARM_A}:ingress", f"{APP_NAME}:ingress")
+    if _ingress_related(juju, PRODUCTPAGE):
+        juju.remove_relation(f"{PRODUCTPAGE}:ingress", f"{APP_NAME}:ingress")
 
 
 @then("no HTTPRoutes exist for ingress")
@@ -86,14 +92,14 @@ def no_httproutes_exist(juju: Juju) -> None:
 
 @then("an HTTPRoute exists for the requiring charm")
 def httproute_exists_for_requirer(juju: Juju) -> None:
-    """Assert an HTTPRoute was created for the primary requirer (charm-a)."""
-    juju.wait(lambda _: helpers.httproute_exists(juju.model, CHARM_A), timeout=300, delay=5)
+    """Assert an HTTPRoute was created for the primary requirer (productpage)."""
+    juju.wait(lambda _: helpers.httproute_exists(juju.model, PRODUCTPAGE), timeout=300, delay=5)
 
 
 @then("the HTTPRoute references the Gateway")
 def httproute_references_gateway(juju: Juju) -> None:
     """Assert the requirer's HTTPRoute has a parentRef to the charm's Gateway."""
-    route = helpers.get_httproute(juju.model, CHARM_A)
+    route = helpers.get_httproute(juju.model, PRODUCTPAGE)
     parent_refs = route.spec.get("parentRefs", [])
     assert any(ref.get("name") == APP_NAME for ref in parent_refs)
 
@@ -101,30 +107,30 @@ def httproute_references_gateway(juju: Juju) -> None:
 @then("the ingress URL is published in the relation data")
 def ingress_url_published(juju: Juju) -> None:
     """Assert the charm published an ingress URL back to the requirer."""
-    url = helpers.published_ingress_url(juju, CHARM_A)
-    assert url and url.endswith(f"/{juju.model}-{CHARM_A}/")
+    url = helpers.published_ingress_url(juju, PRODUCTPAGE)
+    assert url and url.endswith(f"/{juju.model}-{PRODUCTPAGE}/")
 
 
 @then("traffic to the ingress URL returns 200")
 def traffic_returns_200(juju: Juju) -> None:
     """Assert requests to the published ingress URL route through to the backend."""
-    url = helpers.published_ingress_url(juju, CHARM_A)
+    url = helpers.published_ingress_url(juju, PRODUCTPAGE)
     juju.wait(lambda _: helpers.http_get_ok(url), timeout=300, delay=5)
 
 
 @then("no HTTPRoutes exist for the previously related charm")
 def no_httproute_for_previous(juju: Juju) -> None:
     """Assert the removed requirer's HTTPRoute was deleted."""
-    juju.wait(lambda _: not helpers.httproute_exists(juju.model, CHARM_A), timeout=300, delay=5)
+    juju.wait(lambda _: not helpers.httproute_exists(juju.model, PRODUCTPAGE), timeout=300, delay=5)
 
 
-@then("an HTTPRoute exists for charm-a")
-def httproute_exists_a(juju: Juju) -> None:
-    """Assert charm-a has its own HTTPRoute."""
-    juju.wait(lambda _: helpers.httproute_exists(juju.model, CHARM_A), timeout=300, delay=5)
+@then("an HTTPRoute exists for productpage")
+def httproute_exists_productpage(juju: Juju) -> None:
+    """Assert productpage has its own HTTPRoute."""
+    juju.wait(lambda _: helpers.httproute_exists(juju.model, PRODUCTPAGE), timeout=300, delay=5)
 
 
-@then("an HTTPRoute exists for charm-b")
-def httproute_exists_b(juju: Juju) -> None:
-    """Assert charm-b has its own HTTPRoute."""
-    juju.wait(lambda _: helpers.httproute_exists(juju.model, CHARM_B), timeout=300, delay=5)
+@then("an HTTPRoute exists for productpage-b")
+def httproute_exists_productpage_b(juju: Juju) -> None:
+    """Assert productpage-b has its own HTTPRoute."""
+    juju.wait(lambda _: helpers.httproute_exists(juju.model, PRODUCTPAGE_B), timeout=300, delay=5)

@@ -15,9 +15,10 @@ container: the control plane reconciles these objects into running Envoy proxies
 # Lightkube generic resource types (create_namespaced_resource) lack proper type stubs.
 
 import logging
-from typing import Dict, List, Optional, Tuple
+from typing import Optional
 from urllib.parse import urlparse
 
+import httpx
 import ops
 from canonical_service_mesh.k8s.resource_manager import (
     KubernetesResourceManager,
@@ -75,9 +76,6 @@ GATEWAY_CLASS_NAME = "envoy"
 ENVOY_BACKEND_GROUP = "gateway.envoyproxy.io"
 ENVOY_BACKEND_KIND = "Backend"
 
-INGRESS_RELATION = "ingress"
-FORWARD_AUTH_RELATION = "forward-auth"
-
 GATEWAY_SCOPE = "gateway"
 HTTPROUTE_SCOPE = "httproute"
 SECURITY_POLICY_SCOPE = "security-policy"
@@ -98,8 +96,8 @@ class EnvoyIngressCharm(ops.CharmBase):
         self._lightkube_field_manager = self.app.name
         self._lightkube_client: Optional[Client] = None
 
-        self.ingress = IngressPerAppProvider(self, relation_name=INGRESS_RELATION)
-        self.forward_auth = ForwardAuthRequirer(self)
+        self.ingress = IngressPerAppProvider(self, relation_name="ingress")
+        self.forward_auth = ForwardAuthRequirer(self, relation_name="forward-auth")
         self.gateway_metadata = GatewayMetadataProvider(
             self, relation_name="gateway-metadata"
         )
@@ -124,12 +122,13 @@ class EnvoyIngressCharm(ops.CharmBase):
             self.on["gateway-metadata"].relation_changed, self._reconcile
         )
 
-    # ---- Properties ----
-
     @property
     def _certificate_request(self) -> CertificateRequestAttributes:
+        # No common_name: the spec requires the CN to match a SAN, and the service FQDN can
+        # exceed the 64-char X.509 CN limit under long (test) model names. The host goes in
+        # the SANs, where TLS clients actually validate the served cert.
         host = self._external_hostname or f"{self.app.name}.{self.model.name}.svc.cluster.local"
-        return CertificateRequestAttributes(common_name=host, sans_dns=[host])
+        return CertificateRequestAttributes(sans_dns=[host])
 
     @property
     def lightkube_client(self) -> Client:
@@ -171,8 +170,6 @@ class EnvoyIngressCharm(ops.CharmBase):
                 return False
             raise
 
-    # ---- Lifecycle ----
-
     def _reconcile(self, _event: ops.EventBase):
         """Reconcile the whole desired state of the charm.
 
@@ -204,7 +201,7 @@ class EnvoyIngressCharm(ops.CharmBase):
         """Evaluate current state and add unit statuses."""
         if not self._trusted:
             event.add_status(
-                ops.BlockedStatus(f"Trust not granted — run 'juju trust {self.app.name}'")
+                ops.BlockedStatus(f"Trust not granted. Run 'juju trust {self.app.name}'")
             )
             return
         if not self._gateway_class_accepted():
@@ -236,8 +233,6 @@ class EnvoyIngressCharm(ops.CharmBase):
             self._tls_secret_krm(),
         ):
             krm.delete(ignore_missing=True)
-
-    # ---- Reconcile steps ----
 
     def _reconcile_tls_secret(self):
         """Mirror the relation certificate into a kubernetes.io/tls Secret."""
@@ -315,8 +310,6 @@ class EnvoyIngressCharm(ops.CharmBase):
         backend_krm.reconcile([backend])
         sp_krm.reconcile([policy])
 
-    # ---- Publish ----
-
     def _publish_ingress_urls(self):
         """Publish the generated ingress URL back to each (non-conflicting) requirer."""
         conflicting = self._conflicting_apps()
@@ -338,9 +331,7 @@ class EnvoyIngressCharm(ops.CharmBase):
         )
         self.gateway_metadata.publish_metadata(metadata)
 
-    # ---- Construct helpers ----
-
-    def _construct_httproutes(self, app_name: str, data) -> List[HTTPRoute]:
+    def _construct_httproutes(self, app_name: str, data) -> list[HTTPRoute]:
         """Build the HTTPRoute(s) routing the app's default path to its backend."""
         # Route lives in the requirer's own namespace, co-located with the Service it
         # references, so the backendRef needs no ReferenceGrant for cross-model requirers;
@@ -399,7 +390,7 @@ class EnvoyIngressCharm(ops.CharmBase):
         return [backend_route, redirect_route]
 
     def _httproute(
-        self, name: str, namespace: str, listener: str, rules: List[HTTPRouteRule]
+        self, name: str, namespace: str, listener: str, rules: list[HTTPRouteRule]
     ) -> HTTPRoute:
         """Build an HTTPRoute, in the given namespace, attached to one Gateway listener."""
         spec = HTTPRouteResourceSpec(
@@ -417,7 +408,7 @@ class EnvoyIngressCharm(ops.CharmBase):
             spec=spec.model_dump(by_alias=True, exclude_none=True),
         )
 
-    def _construct_ext_auth(self, decisions_address: str) -> Tuple[Backend, SecurityPolicy]:
+    def _construct_ext_auth(self, decisions_address: str) -> tuple[Backend, SecurityPolicy]:
         """Build the ext-auth Backend + SecurityPolicy from the provider's decisions URL."""
         # decisions_address is a URL (e.g. http://oauth2-proxy.iam.svc:4180/auth), not a
         # Service name, so its host/port go into an Envoy Gateway Backend (FQDN endpoint)
@@ -462,14 +453,15 @@ class EnvoyIngressCharm(ops.CharmBase):
         )
         return backend, policy
 
-    # ---- Discovery + routing helpers ----
-
     def _gateway_class_accepted(self) -> bool:
         """Return True when the controller has marked the GatewayClass Accepted=True."""
         try:
             gc = self.lightkube_client.get(GatewayClass, name=GATEWAY_CLASS_NAME)
-        except ApiError as e:
-            if e.status.code == 404:
+        except httpx.HTTPStatusError as e:
+            # A 404 means either the GatewayClass is absent or its CRD is not yet
+            # installed; lightkube raises a raw HTTPStatusError (not ApiError) for the
+            # latter because a missing CRD returns a non-Status 404 body.
+            if e.response.status_code == 404:
                 return False
             raise
         status = (gc.status or {}) if hasattr(gc, "status") else {}
@@ -478,10 +470,10 @@ class EnvoyIngressCharm(ops.CharmBase):
             c.get("type") == "Accepted" and c.get("status") == "True" for c in conditions
         )
 
-    def _ready_ingress_data(self) -> List[Tuple[ops.Relation, object]]:
+    def _ready_ingress_data(self) -> list[tuple[ops.Relation, object]]:
         """Return [(relation, IngressRequirerData)] for every ready ingress relation."""
         ready = []
-        for relation in self.model.relations[INGRESS_RELATION]:
+        for relation in self.model.relations["ingress"]:
             if not self.ingress.is_ready(relation):
                 continue
             ready.append((relation, self.ingress.get_data(relation)))
@@ -491,7 +483,7 @@ class EnvoyIngressCharm(ops.CharmBase):
         """Return the set of requirer app names whose route path collides with another app."""
         # Different apps that generate an identical default path conflict; every app
         # sharing a contested path is dropped so no requirer silently hijacks another's route.
-        path_to_apps: Dict[str, set] = {}
+        path_to_apps: dict[str, set] = {}
         for relation, data in self._ready_ingress_data():
             path = self._route_path(data.app.name, data.app.model)
             path_to_apps.setdefault(path, set()).add(relation.app.name)
@@ -529,8 +521,6 @@ class EnvoyIngressCharm(ops.CharmBase):
             if addr.get("value"):
                 return addr["value"]
         return None
-
-    # ---- KRM factories ----
 
     def _krm(self, scope: str, resource_type) -> KubernetesResourceManager:
         return KubernetesResourceManager(
