@@ -35,6 +35,17 @@ def test_blocked_without_trust(ctx, mock_lightkube_client):
     )
 
 
+def test_invalid_log_level_falls_back_to_default(ctx, krm_mocks):
+    # GIVEN a log-level outside the accepted enum
+    # WHEN the config is rendered
+    with ctx(ctx.on.config_changed(), make_state(config={"log-level": "verbose"})) as mgr:
+        # THEN the bad value never reaches the controller's -logLevel flag; info is used
+        assert mgr.charm._log_level == "info"
+    # AND the unit stays active rather than blocking on the typo
+    state_out = ctx.run(ctx.on.config_changed(), make_state(config={"log-level": "verbose"}))
+    assert state_out.unit_status == ops.ActiveStatus()
+
+
 def test_waiting_without_pebble(ctx):
     # GIVEN the workload container is not yet reachable
     # WHEN the charm reconciles
@@ -180,7 +191,25 @@ def test_remove_keeps_webhook_on_scale_down(ctx):
     webhook.return_value.delete.assert_not_called()
 
 
-def test_certificate_request_cn_within_x509_limit(ctx):
+@pytest.mark.parametrize(
+    "ref, expected",
+    [
+        # Normal tagged reference -> the tag is the version.
+        ("docker.io/envoyproxy/ai-gateway-controller:v0.6.0", "v0.6.0"),
+        # Registry with a port: the host ':port' must not be mistaken for a tag.
+        ("registry.example.com:5000/ns/ai-gateway-controller:1.2.3", "1.2.3"),
+        # Digest-pinned, no tag: report nothing rather than fabricate a version.
+        ("docker.io/envoyproxy/ai-gateway-controller@sha256:" + "a" * 64, ""),
+    ],
+)
+def test_workload_version_from_image_tag(ctx, ref, expected):
+    # The controller binary self-reports no version, so the deployed image tag is the
+    # source of truth. A digest-pinned/untagged image must not invent a version.
+    with ctx(ctx.on.config_changed(), make_state(ai_gateway_image=ref)) as mgr:
+        assert mgr.charm._workload_version == expected
+
+
+def test_certificate_request_omits_cn_and_covers_fqdn_san(ctx):
     # GIVEN a long Juju model name that pushes the service FQDN past the 64-char X.509
     # CN limit (regression: the charm crashed in certificates-relation-created when the
     # FQDN was used as the CN under pytest-jubilant's long generated model names).
@@ -189,9 +218,8 @@ def test_certificate_request_cn_within_x509_limit(ctx):
     with ctx(ctx.on.config_changed(), state) as mgr:
         request = mgr.charm._certificate_request
         fqdn = mgr.charm._service_fqdn
-    # THEN the CN stays within the X.509 limit and the FQDN is still a SAN (where the
-    # API server actually validates the webhook cert).
+    # THEN no CN is set (the spec requires CN to match a SAN, so we omit it) and the FQDN
+    # is a SAN, where the API server actually validates the webhook cert.
     assert len(fqdn) > 64
-    assert len(request.common_name) <= 64
-    assert request.common_name == "envoy-ai-controller-k8s"
+    assert not request.common_name
     assert fqdn in request.sans_dns

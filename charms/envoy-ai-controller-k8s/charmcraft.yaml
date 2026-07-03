@@ -13,17 +13,15 @@ description: |
   xDS fine-tuning to it over the envoy-extension-server relation.
 
 links:
-  documentation: https://discourse.charmhub.io/t/envoy-ai-controller-k8s-docs-index
-  website: https://charmhub.io/envoy-ai-controller-k8s
-  source: https://github.com/canonical/envoy-ai-controller-k8s-operator
-  issues: https://github.com/canonical/envoy-ai-controller-k8s-operator/issues
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
 
 assumes:
   - k8s-api
   - juju >= 3.6
 
 platforms:
-  ubuntu@24.04:amd64:
+  ubuntu@26.04:amd64:
 
 containers:
   ai-gateway:
@@ -36,7 +34,8 @@ config:
       default: "info"
       description: |
         Logging level for the Envoy AI Gateway controller.
-        Valid values: debug, info, warn, error.
+        Valid values: debug, info, warn, error. Any other value logs a warning and
+        falls back to the default rather than being passed to the controller.
 
 provides:
   envoy-extension-server:
@@ -61,6 +60,12 @@ resources:
     type: oci-image
     description: Envoy AI Gateway controller OCI image
     upstream-source: docker.io/envoyproxy/ai-gateway-controller:v0.6.0
+  ai-extproc-image:
+    type: oci-image
+    description: |
+      Envoy AI Gateway ExtProc sidecar OCI image. The controller injects this into
+      Envoy Gateway data-plane pods; keep its version aligned with ai-gateway-image.
+    upstream-source: docker.io/envoyproxy/ai-gateway-extproc:v0.6.0
 
 parts:
   charm:

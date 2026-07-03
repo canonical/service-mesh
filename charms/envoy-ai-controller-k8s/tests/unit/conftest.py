@@ -1,6 +1,8 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -14,6 +16,20 @@ from charm import EnvoyAiControllerCharm
 CA_PEM = "CAPEM"
 CERT_PEM = "CERTPEM"
 KEY_PEM = "KEYPEM"
+
+DEFAULT_AI_GATEWAY_IMAGE = "docker.io/envoyproxy/ai-gateway-controller:v0.6.0"
+DEFAULT_AI_EXTPROC_IMAGE = "docker.io/envoyproxy/ai-gateway-extproc:v0.6.0"
+
+# oci-image resources surface to the charm as a YAML file holding the image reference
+# under `registrypath`. Materialise those files once so make_state can hand scenario a
+# real resource path (scenario refuses to fetch a resource absent from State).
+_RES_DIR = Path(tempfile.mkdtemp())
+
+
+def _image_resource(name: str, ref: str) -> scenario.Resource:
+    path = _RES_DIR / f"{name}-{abs(hash(ref))}.yaml"
+    path.write_text(f"registrypath: {ref}\n")
+    return scenario.Resource(name=name, path=path)
 
 # Minimal plan so scenario's consistency checker accepts a 'readiness' check status
 # on the input container (a CheckInfo requires the check to exist in the plan).
@@ -105,6 +121,7 @@ def make_state(
     controller_checks=frozenset(),
     planned_units: int = 1,
     leader: bool = True,
+    ai_gateway_image: str = DEFAULT_AI_GATEWAY_IMAGE,
 ) -> scenario.State:
     """Build a State for the AI controller charm with sensible defaults."""
     relations = set()
@@ -130,4 +147,8 @@ def make_state(
         relations=relations,
         containers=containers,
         config=config or {},
+        resources={
+            _image_resource("ai-gateway-image", ai_gateway_image),
+            _image_resource("ai-extproc-image", DEFAULT_AI_EXTPROC_IMAGE),
+        },
     )

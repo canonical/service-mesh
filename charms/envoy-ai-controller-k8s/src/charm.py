@@ -10,10 +10,12 @@
 
 import base64
 import logging
+import re
 from pathlib import Path
 from typing import Optional
 
 import ops
+import yaml
 from canonical_service_mesh.interfaces.envoy_extension_server import ExtensionServerProvider
 from canonical_service_mesh.k8s.resource_manager import (
     KubernetesResourceManager,
@@ -24,6 +26,7 @@ from charmlibs.interfaces.tls_certificates import (
     TLSCertificatesRequiresV4,
 )
 from lightkube import ApiError, Client
+from lightkube.codecs import load_all_yaml
 from lightkube.models.admissionregistration_v1 import (
     MutatingWebhook,
     RuleWithOperations,
@@ -49,12 +52,6 @@ CRD_SCOPES = {AI_CRD_SCOPE: "ai-gateway"}
 
 CONTAINER = "ai-gateway"
 
-# Upstream component version baked into this charm revision. AI Gateway v0.6.x pairs
-# with Envoy Gateway v1.7.x (the version envoy-controller-k8s ships); see the upstream
-# compatibility matrix at aigateway.envoyproxy.io/docs/compatibility.
-AI_GATEWAY_VERSION = "0.6.0"
-EXTPROC_IMAGE = f"docker.io/envoyproxy/ai-gateway-extproc:v{AI_GATEWAY_VERSION}"
-
 # Extension Server gRPC endpoint (Envoy Gateway's Extension Server default). Also serves
 # the gRPC health service, so the Pebble check probes this port over TCP.
 EXTENSION_SERVER_PORT = 1063
@@ -78,11 +75,24 @@ WEBHOOK_CONFIG_NAME = "envoy-ai-gateway-gateway-pod-mutator"
 
 COMMAND = "/app"
 
+# Accepted values for the log-level config. Anything else falls back to the default
+# rather than reaching the controller's -logLevel flag (an invalid value would fail to
+# start with an opaque error).
+DEFAULT_LOG_LEVEL = "info"
+VALID_LOG_LEVELS = frozenset({"debug", "info", "warn", "error"})
+
+# Docker/distribution tag grammar: a word char followed by up to 127 word/dot/dash
+# chars, ASCII-only. Used to pull the version tag out of the controller's image
+# reference. The controller binary self-reports no version (its image sets no OCI
+# version label and cmd/controller wires in no version flag or endpoint), so the tag
+# of the image the pod runs is the only source of truth for the deployed version.
+# This is the tag grammar only, not the full reference grammar — enough to validate a
+# candidate tag without pulling in a reference-parsing dependency.
+_IMAGE_TAG = re.compile(r"[\w][\w.-]{0,127}", re.ASCII)
+
 
 def _load_crd_yaml(directory: str) -> list:
     """Load all CRD YAML documents from crds/<directory>/*.yaml."""
-    from lightkube.codecs import load_all_yaml
-
     crd_dir = CRDS_PATH / directory
     if not crd_dir.exists():
         return []
@@ -140,7 +150,30 @@ class EnvoyAiControllerCharm(ops.CharmBase):
 
     @property
     def _log_level(self) -> str:
-        return str(self.config["log-level"])
+        level = str(self.config["log-level"])
+        if level not in VALID_LOG_LEVELS:
+            logger.warning("Invalid log-level %r; falling back to %r", level, DEFAULT_LOG_LEVEL)
+            return DEFAULT_LOG_LEVEL
+        return level
+
+    def _image_ref(self, resource: str) -> Optional[str]:
+        """Return the OCI image reference for an oci-image resource, or None if absent."""
+        try:
+            path = self.model.resources.fetch(resource)
+        except (ops.ModelError, NameError):
+            return None
+        data = yaml.safe_load(Path(path).read_text())
+        return data.get("registrypath") if data else None
+
+    @property
+    def _workload_version(self) -> str:
+        """Deployed controller version from its OCI image tag, or "" if untagged."""
+        ref = self._image_ref("ai-gateway-image")
+        if not ref:
+            return ""
+        last = ref.split("@", 1)[0].rsplit("/", 1)[-1]
+        _, sep, tag = last.partition(":")
+        return tag if sep and _IMAGE_TAG.fullmatch(tag) else ""
 
     @property
     def _service_fqdn(self) -> str:
@@ -154,11 +187,10 @@ class EnvoyAiControllerCharm(ops.CharmBase):
     def _certificate_request(self) -> CertificateRequestAttributes:
         """Cert request covering the names the API server may dial the webhook by."""
         app, model = self.app.name, self.model.name
-        # CN is capped at 64 chars by X.509; the service FQDN can exceed that with a long
-        # model name, so use the app name as CN and put every dial-able name in the SANs
-        # (which the API server validates against anyway).
+        # No CN: the spec requires the CN to match one of the SANs, and the service FQDN
+        # can exceed the 64-char X.509 CN limit under long model names. Every dial-able
+        # name goes in the SANs, which is where the API server validates the cert anyway.
         return CertificateRequestAttributes(
-            common_name=app,
             sans_dns=frozenset(
                 {
                     app,
@@ -208,7 +240,7 @@ class EnvoyAiControllerCharm(ops.CharmBase):
           6. Publish the Extension Server address over the relation (the AI on/off switch).
           7. Reconcile Pebble services — add the controller layer and replan.
         """
-        self.unit.set_workload_version(AI_GATEWAY_VERSION)
+        self.unit.set_workload_version(self._workload_version)
 
         # Step 1: preconditions
         if not self._trusted:
@@ -243,6 +275,11 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             },
         )
 
+        # Without the envoy-extension-server relation there is nothing to reconcile.
+        if not self.model.get_relation("envoy-extension-server"):
+            logger.info("envoy-extension-server relation absent; skipping reconciliation")
+            return
+
         # Step 4: expose the controller's ports on Juju's application Service
         self.unit.set_ports(EXTENSION_SERVER_PORT, WEBHOOK_PORT, METRICS_PORT)
         # Step 5: ExtProc admission webhook (issuing CA as caBundle)
@@ -257,6 +294,10 @@ class EnvoyAiControllerCharm(ops.CharmBase):
 
     def _on_collect_status(self, event: ops.CollectStatusEvent):
         """Evaluate current state and add unit statuses."""
+        # Each check returns after adding its status so the check order encodes priority.
+        # ops would otherwise pick by its own ladder (Maintenance > Waiting), which would
+        # mask specific reasons like "Waiting for TLS certificate" behind "Setting up".
+        # The returns also guard: get_plan()/get_checks() below raise without a connection.
         if not self._trusted:
             event.add_status(
                 ops.BlockedStatus(f"Trust not granted. Run 'juju trust {self.app.name}'")
@@ -302,6 +343,10 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             logger.info("Unit removed but application remains; leaving resources in place")
             return
         self._webhook_krm().delete(ignore_missing=True)
+        # CRDs are intentionally NOT deleted here (per spec). They are cluster-scoped and
+        # may be shared with other Envoy AI Gateway installs; deleting them would cascade
+        # to every AI Gateway custom resource in the cluster, including ones this app does
+        # not own. Leave them for an operator to remove deliberately.
 
     # ---- Reconcile steps ----
 
@@ -405,7 +450,6 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         args = [
             COMMAND,
             f"-logLevel={self._log_level}",
-            f"--extProcImage={EXTPROC_IMAGE}",
             f"--tlsCertDir={CERT_DIR}",
             f"--tlsCertName={TLS_CERT_NAME}",
             f"--tlsKeyName={TLS_KEY_NAME}",
@@ -413,6 +457,13 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             "--enableLeaderElection=true",
             "--rootPrefix=/",
         ]
+        # The controller stamps this ExtProc sidecar image into Envoy Gateway data-plane
+        # pods. Sourced from the swappable oci-image resource so operators can pin it;
+        # omitted when unset so the controller falls back to its built-in default rather
+        # than receiving an empty value.
+        extproc_image = self._image_ref("ai-extproc-image")
+        if extproc_image:
+            args.append(f"--extProcImage={extproc_image}")
         return Layer(
             {
                 "summary": "Envoy AI Gateway",
@@ -466,7 +517,7 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         try:
             checks = container.get_checks(level=ops.pebble.CheckLevel.READY)
         except ops.pebble.Error:
-            return True
+            return False
         return all(c.status == ops.pebble.CheckStatus.UP for c in checks.values())
 
     # ---- KRM factories ----
