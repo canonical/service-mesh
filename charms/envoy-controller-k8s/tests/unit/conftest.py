@@ -3,6 +3,8 @@
 
 import base64
 import json
+import tempfile
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
@@ -34,6 +36,19 @@ _GATEWAY_LAYER = ops.pebble.Layer(
 CA_PEM = "CAPEM"
 CERT_PEM = "CERTPEM"
 KEY_PEM = "KEYPEM"
+
+DEFAULT_ENVOY_GATEWAY_IMAGE = "docker.io/envoyproxy/gateway:v1.7.0"
+
+# oci-image resources surface to the charm as a YAML file holding the image reference
+# under `registrypath`. Materialise those files once so make_state can hand scenario a
+# real resource path (scenario refuses to fetch a resource absent from State).
+_RES_DIR = Path(tempfile.mkdtemp())
+
+
+def _image_resource(name: str, ref: str) -> scenario.Resource:
+    path = _RES_DIR / f"{name}-{abs(hash(ref))}.yaml"
+    path.write_text(f"registrypath: {ref}\n")
+    return scenario.Resource(name=name, path=path)
 
 # The certgen-issued control-plane Secret, as lightkube returns it: a TLS Secret
 # named "envoy-gateway" whose data values are base64-encoded PEM (Secret wire format).
@@ -115,6 +130,7 @@ def make_state(
     extension_server: bool = False,
     extension_server_fqdn: str | None = "ai.envoy-test.svc.cluster.local",
     extension_server_port: str | None = "1063",
+    envoy_gateway_image: str = DEFAULT_ENVOY_GATEWAY_IMAGE,
 ) -> scenario.State:
     """Build a State for the controller charm with sensible defaults.
 
@@ -174,4 +190,5 @@ def make_state(
         relations=relations,
         containers=containers,
         config=config or {},
+        resources={_image_resource("envoy-gateway-image", envoy_gateway_image)},
     )

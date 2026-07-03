@@ -137,6 +137,35 @@ def test_maintenance_while_crds_not_established(ctx, krm_mocks):
     assert state_out.unit_status == ops.MaintenanceStatus("Setting up Envoy Gateway control plane")
 
 
+@pytest.mark.parametrize(
+    "ref, expected",
+    [
+        # Normal tagged reference -> the tag is the version.
+        ("docker.io/envoyproxy/gateway:v1.7.0", "v1.7.0"),
+        # Registry with a port: the host ':port' must not be mistaken for a tag.
+        ("registry.example.com:5000/ns/gateway:1.2.3", "1.2.3"),
+        # Digest-pinned, no tag: report nothing rather than fabricate a version.
+        ("docker.io/envoyproxy/gateway@sha256:" + "a" * 64, ""),
+    ],
+)
+def test_workload_version_from_image_tag(ctx, ref, expected):
+    # The controller binary self-reports no version, so the deployed image tag is the
+    # source of truth. A digest-pinned/untagged image must not invent a version.
+    with ctx(ctx.on.config_changed(), make_state(envoy_gateway_image=ref)) as mgr:
+        assert mgr.charm._workload_version == expected
+
+
+def test_invalid_log_level_falls_back_to_default(ctx, krm_mocks):
+    # GIVEN a log-level outside the accepted enum
+    # WHEN the config is rendered
+    with ctx(ctx.on.config_changed(), make_state(config={"log-level": "verbose"})) as mgr:
+        # THEN the bad value never reaches the controller; the default is used instead
+        assert mgr.charm._log_level == "info"
+    # AND the unit stays active rather than blocking on the typo
+    state_out = ctx.run(ctx.on.config_changed(), make_state(config={"log-level": "verbose"}))
+    assert state_out.unit_status == ops.ActiveStatus()
+
+
 def test_remove_deletes_cluster_resources_only_when_last_unit_leaves(ctx):
     # GIVEN this is the final unit of the application
     with patch.object(

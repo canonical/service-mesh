@@ -10,10 +10,8 @@ description: |
   including Gateway API CRDs and Gateway Inference Extension CRDs.
 
 links:
-  documentation: https://discourse.charmhub.io/t/envoy-controller-k8s-docs-index
-  website: https://charmhub.io/envoy-controller-k8s
-  source: https://github.com/canonical/envoy-controller-k8s-operator
-  issues: https://github.com/canonical/envoy-controller-k8s-operator/issues
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
 
 assumes:
   - k8s-api
@@ -37,7 +35,8 @@ config:
       default: "info"
       description: |
         Logging level for the Envoy Gateway controller.
-        Valid values: debug, info, warn, error.
+        Valid values: debug, info, warn, error. Any other value logs a warning and
+        falls back to the default rather than being passed to the controller.
 
 provides:
   grafana-dashboard:

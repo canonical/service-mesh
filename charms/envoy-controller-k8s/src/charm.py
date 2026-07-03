@@ -11,6 +11,7 @@
 import base64
 import hashlib
 import logging
+import re
 from pathlib import Path
 from typing import Any, Optional
 from urllib.parse import urlparse
@@ -38,6 +39,7 @@ from charmlibs.interfaces.otlp import OtlpRequirer, RuleStore
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from cosl.juju_topology import JujuTopology
 from lightkube import ApiError, Client
+from lightkube.codecs import load_all_yaml
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
@@ -94,19 +96,26 @@ WASM_PORT = 18002
 # certgen, masking a broken trust chain.
 CERTGEN_SECRETS = ("envoy", "envoy-gateway", "envoy-rate-limit", "envoy-oidc-hmac")
 
-# Upstream component versions baked into this charm revision.
-# The charm track mirrors the Envoy Gateway minor version (e.g. 1.6/stable).
 # Sequential minor-version upgrades on upgrade-charm are not yet enforced; see
 # https://github.com/canonical/service-mesh/issues/112
-ENVOY_GATEWAY_VERSION = "1.7.0"
-GATEWAY_API_VERSION = "1.4.1"
-GIE_VERSION = "1.3.0"
+
+# Accepted values for the log-level config. Anything else falls back to the default
+# rather than reaching the controller's config (an invalid value would crash-loop the
+# controller with an opaque error).
+DEFAULT_LOG_LEVEL = "info"
+VALID_LOG_LEVELS = frozenset({"debug", "info", "warn", "error"})
+
+# Docker/distribution tag grammar: a word char followed by up to 127 word/dot/dash
+# chars, ASCII-only. Used to pull the version tag out of the controller's image
+# reference. The controller binary self-reports no version, so the tag of the image the
+# pod runs is the only source of truth for the deployed version. This is the tag grammar
+# only, not the full reference grammar — enough to validate a candidate tag without
+# pulling in a reference-parsing dependency.
+_IMAGE_TAG = re.compile(r"[\w][\w.-]{0,127}", re.ASCII)
 
 
 def _load_crd_yaml(directory: str) -> list:
     """Load all CRD YAML documents from crds/<directory>/*.yaml."""
-    from lightkube.codecs import load_all_yaml
-
     crd_dir = CRDS_PATH / directory
     if not crd_dir.exists():
         return []
@@ -169,7 +178,30 @@ class EnvoyControllerCharm(ops.CharmBase):
 
     @property
     def _log_level(self) -> str:
-        return str(self.config["log-level"])
+        level = str(self.config["log-level"])
+        if level not in VALID_LOG_LEVELS:
+            logger.warning("Invalid log-level %r; falling back to %r", level, DEFAULT_LOG_LEVEL)
+            return DEFAULT_LOG_LEVEL
+        return level
+
+    def _image_ref(self, resource: str) -> Optional[str]:
+        """Return the OCI image reference for an oci-image resource, or None if absent."""
+        try:
+            path = self.model.resources.fetch(resource)
+        except (ops.ModelError, NameError):
+            return None
+        data = yaml.safe_load(Path(path).read_text())
+        return data.get("registrypath") if data else None
+
+    @property
+    def _workload_version(self) -> str:
+        """Deployed controller version from its OCI image tag, or "" if untagged."""
+        ref = self._image_ref("envoy-gateway-image")
+        if not ref:
+            return ""
+        last = ref.split("@", 1)[0].rsplit("/", 1)[-1]
+        _, sep, tag = last.partition(":")
+        return tag if sep and _IMAGE_TAG.fullmatch(tag) else ""
 
     @property
     def _otlp_endpoint(self) -> Optional[str]:
@@ -246,7 +278,7 @@ class EnvoyControllerCharm(ops.CharmBase):
           8. Reconcile Pebble services — add the gateway layer and replan.
         """
         # Step 0: observability + identity + workload version — no cluster access needed
-        self.unit.set_workload_version(ENVOY_GATEWAY_VERSION)
+        self.unit.set_workload_version(self._workload_version)
         self.grafana_dashboards.update_dashboards()
         self.otlp.publish()
         # Advertise our control-plane identity so a related extension server can gate
@@ -363,14 +395,13 @@ class EnvoyControllerCharm(ops.CharmBase):
         key_pem = base64.b64decode(secret.data["tls.key"]).decode()
         ca_pem = base64.b64decode(secret.data["ca.crt"]).decode()
 
-        self._push_files(
-            GATEWAY_CONTAINER,
-            {
-                "/certs/tls.crt": cert_pem,
-                "/certs/tls.key": key_pem,
-                "/certs/ca.crt": ca_pem,
-            },
-        )
+        container = self.unit.get_container(GATEWAY_CONTAINER)
+        if not container.can_connect():
+            return
+        container.push("/certs/tls.crt", cert_pem, make_dirs=True)
+        # The private key is restricted to owner read/write; the cert and CA are public.
+        container.push("/certs/tls.key", key_pem, make_dirs=True, permissions=0o600)
+        container.push("/certs/ca.crt", ca_pem, make_dirs=True)
 
     def _reconcile_control_plane_service(self):
         """Publish the Service clients use to reach the control plane."""
@@ -685,7 +716,7 @@ class EnvoyControllerCharm(ops.CharmBase):
         try:
             checks = container.get_checks(level=ops.pebble.CheckLevel.READY)
         except ops.pebble.Error:
-            return True
+            return False
         return all(c.status == ops.pebble.CheckStatus.UP for c in checks.values())
 
     def _crd_krm(self, scope: str) -> KubernetesResourceManager:
