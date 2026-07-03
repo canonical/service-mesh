@@ -66,13 +66,23 @@ def charm_is_active(juju: Juju) -> None:
 
 @then(parsers.parse('the charm is waiting with message "{message}"'))
 def charm_is_waiting_with_message(juju: Juju, message: str) -> None:
-    """Wait for waiting status and assert the workload message matches."""
-    juju.wait(lambda s: all_waiting(s, APP_NAME), timeout=1000, delay=5, successes=3)
-    assert juju.status().apps[APP_NAME].app_status.message == message
+    """Wait until the charm settles into waiting with the expected message."""
+    juju.wait(
+        lambda s: all_waiting(s, APP_NAME)
+        and s.apps[APP_NAME].app_status.message == message,
+        timeout=1000,
+        delay=5,
+        successes=3,
+    )
 
 
 @then(parsers.parse('the charm is blocked with message "{message}"'))
 def charm_is_blocked_with_message(juju: Juju, message: str) -> None:
-    """Wait for blocked status and assert the workload message matches."""
-    juju.wait(lambda s: all_blocked(s, APP_NAME), timeout=1000, delay=5, successes=3)
-    assert juju.status().apps[APP_NAME].app_status.message == message
+    """Wait until the charm settles into blocked with the expected message."""
+    juju.wait(
+        lambda s: all_blocked(s, APP_NAME)
+        and s.apps[APP_NAME].app_status.message == message,
+        timeout=1000,
+        delay=5,
+        successes=3,
+    )
