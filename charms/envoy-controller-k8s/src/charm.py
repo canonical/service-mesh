@@ -360,8 +360,6 @@ class EnvoyControllerCharm(ops.CharmBase):
                 if e.status.code != 404:
                     raise
 
-    # ---- Reconcile steps ----
-
     def _reconcile_crds(self):
         """Apply Gateway API + Envoy Gateway + GIE CRDs."""
         for scope, directory in CRD_SCOPES.items():
@@ -697,8 +695,6 @@ class EnvoyControllerCharm(ops.CharmBase):
                 },
             }
         )
-
-    # ---- Helpers ----
 
     def _push_files(self, container_name: str, files: dict[str, str]):
         """Push a map of path -> content into a container."""
