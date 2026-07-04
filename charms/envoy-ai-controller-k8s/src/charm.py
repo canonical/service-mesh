@@ -271,9 +271,16 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             },
         )
 
-        # Without the envoy-extension-server relation there is nothing to reconcile.
-        if not self.model.get_relation("envoy-extension-server"):
-            logger.info("envoy-extension-server relation absent; skipping reconciliation")
+        # Without an active envoy-extension-server relation, tear down the ExtProc webhook.
+        # Leaving it in place would keep intercepting Envoy Gateway data-plane pod CREATEs
+        # against a Service the API server can no longer usefully reach — either injecting
+        # against a stale controller or, under failurePolicy=Fail, blocking pod creation.
+        # `.active` catches the relation-broken hook, where get_relation() still returns
+        # the departing relation object.
+        relation = self.model.get_relation("envoy-extension-server")
+        if not relation or not relation.active:
+            logger.info("envoy-extension-server relation absent; removing ExtProc webhook")
+            self._webhook_krm().reconcile([])
             return
 
         # Step 4: expose the controller's ports on Juju's application Service

@@ -191,6 +191,22 @@ def test_remove_keeps_webhook_on_scale_down(ctx):
     webhook.return_value.delete.assert_not_called()
 
 
+def test_webhook_removed_on_extension_server_relation_broken(ctx, krm_mocks):
+    # Regression: without teardown on relation-broken, the MutatingWebhookConfiguration
+    # would linger and keep intercepting Envoy Gateway data-plane pod CREATEs against a
+    # Service with no useful backend (stale controller, or failurePolicy=Fail blocking
+    # pod creation outright).
+    ext_server = scenario.Relation(
+        "envoy-extension-server", interface="envoy_extension_server"
+    )
+    state = make_state(extension_server=False)
+    state = dataclasses.replace(state, relations=state.relations | {ext_server})
+    # WHEN the envoy-extension-server relation breaks
+    ctx.run(ctx.on.relation_broken(ext_server), state)
+    # THEN the ExtProc webhook is reconciled to the empty set (idempotent delete)
+    krm_mocks.webhook.reconcile.assert_called_once_with([])
+
+
 @pytest.mark.parametrize(
     "ref, expected",
     [
