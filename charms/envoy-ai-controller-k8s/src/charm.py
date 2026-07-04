@@ -136,8 +136,6 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             self.on["envoy-extension-server"].relation_broken, self._reconcile
         )
 
-    # ---- Properties ----
-
     @property
     def lightkube_client(self) -> Client:
         """Return a lazily-initialised lightkube client for this charm."""
@@ -222,8 +220,6 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             if e.status.code in (401, 403):
                 return False
             raise
-
-    # ---- Lifecycle ----
 
     def _reconcile(self, _event: ops.EventBase):
         """Reconcile the entire state of the charm.
@@ -348,8 +344,6 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         # to every AI Gateway custom resource in the cluster, including ones this app does
         # not own. Leave them for an operator to remove deliberately.
 
-    # ---- Reconcile steps ----
-
     def _reconcile_crds(self):
         """Apply the aigateway.envoyproxy.io CRDs and wait for Established."""
         # The controller indexes the v1beta1 schemas at startup and exits if they are
@@ -389,8 +383,6 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         container = self.unit.get_container(CONTAINER)
         container.add_layer(CONTAINER, self._construct_pebble_layer(), combine=True)
         container.replan()
-
-    # ---- Construct helpers ----
 
     def _webhook_cert(self) -> Optional[tuple[str, str, str]]:
         """Return the issued (ca, cert, key) PEMs, or None if not yet available."""
@@ -499,8 +491,6 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             }
         )
 
-    # ---- Helpers ----
-
     def _push_files(self, container_name: str, files: dict[str, str]):
         """Push a map of path -> content into a container."""
         container = self.unit.get_container(container_name)
@@ -519,8 +509,6 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         except ops.pebble.Error:
             return False
         return all(c.status == ops.pebble.CheckStatus.UP for c in checks.values())
-
-    # ---- KRM factories ----
 
     def _crd_krm(self, scope: str) -> KubernetesResourceManager:
         return KubernetesResourceManager(
