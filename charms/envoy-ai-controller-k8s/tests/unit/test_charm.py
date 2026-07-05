@@ -283,6 +283,53 @@ def test_default_tag_matches_charmcraft_upstream_source():
     assert tag == charm.DEFAULT_TAG
 
 
+def test_pebble_layer_sets_extproc_otlp_env_when_related(ctx):
+    # The relation endpoint is a base URL; the charm must append /v1/metrics because
+    # the signal-specific OTel env var is used verbatim by the SDK (no path appended,
+    # unlike the generic OTEL_EXPORTER_OTLP_ENDPOINT).
+    state = make_state(otlp_endpoint="http://collector:4318")
+    with ctx(ctx.on.config_changed(), state) as mgr:
+        command = mgr.charm._construct_pebble_layer().services["ai-gateway"].command
+    assert (
+        "--extProcExtraEnvVars=OTEL_EXPORTER_OTLP_METRICS_ENDPOINT="
+        "http://collector:4318/v1/metrics" in command
+    )
+
+
+def test_pebble_layer_has_no_otlp_env_without_relation(ctx):
+    with ctx(ctx.on.config_changed(), make_state()) as mgr:
+        command = mgr.charm._construct_pebble_layer().services["ai-gateway"].command
+    assert "OTEL_EXPORTER_OTLP_METRICS_ENDPOINT" not in command
+
+
+@pytest.mark.parametrize(
+    "value, expected_flag",
+    [
+        # Default mapping: without it gen_ai metrics carry no per-caller attribute.
+        (
+            "x-user-id:user.id",
+            "--metricsRequestHeaderAttributes=x-user-id:user.id",
+        ),
+        # Invalid value falls back to the default instead of reaching the controller,
+        # which would exit at startup on a bad mapping.
+        (
+            "not a mapping",
+            "--metricsRequestHeaderAttributes=x-user-id:user.id",
+        ),
+        # Empty disables header mapping entirely — the flag is omitted.
+        ("", None),
+    ],
+)
+def test_metrics_header_attributes_flag(ctx, value, expected_flag):
+    state = make_state(config={"metrics-request-header-attributes": value})
+    with ctx(ctx.on.config_changed(), state) as mgr:
+        command = mgr.charm._construct_pebble_layer().services["ai-gateway"].command
+    if expected_flag is None:
+        assert "--metricsRequestHeaderAttributes" not in command
+    else:
+        assert expected_flag in command
+
+
 def test_certificate_request_omits_cn_and_covers_fqdn_san(ctx):
     # GIVEN a long Juju model name that pushes the service FQDN past the 64-char X.509
     # CN limit (regression: the charm crashed in certificates-relation-created when the

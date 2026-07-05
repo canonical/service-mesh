@@ -19,6 +19,9 @@ pytest_plugins = [
     "tests.integration.steps.controllers_steps",
     "tests.integration.steps.scaling_steps",
     "tests.integration.steps.extproc_injection_steps",
+    "tests.integration.steps.otlp_steps",
+    "tests.integration.steps.grafana_steps",
+    "tests.integration.steps.metrics_endpoint_steps",
 ]
 
 

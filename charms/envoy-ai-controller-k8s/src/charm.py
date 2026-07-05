@@ -21,10 +21,14 @@ from canonical_service_mesh.k8s.resource_manager import (
     KubernetesResourceManager,
     create_charm_default_labels,
 )
+from charmlibs.interfaces.otlp import OtlpRequirer, RuleStore
 from charmlibs.interfaces.tls_certificates import (
     CertificateRequestAttributes,
     TLSCertificatesRequiresV4,
 )
+from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
+from cosl.juju_topology import JujuTopology
 from lightkube import ApiError, Client
 from lightkube.codecs import load_all_yaml
 from lightkube.models.admissionregistration_v1 import (
@@ -90,6 +94,15 @@ EXTPROC_REPO = "docker.io/envoyproxy/ai-gateway-extproc"
 DEFAULT_LOG_LEVEL = "info"
 VALID_LOG_LEVELS = frozenset({"debug", "info", "warn", "error"})
 
+# Default header->metric-attribute mapping for GenAI metrics. The upstream flag has no
+# default, and without it gen_ai.* metrics carry no per-caller attribute at all, so the
+# "users" breakdown in the LLM consumption dashboard would be empty.
+DEFAULT_METRICS_HEADER_ATTRIBUTES = "x-user-id:user.id"
+# One comma-separated "<header>:<attribute>" item (mirrors upstream
+# ParseRequestHeaderAttributeMapping). Validated charm-side because an invalid value
+# makes the controller exit at startup rather than log and continue.
+_HEADER_ATTRIBUTE_ITEM = re.compile(r"[^:\s]+:[^:\s]+", re.ASCII)
+
 # Docker/distribution tag grammar: a word char followed by up to 127 word/dot/dash
 # chars, ASCII-only. Used to pull the version tag out of the controller's image
 # reference. The controller binary self-reports no version (its image sets no OCI
@@ -132,6 +145,25 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         self._lightkube_field_manager = self.app.name
         self._lightkube_client: Optional[Client] = None
 
+        _rules = RuleStore(JujuTopology.from_charm(self)).add_promql_path(
+            SOURCE_PATH / "prometheus_alert_rules"
+        )
+        self.otlp = OtlpRequirer(
+            self,
+            relation_name="otlp",
+            # The ExtProc's OTel SDK (Go autoexport) defaults to http/protobuf, so ask
+            # the provider for its HTTP endpoint rather than steering the SDK to gRPC.
+            protocols=["http"],
+            telemetries=["metrics"],
+            rules=_rules,
+        )
+        self.grafana_dashboards = GrafanaDashboardProvider(self)
+        self._metrics_endpoint = MetricsEndpointProvider(
+            self,
+            jobs=[{"static_configs": [{"targets": [f"*:{METRICS_PORT}"]}]}],
+            alert_rules_path=str(SOURCE_PATH / "prometheus_alert_rules"),
+            refresh_event=[self.on.ai_gateway_pebble_ready],
+        )
         self.ext_server = ExtensionServerProvider(self)
         self.tls = TLSCertificatesRequiresV4(
             self,
@@ -146,6 +178,8 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         self.framework.observe(self.on.remove, self._on_remove)
         self.framework.observe(self.on.collect_unit_status, self._on_collect_status)
         self.framework.observe(self.on.ai_gateway_pebble_ready, self._reconcile)
+        self.framework.observe(self.on["otlp"].relation_changed, self._reconcile)
+        self.framework.observe(self.on["otlp"].relation_broken, self._reconcile)
         self.framework.observe(self.tls.on.certificate_available, self._reconcile)
         self.framework.observe(
             self.on["envoy-extension-server"].relation_changed, self._reconcile
@@ -210,6 +244,34 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         return f"{EXTPROC_REPO}:{self._workload_version}"
 
     @property
+    def _otlp_metrics_endpoint(self) -> Optional[str]:
+        """Full OTLP/HTTP metrics URL from the otlp relation, or None.
+
+        `OTEL_EXPORTER_OTLP_METRICS_ENDPOINT` is signal-specific, so per the OTel
+        spec the SDK uses it verbatim (no `/v1/metrics` appended, unlike the generic
+        `OTEL_EXPORTER_OTLP_ENDPOINT`). Signal-specific on purpose: the generic
+        variable would also switch on trace export in the ExtProc.
+        """
+        for ep in self.otlp.endpoints.values():
+            return f"{ep.endpoint.rstrip('/')}/v1/metrics"
+        return None
+
+    @property
+    def _metrics_header_attributes(self) -> str:
+        """Validated header:attribute CSV for GenAI metrics, or the default."""
+        raw = str(self.config["metrics-request-header-attributes"]).strip()
+        if not raw:
+            return ""
+        if all(_HEADER_ATTRIBUTE_ITEM.fullmatch(item.strip()) for item in raw.split(",")):
+            return raw
+        logger.warning(
+            "Invalid metrics-request-header-attributes %r; falling back to %r",
+            raw,
+            DEFAULT_METRICS_HEADER_ATTRIBUTES,
+        )
+        return DEFAULT_METRICS_HEADER_ATTRIBUTES
+
+    @property
     def _service_fqdn(self) -> str:
         """Cluster-internal FQDN of the app Service Juju manages for this charm."""
         # The extension-server gRPC endpoint and the ExtProc webhook are both reached
@@ -261,6 +323,8 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         """Reconcile the entire state of the charm.
 
         Steps:
+          0. Publish observability — Grafana dashboards and OTLP alert rules are pure
+             databag work, so they need none of the preconditions below.
           1. Check preconditions — trust and Pebble. Any unmet precondition halts
              reconciliation; status is set via _on_collect_status.
           2. Apply CRDs — the aigateway.envoyproxy.io schemas the controller indexes
@@ -273,6 +337,10 @@ class EnvoyAiControllerCharm(ops.CharmBase):
           7. Reconcile Pebble services — add the controller layer and replan.
         """
         self.unit.set_workload_version(self._workload_version)
+
+        # Step 0: observability databags
+        self.grafana_dashboards.update_dashboards()
+        self.otlp.publish()
 
         # Step 1: preconditions
         if not self._trusted:
@@ -497,6 +565,15 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         # explicitly so we never inherit the upstream binary's unpinned :latest
         # default, which is `dev`-versioned and mismatches a pinned controller.
         args.append(f"--extProcImage={self._extproc_image_ref}")
+        if header_attrs := self._metrics_header_attributes:
+            args.append(f"--metricsRequestHeaderAttributes={header_attrs}")
+        # Every injected ExtProc sidecar pushes its GenAI metrics to the related
+        # collector; setting the metrics endpoint env is what switches OTLP export on
+        # (its Prometheus admin endpoint is pod-local and nothing scrapes it).
+        if endpoint := self._otlp_metrics_endpoint:
+            args.append(
+                f"--extProcExtraEnvVars=OTEL_EXPORTER_OTLP_METRICS_ENDPOINT={endpoint}"
+            )
         return Layer(
             {
                 "summary": "Envoy AI Gateway",

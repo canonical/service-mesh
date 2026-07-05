@@ -1,0 +1,27 @@
+groups:
+  - name: EnvoyAiGatewayControllerRules
+    rules:
+      - alert: EnvoyAiGatewayControllerDown
+        expr: up == 0
+        for: 5m
+        labels:
+          severity: critical
+        annotations:
+          summary: "Envoy AI Gateway controller is down"
+          description: "The Envoy AI Gateway controller has been unreachable for more than 5 minutes; AI route changes will not be reconciled and new data-plane pods cannot have ExtProc sidecars injected."
+      - alert: EnvoyAiGatewayReconcileErrors
+        expr: rate(controller_runtime_reconcile_errors_total[5m]) > 0
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "Envoy AI Gateway controller reconcile errors"
+          description: "The Envoy AI Gateway controller has been reporting reconcile errors for more than 15 minutes; AIGatewayRoute/AIServiceBackend changes may not be applied."
+      - alert: EnvoyAiGatewayLLMErrorRate
+        expr: sum(rate(gen_ai_server_request_duration_count{error_type!=""}[5m])) / sum(rate(gen_ai_server_request_duration_count[5m])) > 0.05
+        for: 15m
+        labels:
+          severity: warning
+        annotations:
+          summary: "High LLM request error rate"
+          description: "More than 5% of LLM requests through the AI Gateway have been failing for 15 minutes."

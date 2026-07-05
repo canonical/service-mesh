@@ -1,6 +1,7 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import json
 import tempfile
 from pathlib import Path
 from types import SimpleNamespace
@@ -121,9 +122,29 @@ def make_state(
     planned_units: int = 1,
     leader: bool = True,
     ai_gateway_image: str = DEFAULT_AI_GATEWAY_IMAGE,
+    otlp_endpoint: str | None = None,
 ) -> scenario.State:
     """Build a State for the AI controller charm with sensible defaults."""
     relations = set()
+    if otlp_endpoint:
+        relations.add(
+            scenario.Relation(
+                "otlp",
+                interface="otlp",
+                remote_app_data={
+                    "endpoints": json.dumps(
+                        [
+                            {
+                                "endpoint": otlp_endpoint,
+                                "protocol": "http",
+                                "telemetries": ["metrics"],
+                                "insecure": True,
+                            }
+                        ]
+                    )
+                },
+            )
+        )
     if certificates:
         relations.add(scenario.Relation("certificates", interface="tls-certificates"))
     if extension_server:

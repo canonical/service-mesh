@@ -27,6 +27,12 @@ containers:
   ai-gateway:
     resource: ai-gateway-image
 
+charm-libs:
+  - lib: grafana_k8s.grafana_dashboard
+    version: "0"
+  - lib: prometheus_k8s.prometheus_scrape
+    version: "0"
+
 config:
   options:
     log-level:
@@ -43,8 +49,25 @@ config:
         OCI image reference for the ExtProc sidecar the controller injects into
         Envoy Gateway data-plane pods. Empty derives the reference from the
         ai-gateway-image resource tag against docker.io/envoyproxy/ai-gateway-extproc.
+    metrics-request-header-attributes:
+      type: string
+      default: "x-user-id:user.id"
+      description: |
+        Comma-separated header:attribute pairs mapped onto GenAI metrics as
+        metric attributes (e.g. "x-user-id:user.id"). An invalid value logs a
+        warning and falls back to the default. Empty disables header mapping.
 
 provides:
+  grafana-dashboard:
+    interface: grafana_dashboard
+    optional: true
+  metrics-endpoint:
+    interface: prometheus_scrape
+    optional: true
+    description: |
+      Prometheus scrape target for the controller's :8080/metrics endpoint.
+      Needed alongside otlp because the controller doesn't OTLP-export its
+      controller-runtime metrics.
   envoy-extension-server:
     interface: envoy_extension_server
     description: |
@@ -53,6 +76,13 @@ provides:
       is the AI on/off switch.
 
 requires:
+  otlp:
+    interface: otlp
+    optional: true
+    limit: 1
+    description: |
+      OTLP endpoint the injected ExtProc sidecars push GenAI metrics to.
+      Publishes alert/recording rules into the relation databag.
   certificates:
     interface: tls-certificates
     optional: false

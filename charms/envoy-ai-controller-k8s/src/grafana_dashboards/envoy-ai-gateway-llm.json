@@ -1,0 +1,765 @@
+{
+  "__inputs": [],
+  "__requires": [],
+  "description": "LLM consumption through the Envoy AI Gateway \u2014 token usage broken down by model, user, provider and token type, request/error rates, and GenAI latency (request duration, time to first token, time per output token). Metrics are gen_ai_* histograms pushed over OTLP by the injected ExtProc sidecars; the user dimension comes from the metrics-request-header-attributes config (x-user-id by default).",
+  "editable": true,
+  "graphTooltip": 1,
+  "schemaVersion": 39,
+  "version": 2,
+  "refresh": "30s",
+  "time": {
+    "from": "now-6h",
+    "to": "now"
+  },
+  "timezone": "",
+  "title": "Envoy AI Gateway - LLM Consumption",
+  "uid": "envoy-ai-gateway-llm",
+  "templating": {
+    "list": [
+      {
+        "name": "prometheusds",
+        "type": "datasource",
+        "query": "prometheus",
+        "hide": 0
+      },
+      {
+        "name": "model",
+        "label": "Model",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${prometheusds}"
+        },
+        "query": "label_values(gen_ai_client_token_usage_sum, gen_ai_response_model)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "allValue": ".*"
+      },
+      {
+        "name": "user",
+        "label": "User",
+        "type": "query",
+        "datasource": {
+          "type": "prometheus",
+          "uid": "${prometheusds}"
+        },
+        "query": "label_values(gen_ai_client_token_usage_sum, user_id)",
+        "refresh": 2,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1,
+        "allValue": ".*"
+      }
+    ]
+  },
+  "panels": [
+    {
+      "id": 1,
+      "type": "row",
+      "title": "Consumption overview",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 0
+      }
+    },
+    {
+      "id": 2,
+      "type": "stat",
+      "title": "Total tokens",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 0,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum(increase(gen_ai_client_token_usage_sum{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[$__range]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "type": "stat",
+      "title": "LLM requests",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 6,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum(increase(gen_ai_server_request_duration_count{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[$__range]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "type": "stat",
+      "title": "Active users",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 12,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "count(sum by (user_id) (increase(gen_ai_client_token_usage_sum{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[$__range])) > 0)",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "type": "stat",
+      "title": "Error rate",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 5,
+        "w": 6,
+        "x": 18,
+        "y": 1
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent",
+          "decimals": 1
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "100 * sum(increase(gen_ai_server_request_duration_count{error_type!=\"\",gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[$__range])) / sum(increase(gen_ai_server_request_duration_count{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[$__range]))",
+          "refId": "A"
+        }
+      ]
+    },
+    {
+      "id": 6,
+      "type": "row",
+      "title": "Token usage breakdown",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 6
+      }
+    },
+    {
+      "id": 7,
+      "type": "piechart",
+      "title": "Tokens by model",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 0,
+        "y": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": ""
+        },
+        "pieType": "donut",
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum by (gen_ai_response_model) (increase(gen_ai_client_token_usage_sum{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[$__range]))",
+          "refId": "A",
+          "legendFormat": "{{gen_ai_response_model}}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 8,
+      "type": "piechart",
+      "title": "Tokens by user",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 8,
+        "y": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": ""
+        },
+        "pieType": "donut",
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum by (user_id) (increase(gen_ai_client_token_usage_sum{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[$__range]))",
+          "refId": "A",
+          "legendFormat": "{{user_id}}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 10,
+      "type": "piechart",
+      "title": "Tokens by type",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 9,
+        "w": 8,
+        "x": 16,
+        "y": 7
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "decimals": 0
+        }
+      },
+      "options": {
+        "reduceOptions": {
+          "values": true,
+          "calcs": [],
+          "fields": ""
+        },
+        "pieType": "donut",
+        "displayLabels": [
+          "percent"
+        ],
+        "legend": {
+          "displayMode": "table",
+          "placement": "right",
+          "values": [
+            "value",
+            "percent"
+          ]
+        },
+        "tooltip": {
+          "mode": "single"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum by (gen_ai_token_type) (increase(gen_ai_client_token_usage_sum{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[$__range]))",
+          "refId": "A",
+          "legendFormat": "{{gen_ai_token_type}}",
+          "instant": true,
+          "range": false
+        }
+      ]
+    },
+    {
+      "id": 11,
+      "type": "row",
+      "title": "Usage over time",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 16
+      }
+    },
+    {
+      "id": 12,
+      "type": "timeseries",
+      "title": "Token rate by model",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 40,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum by (gen_ai_response_model) (rate(gen_ai_client_token_usage_sum{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{gen_ai_response_model}}"
+        }
+      ]
+    },
+    {
+      "id": 13,
+      "type": "timeseries",
+      "title": "Request rate by model",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 17
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 40,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum by (gen_ai_response_model) (rate(gen_ai_server_request_duration_count{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{gen_ai_response_model}}"
+        }
+      ]
+    },
+    {
+      "id": 14,
+      "type": "timeseries",
+      "title": "Token rate by user",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 0,
+        "y": 25
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "custom": {
+            "fillOpacity": 40,
+            "showPoints": "never",
+            "stacking": {
+              "mode": "normal"
+            }
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum by (user_id) (rate(gen_ai_client_token_usage_sum{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{user_id}}"
+        }
+      ]
+    },
+    {
+      "id": 15,
+      "type": "timeseries",
+      "title": "Errors by type",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 12,
+        "x": 12,
+        "y": 25
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "reqps",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "sum by (error_type) (rate(gen_ai_server_request_duration_count{error_type!=\"\",gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m]))",
+          "refId": "A",
+          "legendFormat": "{{error_type}}"
+        }
+      ]
+    },
+    {
+      "id": 16,
+      "type": "row",
+      "title": "Latency",
+      "gridPos": {
+        "h": 1,
+        "w": 24,
+        "x": 0,
+        "y": 33
+      }
+    },
+    {
+      "id": 17,
+      "type": "timeseries",
+      "title": "Request duration",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 0,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(gen_ai_server_request_duration_bucket{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "p50"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(gen_ai_server_request_duration_bucket{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m])))",
+          "refId": "B",
+          "legendFormat": "p95"
+        },
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(gen_ai_server_request_duration_bucket{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m])))",
+          "refId": "C",
+          "legendFormat": "p99"
+        }
+      ]
+    },
+    {
+      "id": 18,
+      "type": "timeseries",
+      "title": "Time to first token (p95) by model",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 8,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_response_model) (rate(gen_ai_server_time_to_first_token_bucket{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "{{gen_ai_response_model}}"
+        }
+      ]
+    },
+    {
+      "id": 19,
+      "type": "timeseries",
+      "title": "Time per output token (p95) by model",
+      "datasource": {
+        "type": "prometheus",
+        "uid": "${prometheusds}"
+      },
+      "gridPos": {
+        "h": 8,
+        "w": 8,
+        "x": 16,
+        "y": 34
+      },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "s",
+          "custom": {
+            "fillOpacity": 10,
+            "showPoints": "never"
+          }
+        }
+      },
+      "options": {
+        "legend": {
+          "displayMode": "table",
+          "placement": "bottom",
+          "calcs": [
+            "mean",
+            "max"
+          ]
+        },
+        "tooltip": {
+          "mode": "multi",
+          "sort": "desc"
+        }
+      },
+      "targets": [
+        {
+          "datasource": {
+            "type": "prometheus",
+            "uid": "${prometheusds}"
+          },
+          "expr": "histogram_quantile(0.95, sum by (le, gen_ai_response_model) (rate(gen_ai_server_time_per_output_token_bucket{gen_ai_response_model=~\"$model\",user_id=~\"$user\"}[5m])))",
+          "refId": "A",
+          "legendFormat": "{{gen_ai_response_model}}"
+        }
+      ]
+    }
+  ]
+}
