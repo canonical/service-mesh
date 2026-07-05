@@ -1,11 +1,11 @@
 {
   "__inputs": [],
   "__requires": [],
-  "description": "Envoy Gateway data plane — downstream SLOs, per-listener and per-cluster breakdown, upstream health, circuit breakers, server runtime, xDS config sync, TLS. Metrics arrive from Envoy proxy pods via the EnvoyProxy telemetry OTLP sink; the metric name prefix is stripped (`http_*`, `cluster_*`, `listener_*`, `server_*`).",
+  "description": "Envoy Gateway data plane — downstream SLOs, per-Gateway breakdown, per-cluster upstream health, circuit breakers, server runtime, xDS config sync, TLS. Metrics arrive via the EnvoyProxy telemetry OTLP sink; the `envoy_` prefix is stripped by the OTLP → Prometheus conversion (`http_*`, `cluster_*`, `listener_*`, `server_*`).",
   "editable": true,
   "graphTooltip": 0,
   "schemaVersion": 39,
-  "version": 2,
+  "version": 4,
   "refresh": "30s",
   "time": { "from": "now-1h", "to": "now" },
   "timezone": "",
@@ -27,21 +27,27 @@
         "refresh": 1, "includeAll": true, "multi": true, "sort": 1
       },
       {
-        "name": "juju_unit", "type": "query",
+        "name": "gateway_namespace", "type": "query",
         "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-        "query": "label_values(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}, juju_unit)",
+        "query": "label_values(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}, gateway_namespace)",
+        "refresh": 1, "includeAll": true, "multi": true, "sort": 1
+      },
+      {
+        "name": "gateway_name", "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+        "query": "label_values(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\"}, gateway_name)",
         "refresh": 1, "includeAll": true, "multi": true, "sort": 1
       },
       {
         "name": "listener", "type": "query",
         "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-        "query": "label_values(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}, envoy_http_conn_manager_prefix)",
+        "query": "label_values(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}, envoy_http_conn_manager_prefix)",
         "refresh": 1, "includeAll": true, "multi": true, "sort": 1
       },
       {
         "name": "cluster", "type": "query",
         "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-        "query": "label_values(cluster_upstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}, envoy_cluster_name)",
+        "query": "label_values(cluster_upstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}, envoy_cluster_name)",
         "refresh": 1, "includeAll": true, "multi": true, "sort": 1
       }
     ]
@@ -58,7 +64,7 @@
       "fieldConfig": { "defaults": { "unit": "reqps", "decimals": 1 } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
+          "expr": "sum(rate(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
           "refId": "A" }
       ]
     },
@@ -74,7 +80,7 @@
       },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(http_downstream_rq_xx{envoy_response_code_class=\"5\",juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
+          "expr": "sum(rate(http_downstream_rq_xx{envoy_response_code_class=\"5\",juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
           "refId": "A" }
       ]
     },
@@ -90,7 +96,7 @@
       },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "100 * sum(rate(http_downstream_rq_xx{envoy_response_code_class=~\"4|5\",juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])) / clamp_min(sum(rate(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])), 0.001)",
+          "expr": "100 * sum(rate(http_downstream_rq_xx{envoy_response_code_class=~\"4|5\",juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])) / clamp_min(sum(rate(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])), 0.001)",
           "refId": "A" }
       ]
     },
@@ -101,7 +107,7 @@
       "fieldConfig": { "defaults": { "unit": "ms", "decimals": 0 } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
           "refId": "A" }
       ]
     },
@@ -112,7 +118,7 @@
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(http_downstream_cx_active{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"})",
+          "expr": "sum(http_downstream_cx_active{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"})",
           "refId": "A" }
       ]
     },
@@ -122,275 +128,297 @@
       "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 }, "collapsed": false, "panels": []
     },
     {
-      "id": 10, "type": "timeseries", "title": "Request rate by listener",
+      "id": 9, "type": "timeseries", "title": "Request rate by Gateway",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
       "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
       "fieldConfig": { "defaults": { "unit": "reqps" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_http_conn_manager_prefix) (rate(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
-          "legendFormat": "{{envoy_http_conn_manager_prefix}}", "refId": "A" }
+          "expr": "sum by (gateway_namespace, gateway_name) (rate(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m]))",
+          "legendFormat": "{{gateway_namespace}}/{{gateway_name}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Request rate by Gateway · listener",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "reqps" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (gateway_namespace, gateway_name, envoy_http_conn_manager_prefix) (rate(http_downstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
+          "legendFormat": "{{gateway_namespace}}/{{gateway_name}} · {{envoy_http_conn_manager_prefix}}", "refId": "A" }
       ]
     },
     {
       "id": 11, "type": "timeseries", "title": "Responses by code class",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
       "fieldConfig": {
         "defaults": { "unit": "reqps", "custom": { "stacking": { "mode": "normal" } } }
       },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_response_code_class) (rate(http_downstream_rq_xx{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
+          "expr": "sum by (envoy_response_code_class) (rate(http_downstream_rq_xx{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
           "legendFormat": "{{envoy_response_code_class}}xx", "refId": "A" }
       ]
     },
     {
       "id": 12, "type": "timeseries", "title": "Downstream request latency (p50 / p95 / p99)",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
       "fieldConfig": { "defaults": { "unit": "ms" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
           "legendFormat": "p50", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
           "legendFormat": "p95", "refId": "B" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
           "legendFormat": "p99", "refId": "C" }
       ]
     },
     {
-      "id": 13, "type": "timeseries", "title": "Downstream throughput (rx / tx)",
+      "id": 13, "type": "timeseries", "title": "Downstream latency p95 by Gateway",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 23 },
+      "fieldConfig": { "defaults": { "unit": "ms" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "histogram_quantile(0.95, sum by (le, gateway_namespace, gateway_name) (rate(http_downstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m])))",
+          "legendFormat": "{{gateway_namespace}}/{{gateway_name}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 14, "type": "timeseries", "title": "Downstream throughput (rx / tx)",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 23 },
       "fieldConfig": { "defaults": { "unit": "Bps" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(http_downstream_cx_rx_bytes_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
+          "expr": "sum(rate(http_downstream_cx_rx_bytes_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
           "legendFormat": "rx", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(http_downstream_cx_tx_bytes_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
+          "expr": "sum(rate(http_downstream_cx_tx_bytes_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
           "legendFormat": "tx", "refId": "B" }
       ]
     },
 
     {
       "id": 300, "type": "row", "title": "Downstream connections",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 }, "collapsed": false, "panels": []
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 31 }, "collapsed": false, "panels": []
     },
     {
-      "id": 20, "type": "timeseries", "title": "Connection accept rate by listener",
+      "id": 20, "type": "timeseries", "title": "Connection accept rate by Gateway",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
       "fieldConfig": { "defaults": { "unit": "ops" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_listener_address) (rate(listener_downstream_cx_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}[5m]))",
-          "legendFormat": "{{envoy_listener_address}}", "refId": "A" }
+          "expr": "sum by (gateway_namespace, gateway_name) (rate(listener_downstream_cx_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m]))",
+          "legendFormat": "{{gateway_namespace}}/{{gateway_name}}", "refId": "A" }
       ]
     },
     {
-      "id": 21, "type": "timeseries", "title": "Active downstream connections",
+      "id": 21, "type": "timeseries", "title": "Active downstream connections by Gateway",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_listener_address) (listener_downstream_cx_active{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"})",
-          "legendFormat": "{{envoy_listener_address}}", "refId": "A" }
+          "expr": "sum by (gateway_namespace, gateway_name) (listener_downstream_cx_active{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"})",
+          "legendFormat": "{{gateway_namespace}}/{{gateway_name}}", "refId": "A" }
       ]
     },
     {
       "id": 22, "type": "timeseries", "title": "Connection length p95",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 40 },
       "fieldConfig": { "defaults": { "unit": "ms" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_downstream_cx_length_ms_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(http_downstream_cx_length_ms_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m])))",
           "legendFormat": "p95", "refId": "A" }
       ]
     },
     {
       "id": 23, "type": "timeseries", "title": "Connection destroys (local vs remote)",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 40 },
       "fieldConfig": { "defaults": { "unit": "ops" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(http_downstream_cx_destroy{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
+          "expr": "sum(rate(http_downstream_cx_destroy{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
           "legendFormat": "total", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(http_downstream_cx_destroy_remote{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
+          "expr": "sum(rate(http_downstream_cx_destroy_remote{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_http_conn_manager_prefix=~\"$listener\"}[5m]))",
           "legendFormat": "remote", "refId": "B" }
       ]
     },
 
     {
       "id": 400, "type": "row", "title": "Upstream traffic",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 }, "collapsed": false, "panels": []
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 48 }, "collapsed": false, "panels": []
     },
     {
       "id": 30, "type": "timeseries", "title": "Upstream request rate by cluster",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
       "fieldConfig": { "defaults": { "unit": "reqps" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (rate(cluster_upstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"}[5m]))",
-          "legendFormat": "{{envoy_cluster_name}}", "refId": "A" }
+          "expr": "sum by (gateway_namespace, gateway_name, envoy_cluster_name) (rate(cluster_upstream_rq_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"}[5m]))",
+          "legendFormat": "{{gateway_namespace}}/{{gateway_name}} · {{envoy_cluster_name}}", "refId": "A" }
       ]
     },
     {
       "id": 31, "type": "timeseries", "title": "Upstream 4xx/5xx by cluster",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
       "fieldConfig": { "defaults": { "unit": "reqps" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name, envoy_response_code_class) (rate(cluster_external_upstream_rq_xx{envoy_response_code_class=~\"4|5\",juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"}[5m]))",
+          "expr": "sum by (envoy_cluster_name, envoy_response_code_class) (rate(cluster_external_upstream_rq_xx{envoy_response_code_class=~\"4|5\",juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"}[5m]))",
           "legendFormat": "{{envoy_cluster_name}} · {{envoy_response_code_class}}xx", "refId": "A" }
       ]
     },
     {
       "id": 32, "type": "timeseries", "title": "Upstream request latency p95 by cluster",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 57 },
       "fieldConfig": { "defaults": { "unit": "ms" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "histogram_quantile(0.95, sum by (le, envoy_cluster_name) (rate(cluster_external_upstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"}[5m])))",
+          "expr": "histogram_quantile(0.95, sum by (le, envoy_cluster_name) (rate(cluster_external_upstream_rq_time_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"}[5m])))",
           "legendFormat": "{{envoy_cluster_name}}", "refId": "A" }
       ]
     },
     {
       "id": 33, "type": "timeseries", "title": "Upstream connection pool overflows",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 57 },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (cluster_circuit_breakers_cx_pool_open{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"})",
+          "expr": "sum by (envoy_cluster_name) (cluster_circuit_breakers_cx_pool_open{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"})",
           "legendFormat": "{{envoy_cluster_name}}", "refId": "A" }
       ]
     },
 
     {
       "id": 500, "type": "row", "title": "Upstream health",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 }, "collapsed": false, "panels": []
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 65 }, "collapsed": false, "panels": []
     },
     {
       "id": 40, "type": "timeseries", "title": "Healthy hosts by cluster",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 58 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 66 },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (cluster_membership_healthy{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"})",
+          "expr": "sum by (envoy_cluster_name) (cluster_membership_healthy{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"})",
           "legendFormat": "{{envoy_cluster_name}}", "refId": "A" }
       ]
     },
     {
       "id": 41, "type": "timeseries", "title": "Degraded / excluded hosts",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 58 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 66 },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (cluster_membership_degraded{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"})",
+          "expr": "sum by (envoy_cluster_name) (cluster_membership_degraded{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"})",
           "legendFormat": "degraded – {{envoy_cluster_name}}", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (cluster_membership_excluded{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"})",
+          "expr": "sum by (envoy_cluster_name) (cluster_membership_excluded{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"})",
           "legendFormat": "excluded – {{envoy_cluster_name}}", "refId": "B" }
       ]
     },
     {
       "id": 42, "type": "timeseries", "title": "Membership change rate",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 66 },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 74 },
       "fieldConfig": { "defaults": { "unit": "ops" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (rate(cluster_membership_change{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"}[5m]))",
+          "expr": "sum by (envoy_cluster_name) (rate(cluster_membership_change{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"}[5m]))",
           "legendFormat": "{{envoy_cluster_name}}", "refId": "A" }
       ]
     },
     {
       "id": 43, "type": "timeseries", "title": "Circuit breakers open (rq / cx / pending)",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 66 },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 74 },
       "fieldConfig": { "defaults": { "unit": "short" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (cluster_circuit_breakers_rq_open{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"})",
+          "expr": "sum by (envoy_cluster_name) (cluster_circuit_breakers_rq_open{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"})",
           "legendFormat": "rq – {{envoy_cluster_name}}", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (cluster_circuit_breakers_cx_open{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"})",
+          "expr": "sum by (envoy_cluster_name) (cluster_circuit_breakers_cx_open{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"})",
           "legendFormat": "cx – {{envoy_cluster_name}}", "refId": "B" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (envoy_cluster_name) (cluster_circuit_breakers_rq_pending_open{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",envoy_cluster_name=~\"$cluster\"})",
+          "expr": "sum by (envoy_cluster_name) (cluster_circuit_breakers_rq_pending_open{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\",envoy_cluster_name=~\"$cluster\"})",
           "legendFormat": "pending – {{envoy_cluster_name}}", "refId": "C" }
       ]
     },
 
     {
       "id": 600, "type": "row", "title": "xDS config sync",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 74 }, "collapsed": false, "panels": []
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 82 }, "collapsed": false, "panels": []
     },
     {
       "id": 50, "type": "timeseries", "title": "CDS updates (success / failure)",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 75 },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 83 },
       "fieldConfig": { "defaults": { "unit": "ops" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(cluster_manager_cds_update_success{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}[5m]))",
+          "expr": "sum(rate(cluster_manager_cds_update_success{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m]))",
           "legendFormat": "success", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(cluster_manager_cds_update_failure{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}[5m]))",
+          "expr": "sum(rate(cluster_manager_cds_update_failure{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m]))",
           "legendFormat": "failure", "refId": "B" }
       ]
     },
     {
       "id": 51, "type": "timeseries", "title": "LDS updates (success / failure)",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 75 },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 83 },
       "fieldConfig": { "defaults": { "unit": "ops" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(listener_manager_lds_update_success{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}[5m]))",
+          "expr": "sum(rate(listener_manager_lds_update_success{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m]))",
           "legendFormat": "success", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(listener_manager_lds_update_failure{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}[5m]))",
+          "expr": "sum(rate(listener_manager_lds_update_failure{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m]))",
           "legendFormat": "failure", "refId": "B" }
       ]
     },
     {
       "id": 52, "type": "timeseries", "title": "RDS updates (success / failure)",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 75 },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 83 },
       "fieldConfig": { "defaults": { "unit": "ops" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(http_rds_update_success{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}[5m]))",
+          "expr": "sum(rate(http_rds_update_success{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m]))",
           "legendFormat": "success", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum(rate(http_rds_update_failure{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}[5m]))",
+          "expr": "sum(rate(http_rds_update_failure{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"}[5m]))",
           "legendFormat": "failure", "refId": "B" }
       ]
     },
 
     {
       "id": 700, "type": "row", "title": "Server runtime & TLS",
-      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 83 }, "collapsed": false, "panels": []
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 91 }, "collapsed": false, "panels": []
     },
     {
       "id": 60, "type": "stat", "title": "Server state",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 84 },
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 92 },
       "fieldConfig": {
         "defaults": {
           "mappings": [
@@ -405,28 +433,28 @@
       },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "min(server_state{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"})",
+          "expr": "min(server_state{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"})",
           "refId": "A" }
       ]
     },
     {
-      "id": 61, "type": "timeseries", "title": "Server memory (heap / physical)",
+      "id": 61, "type": "timeseries", "title": "Server memory (heap / physical) by Gateway",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 10, "x": 4, "y": 84 },
+      "gridPos": { "h": 8, "w": 10, "x": 4, "y": 92 },
       "fieldConfig": { "defaults": { "unit": "bytes" } },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "avg(server_memory_heap_size{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"})",
-          "legendFormat": "heap", "refId": "A" },
+          "expr": "avg by (gateway_namespace, gateway_name) (server_memory_heap_size{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"})",
+          "legendFormat": "heap – {{gateway_namespace}}/{{gateway_name}}", "refId": "A" },
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "avg(server_memory_physical_size{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"})",
-          "legendFormat": "physical", "refId": "B" }
+          "expr": "avg by (gateway_namespace, gateway_name) (server_memory_physical_size{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"})",
+          "legendFormat": "physical – {{gateway_namespace}}/{{gateway_name}}", "refId": "B" }
       ]
     },
     {
       "id": 62, "type": "timeseries", "title": "TLS certs — days until first expiry",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 84 },
+      "gridPos": { "h": 8, "w": 10, "x": 14, "y": 92 },
       "fieldConfig": {
         "defaults": {
           "unit": "d", "decimals": 0,
@@ -435,8 +463,8 @@
       },
       "targets": [
         { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "min(server_days_until_first_cert_expiring{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"})",
-          "legendFormat": "days", "refId": "A" }
+          "expr": "min by (gateway_namespace, gateway_name) (server_days_until_first_cert_expiring{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",gateway_namespace=~\"$gateway_namespace\",gateway_name=~\"$gateway_name\"})",
+          "legendFormat": "{{gateway_namespace}}/{{gateway_name}}", "refId": "A" }
       ]
     }
   ]

@@ -579,32 +579,91 @@ class EnvoyControllerCharm(ops.CharmBase):
         }
 
     def _construct_envoy_proxy(self) -> EnvoyProxy:
-        """Construct the default EnvoyProxy resource (Juju-topology stats tags + OTLP sink)."""
-        # EnvoyProxy has no native stats-tags field, so the Juju topology is stamped onto every
-        # proxy metric by JSON-patching the Envoy bootstrap's stats_config.stats_tags.
-        topology = {
-            "juju_model": self.model.name,
-            "juju_model_uuid": self.model.uuid,
-            "juju_application": self.app.name,
-            "juju_charm": self.meta.name,
-        }
-        stats_tag_patches = [
+        """Construct the default EnvoyProxy resource (identity stats tags + OTLP sink).
+
+        All identity travels through `stats_config.stats_tags`, so every metric
+        carries it as plain labels end-to-end (no collector-side configuration):
+          - Juju topology (fixed per app) — literal values.
+          - Owning Gateway (per pod) — `$(ENVOY_GATEWAY_{NAME,NAMESPACE})` values.
+            Envoy never substitutes anything in `fixed_value`, but it never sees
+            the refs: envoy-gateway hands the bootstrap to Envoy as a
+            `--config-yaml` container *argument*, and the kubelet expands `$(VAR)`
+            in args against the container's env at pod start (the same mechanism
+            envoy-gateway uses for `$(ENVOY_SERVICE_ZONE)`). The downward API
+            (below) materialises the owning-Gateway pod labels as exactly those
+            env vars.
+        Without the per-Gateway tags, N Gateways under one EnvoyProxy produce
+        identical series signatures and Prometheus dedup silently collapses them
+        into one indistinguishable stream. Pod-level identity is intentionally
+        omitted — cardinality would scale with replicas without answering a
+        question we can't already answer per-Gateway. OTLP *resource* attributes
+        are deliberately not used: the COS otelcol charm's prometheusremotewrite
+        exporter drops them (no resource_to_telemetry_conversion), so identity
+        shipped that way never reaches Prometheus as labels.
+        """
+        fixed_tags: list[dict[str, str]] = [
+            {"tag_name": "juju_model", "fixed_value": self.model.name},
+            {"tag_name": "juju_model_uuid", "fixed_value": self.model.uuid},
+            {"tag_name": "juju_application", "fixed_value": self.app.name},
+            {"tag_name": "juju_charm", "fixed_value": self.meta.name},
+            {"tag_name": "gateway_name", "fixed_value": "$(ENVOY_GATEWAY_NAME)"},
+            {
+                "tag_name": "gateway_namespace",
+                "fixed_value": "$(ENVOY_GATEWAY_NAMESPACE)",
+            },
+        ]
+        json_patches: list[JSONPatchOperation] = [
             JSONPatchOperation(
                 op="add",
                 path="/stats_config/stats_tags/-",
-                value={"tag_name": name, "fixed_value": value},
+                value=tag,
             )
-            for name, value in topology.items()
+            for tag in fixed_tags
         ]
         sink = self._otlp_metric_sink()
         telemetry = TelemetryConfig(metrics=MetricsConfig(sinks=[sink])) if sink else None
         spec = EnvoyProxySpec(
-            bootstrap=ProxyBootstrap(type="JSONPatch", jsonPatches=stats_tag_patches),
+            bootstrap=ProxyBootstrap(type="JSONPatch", jsonPatches=json_patches),
             telemetry=telemetry,
         )
+        spec_dict = spec.model_dump(by_alias=True, exclude_none=True)
+        env = [
+            {
+                "name": "ENVOY_GATEWAY_NAME",
+                "valueFrom": {
+                    "fieldRef": {
+                        "fieldPath": (
+                            "metadata.labels"
+                            "['gateway.envoyproxy.io/owning-gateway-name']"
+                        )
+                    }
+                },
+            },
+            {
+                "name": "ENVOY_GATEWAY_NAMESPACE",
+                "valueFrom": {
+                    "fieldRef": {
+                        "fieldPath": (
+                            "metadata.labels"
+                            "['gateway.envoyproxy.io/owning-gateway-namespace']"
+                        )
+                    }
+                },
+            },
+        ]
+        # `provider` is not on canonical_service_mesh.EnvoyProxySpec yet, so merge
+        # onto the dumped dict verbatim.
+        spec_dict["provider"] = {
+            "type": "Kubernetes",
+            "kubernetes": {
+                "envoyDeployment": {
+                    "container": {"env": env},
+                }
+            },
+        }
         return EnvoyProxy(
             metadata=ObjectMeta(name=self.app.name, namespace=self.model.name),
-            spec=spec.model_dump(by_alias=True, exclude_none=True),
+            spec=spec_dict,
         )
 
     def _construct_gateway_class(self) -> GatewayClass:

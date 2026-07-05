@@ -125,24 +125,64 @@ def test_controller_identity_published_to_extension_server(ctx, krm_mocks):
     assert "namespace" in rel.local_app_data
 
 
-def test_envoy_proxy_carries_juju_topology_stats_tags(ctx, krm_mocks):
-    # EnvoyProxy has no native stats-tags field, so the Juju topology is stamped onto
-    # proxy metrics by JSON-patching the bootstrap stats_config.stats_tags.
+def test_envoy_proxy_carries_identity_stats_tags(ctx, krm_mocks):
+    # All identity rides stats_tags: Juju topology as literals, per-Gateway as
+    # $(VAR) refs that the kubelet expands in the --config-yaml container arg
+    # (Envoy itself never substitutes anything in fixed_value).
     spec = _envoy_proxy_spec(ctx, krm_mocks)
-    patches = spec["bootstrap"]["jsonPatches"]
-    assert {p["value"]["tag_name"] for p in patches} == {
+    tag_patches = [
+        p for p in spec["bootstrap"]["jsonPatches"]
+        if p["path"] == "/stats_config/stats_tags/-"
+    ]
+    tags = {p["value"]["tag_name"]: p["value"]["fixed_value"] for p in tag_patches}
+    assert set(tags) == {
         "juju_model",
         "juju_model_uuid",
         "juju_application",
         "juju_charm",
+        "gateway_name",
+        "gateway_namespace",
     }
-    assert all(p["path"] == "/stats_config/stats_tags/-" for p in patches)
+    assert tags["gateway_name"] == "$(ENVOY_GATEWAY_NAME)"
+    assert tags["gateway_namespace"] == "$(ENVOY_GATEWAY_NAMESPACE)"
+
+
+def test_envoy_proxy_injects_owning_gateway_env_via_downward_api(ctx, krm_mocks):
+    # envoy-gateway stamps the owning-Gateway on each proxy pod as a label; the charm
+    # lifts that to env vars via the downward API so the kubelet can expand the
+    # $(VAR) refs in the stats_tags (passed via --config-yaml args) at pod start.
+    spec = _envoy_proxy_spec(ctx, krm_mocks)
+    env = spec["provider"]["kubernetes"]["envoyDeployment"]["container"]["env"]
+    by_name = {e["name"]: e for e in env}
+    assert by_name["ENVOY_GATEWAY_NAME"]["valueFrom"]["fieldRef"]["fieldPath"] == (
+        "metadata.labels['gateway.envoyproxy.io/owning-gateway-name']"
+    )
+    assert by_name["ENVOY_GATEWAY_NAMESPACE"]["valueFrom"]["fieldRef"]["fieldPath"] == (
+        "metadata.labels['gateway.envoyproxy.io/owning-gateway-namespace']"
+    )
+
+
+def test_envoy_proxy_bootstrap_patches_stay_clear_of_stats_sinks(ctx, krm_mocks):
+    # EG's legacy jsonpb bootstrap validation rejects any patch touching the
+    # sink's typed_config ("Any JSON doesn't have '@type'"), so no bootstrap
+    # patch may target /stats_sinks.
+    spec = _envoy_proxy_spec(ctx, krm_mocks, otlp_endpoint="http://collector:4317")
+    assert all(
+        not p["path"].startswith("/stats_sinks")
+        for p in spec["bootstrap"]["jsonPatches"]
+    )
 
 
 def test_envoy_proxy_has_no_telemetry_without_otlp(ctx, krm_mocks):
-    # GIVEN no OTLP relation, THEN the proxy carries no telemetry sink
+    # Without an OTLP relation there is no telemetry block, but the identity
+    # env vars stay — the stats_tags $(VAR) refs still need them at pod start.
     spec = _envoy_proxy_spec(ctx, krm_mocks)
     assert "telemetry" not in spec
+    env_names = [
+        e["name"]
+        for e in spec["provider"]["kubernetes"]["envoyDeployment"]["container"]["env"]
+    ]
+    assert env_names == ["ENVOY_GATEWAY_NAME", "ENVOY_GATEWAY_NAMESPACE"]
 
 
 def test_envoy_proxy_telemetry_sink_when_related(ctx, krm_mocks):
