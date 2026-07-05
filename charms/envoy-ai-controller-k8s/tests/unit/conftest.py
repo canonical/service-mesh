@@ -18,7 +18,6 @@ CERT_PEM = "CERTPEM"
 KEY_PEM = "KEYPEM"
 
 DEFAULT_AI_GATEWAY_IMAGE = "docker.io/envoyproxy/ai-gateway-controller:v0.6.0"
-DEFAULT_AI_EXTPROC_IMAGE = "docker.io/envoyproxy/ai-gateway-extproc:v0.6.0"
 
 # oci-image resources surface to the charm as a YAML file holding the image reference
 # under `registrypath`. Materialise those files once so make_state can hand scenario a
@@ -149,6 +148,5 @@ def make_state(
         config=config or {},
         resources={
             _image_resource("ai-gateway-image", ai_gateway_image),
-            _image_resource("ai-extproc-image", DEFAULT_AI_EXTPROC_IMAGE),
         },
     )

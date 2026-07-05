@@ -8,8 +8,10 @@ import logging
 import yaml
 from jubilant import Juju
 from lightkube import ApiError, Client
+from lightkube.generic_resource import create_namespaced_resource
 from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfiguration
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
+from lightkube.resources.core_v1 import Pod
 
 logger = logging.getLogger(__name__)
 
@@ -17,11 +19,37 @@ APP_NAME = "envoy-ai-controller-k8s"
 CONTAINER = "ai-gateway"
 SERVICE = "ai-gateway"
 
+INGRESS_APP = "envoy-ingress-k8s"
+CONTROLLER_APP = "envoy-controller-k8s"
+
+# Single channel for the whole envoy solution family; the sibling charms
+# (controller, ingress, ai-controller) are versioned as one set.
+ENVOY_CHANNEL = "latest/edge"
+
 EXTENSION_SERVER_PORT = 1063
 WEBHOOK_PORT = 9443
 
 # The controller names the webhook "<config-name>.<model-namespace>" at startup.
 WEBHOOK_CONFIG_NAME = "envoy-ai-gateway-gateway-pod-mutator"
+
+# Envoy Gateway stamps this label on every data-plane pod it provisions; the
+# ExtProc webhook's objectSelector scopes injection to pods carrying it.
+DATAPLANE_SELECTOR = {"app.kubernetes.io/managed-by": "envoy-gateway"}
+
+# Injected sidecar container name and upstream repo used to derive the pull URL
+# from the ai-gateway-image tag (kept in sync with EXTPROC_REPO in src/charm.py).
+EXTPROC_CONTAINER = "ai-gateway-extproc"
+EXTPROC_REPO = "docker.io/envoyproxy/ai-gateway-extproc"
+
+# Lightkube generic wrapper for AIGatewayRoute (aigateway.envoyproxy.io/v1beta1).
+# No typed resource ships in lightkube for out-of-tree CRDs, so tests apply/delete
+# through this generic proxy.
+AIGatewayRoute = create_namespaced_resource(
+    group="aigateway.envoyproxy.io",
+    version="v1beta1",
+    kind="AIGatewayRoute",
+    plural="aigatewayroutes",
+)
 
 # AI Gateway CRDs the controller installs from src/crds/ai-gateway/.
 AI_GATEWAY_CRDS = (
@@ -74,6 +102,11 @@ def pebble_service_active(juju: Juju, unit: str, container: str, service: str) -
         if parts and parts[0] == service:
             return parts[2] == "active"
     return False
+
+
+def data_plane_pods(model: str) -> list[Pod]:
+    """List Envoy Gateway data-plane pods in ``model`` (matched by managed-by label)."""
+    return list(Client().list(Pod, namespace=model, labels=DATAPLANE_SELECTOR))
 
 
 def published_app_data(juju: Juju, publisher: str, peer: str) -> dict:

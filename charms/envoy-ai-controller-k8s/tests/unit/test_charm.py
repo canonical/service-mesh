@@ -5,12 +5,14 @@
 
 import base64
 import dataclasses
+from pathlib import Path
 from unittest.mock import patch
 
 import httpx
 import ops
 import pytest
 import scenario
+import yaml
 from conftest import make_state
 from lightkube import ApiError
 
@@ -214,15 +216,71 @@ def test_webhook_removed_on_extension_server_relation_broken(ctx, krm_mocks):
         ("docker.io/envoyproxy/ai-gateway-controller:v0.6.0", "v0.6.0"),
         # Registry with a port: the host ':port' must not be mistaken for a tag.
         ("registry.example.com:5000/ns/ai-gateway-controller:1.2.3", "1.2.3"),
-        # Digest-pinned, no tag: report nothing rather than fabricate a version.
-        ("docker.io/envoyproxy/ai-gateway-controller@sha256:" + "a" * 64, ""),
+        # Digest-pinned, no tag: fall back to DEFAULT_TAG (the version this charm
+        # build was aligned with). Charmhub's OCI mirror strips the tag from the
+        # URL, so this branch is the norm for charmhub-published deploys.
+        (
+            "docker.io/envoyproxy/ai-gateway-controller@sha256:" + "a" * 64,
+            charm.DEFAULT_TAG,
+        ),
     ],
 )
 def test_workload_version_from_image_tag(ctx, ref, expected):
     # The controller binary self-reports no version, so the deployed image tag is the
-    # source of truth. A digest-pinned/untagged image must not invent a version.
+    # source of truth when parseable, else DEFAULT_TAG carries the pin forward.
     with ctx(ctx.on.config_changed(), make_state(ai_gateway_image=ref)) as mgr:
         assert mgr.charm._workload_version == expected
+
+
+@pytest.mark.parametrize(
+    "controller_ref, config_override, expected",
+    [
+        # Default: derive the extproc tag from the controller image tag against the
+        # upstream repo. This is the fix for the ImagePullBackOff — Juju cannot mint
+        # pull creds for an image not attached to a container, so the extproc URL
+        # must resolve outside Juju's private registry.
+        (
+            "docker.io/envoyproxy/ai-gateway-controller:v0.6.0",
+            "",
+            "docker.io/envoyproxy/ai-gateway-extproc:v0.6.0",
+        ),
+        # Digest-pinned controller (no tag) — derive from DEFAULT_TAG. Explicit
+        # pin, not the upstream binary's unpinned :latest baked-in default
+        # (which reports version=dev and mismatches the controller's config).
+        (
+            "docker.io/envoyproxy/ai-gateway-controller@sha256:" + "a" * 64,
+            "",
+            f"docker.io/envoyproxy/ai-gateway-extproc:{charm.DEFAULT_TAG}",
+        ),
+        # Config override wins over derivation, for air-gapped / custom-mirror deploys.
+        (
+            "docker.io/envoyproxy/ai-gateway-controller:v0.6.0",
+            "mirror.example.com/extproc:custom",
+            "mirror.example.com/extproc:custom",
+        ),
+    ],
+)
+def test_extproc_image_ref(ctx, controller_ref, config_override, expected):
+    state = make_state(
+        ai_gateway_image=controller_ref,
+        config={"extproc-image": config_override},
+    )
+    with ctx(ctx.on.config_changed(), state) as mgr:
+        assert mgr.charm._extproc_image_ref == expected
+
+
+def test_default_tag_matches_charmcraft_upstream_source():
+    # DEFAULT_TAG is the fallback used when the ai-gateway-image URL is digest-only
+    # (charmhub-mirrored deploys). It must match the tag the charm build was packed
+    # against so the two never drift on version bumps.
+    charmcraft_yaml = (
+        Path(__file__).parent.parent.parent / "charmcraft.yaml"
+    ).read_text()
+    upstream_source = yaml.safe_load(charmcraft_yaml)["resources"][
+        "ai-gateway-image"
+    ]["upstream-source"]
+    _, _, tag = upstream_source.rpartition(":")
+    assert tag == charm.DEFAULT_TAG
 
 
 def test_certificate_request_omits_cn_and_covers_fqdn_san(ctx):

@@ -18,6 +18,7 @@ pytest_plugins = [
     "tests.integration.steps.webhook_steps",
     "tests.integration.steps.controllers_steps",
     "tests.integration.steps.scaling_steps",
+    "tests.integration.steps.extproc_injection_steps",
 ]
 
 

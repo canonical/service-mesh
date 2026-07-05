@@ -36,6 +36,13 @@ config:
         Logging level for the Envoy AI Gateway controller.
         Valid values: debug, info, warn, error. Any other value logs a warning and
         falls back to the default rather than being passed to the controller.
+    extproc-image:
+      type: string
+      default: ""
+      description: |
+        OCI image reference for the ExtProc sidecar the controller injects into
+        Envoy Gateway data-plane pods. Empty derives the reference from the
+        ai-gateway-image resource tag against docker.io/envoyproxy/ai-gateway-extproc.
 
 provides:
   envoy-extension-server:
@@ -60,12 +67,6 @@ resources:
     type: oci-image
     description: Envoy AI Gateway controller OCI image
     upstream-source: docker.io/envoyproxy/ai-gateway-controller:v0.6.0
-  ai-extproc-image:
-    type: oci-image
-    description: |
-      Envoy AI Gateway ExtProc sidecar OCI image. The controller injects this into
-      Envoy Gateway data-plane pods; keep its version aligned with ai-gateway-image.
-    upstream-source: docker.io/envoyproxy/ai-gateway-extproc:v0.6.0
 
 parts:
   charm:

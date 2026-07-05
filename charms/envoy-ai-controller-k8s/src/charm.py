@@ -75,6 +75,15 @@ WEBHOOK_CONFIG_NAME = "envoy-ai-gateway-gateway-pod-mutator"
 
 COMMAND = "/app"
 
+# ExtProc sidecar image the controller stamps onto Envoy Gateway data-plane pods when
+# no explicit override is set. Kept as an oci-image *resource* would fail: Juju only
+# issues pull tokens for resources attached to a container in this charm's pod spec,
+# so the injected data-plane pod would inherit a pull secret without extproc scope
+# and fail with ImagePullBackOff. Instead we derive the tag from the ai-gateway-image
+# resource (upstream ships controller + extproc from the same monorepo under matching
+# tags — verified through v1.0.0) and pull the extproc from the public repo below.
+EXTPROC_REPO = "docker.io/envoyproxy/ai-gateway-extproc"
+
 # Accepted values for the log-level config. Anything else falls back to the default
 # rather than reaching the controller's -logLevel flag (an invalid value would fail to
 # start with an opaque error).
@@ -89,6 +98,15 @@ VALID_LOG_LEVELS = frozenset({"debug", "info", "warn", "error"})
 # This is the tag grammar only, not the full reference grammar — enough to validate a
 # candidate tag without pulling in a reference-parsing dependency.
 _IMAGE_TAG = re.compile(r"[\w][\w.-]{0,127}", re.ASCII)
+
+# The version this charm build is aligned with. Used when the ai-gateway-image
+# reference has no parseable tag — charmhub's OCI mirror rewrites the URL to a
+# digest-only form (`<registry>/charm/<hash>/ai-gateway-image@sha256:...`), and
+# the controller exposes no runtime introspection to fall back on. Keep in sync
+# with the ai-gateway-image `upstream-source` tag in charmcraft.yaml; a unit
+# test asserts they match so a version bump lands as one PR.
+# FIXME: https://github.com/canonical/service-mesh/issues/126
+DEFAULT_TAG = "v0.6.0"
 
 
 def _load_crd_yaml(directory: str) -> list:
@@ -165,13 +183,31 @@ class EnvoyAiControllerCharm(ops.CharmBase):
 
     @property
     def _workload_version(self) -> str:
-        """Deployed controller version from its OCI image tag, or "" if untagged."""
+        """Deployed controller version — parsed tag when available, else DEFAULT_TAG."""
         ref = self._image_ref("ai-gateway-image")
-        if not ref:
-            return ""
-        last = ref.split("@", 1)[0].rsplit("/", 1)[-1]
-        _, sep, tag = last.partition(":")
-        return tag if sep and _IMAGE_TAG.fullmatch(tag) else ""
+        if ref:
+            last = ref.split("@", 1)[0].rsplit("/", 1)[-1]
+            _, sep, tag = last.partition(":")
+            if sep and _IMAGE_TAG.fullmatch(tag):
+                return tag
+        return DEFAULT_TAG
+
+    @property
+    def _extproc_image_ref(self) -> str:
+        """Return the ExtProc sidecar image ref to stamp.
+
+        Precedence:
+          1. `extproc-image` config, if set.
+          2. Upstream repo at the controller's version (lockstep by convention,
+             verified through v1.0.0). Falls back to DEFAULT_TAG when the
+             controller resource is digest-only so no tag is derivable — see the
+             `DEFAULT_TAG` comment for why we cannot let the upstream binary use
+             its baked-in default (unpinned `:latest`).
+        """
+        override = str(self.config["extproc-image"]).strip()
+        if override:
+            return override
+        return f"{EXTPROC_REPO}:{self._workload_version}"
 
     @property
     def _service_fqdn(self) -> str:
@@ -456,13 +492,11 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             "--enableLeaderElection=true",
             "--rootPrefix=/",
         ]
-        # The controller stamps this ExtProc sidecar image into Envoy Gateway data-plane
-        # pods. Sourced from the swappable oci-image resource so operators can pin it;
-        # omitted when unset so the controller falls back to its built-in default rather
-        # than receiving an empty value.
-        extproc_image = self._image_ref("ai-extproc-image")
-        if extproc_image:
-            args.append(f"--extProcImage={extproc_image}")
+        # The controller stamps this ExtProc sidecar image into Envoy Gateway
+        # data-plane pods; see _extproc_image_ref for precedence. Always stamped
+        # explicitly so we never inherit the upstream binary's unpinned :latest
+        # default, which is `dev`-versioned and mismatches a pinned controller.
+        args.append(f"--extProcImage={self._extproc_image_ref}")
         return Layer(
             {
                 "summary": "Envoy AI Gateway",

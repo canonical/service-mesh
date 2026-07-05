@@ -8,10 +8,15 @@ import json
 from jubilant import Juju, all_active, all_agents_idle
 from pytest_bdd import given, then, when
 
-from tests.integration.helpers import APP_NAME, EXTENSION_SERVER_PORT, published_app_data
-
-CONTROLLER = "envoy-controller-k8s"
-CONTROLLER_CHANNEL = "latest/edge"
+from tests.integration.helpers import (
+    APP_NAME,
+    ENVOY_CHANNEL,
+    EXTENSION_SERVER_PORT,
+    published_app_data,
+)
+from tests.integration.helpers import (
+    CONTROLLER_APP as CONTROLLER,
+)
 
 
 def _decode(data: dict, key: str):
@@ -32,7 +37,7 @@ def controller_deployed(juju: Juju) -> None:
     """Deploy the Envoy Gateway controller (extension-server requirer) from edge."""
     if CONTROLLER in juju.status().apps:
         return
-    juju.deploy(CONTROLLER, channel=CONTROLLER_CHANNEL, trust=True)
+    juju.deploy(CONTROLLER, channel=ENVOY_CHANNEL, trust=True)
     juju.wait(lambda s: all_active(s, CONTROLLER), timeout=1000, delay=5, successes=3)
 
 
