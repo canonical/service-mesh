@@ -289,6 +289,7 @@ Factual corrections to the original design discovered during implementation:
 - **`EnvoyProxy` naming.** The default `EnvoyProxy` is named after the controller's Juju application; the ingress charm's `GatewayClass.spec.parametersRef` references it by that name (part of the cross-charm contract).
 - **Cleanup on remove.** App-scoped resources (the `envoy-gateway` Service; the ExtProc webhook on the AI charm) are deleted **only on last-unit removal** (`planned_units == 0`), left in place on scale-down. CRDs are always left in place (removing them cascade-deletes cluster-wide custom resources).
 - **CRD bundling.** Bundled CRD YAML lives under `src/crds/` (packed with `src/`), subdivided `gateway-api/`, `envoy-gateway/`, `gie/`, `ai-gateway/`.
+- **Control-plane metrics need scrape, not OTLP.** EG's OTLP telemetry pipeline only exports what its binary chooses to push (xDS/config sync); it does **not** cover the kubebuilder metrics served on `:19001/metrics` (`controller_runtime_*`, `workqueue_*`, `certwatcher_*`, `controller_runtime_webhook_*`, `rest_client_*`, `go_*`). The controller-health dashboard needs those, so the charm adds a `metrics-endpoint` (`prometheus_scrape`) provider advertising `*:19001` and ships alert rules on that relation. `otlp` and `metrics-endpoint` are complementary — both must be related for full control-plane observability.
 
 ---
 

@@ -1,10 +1,11 @@
 {
   "__inputs": [],
   "__requires": [],
-  "description": "Envoy Gateway controller health: availability, reconciliation throughput and errors.",
+  "description": "Envoy Gateway controller health — reconciles, workqueue, admission webhook, Kubernetes API client, certwatcher, runtime footprint. Scraped from :19001/metrics via the metrics-endpoint relation.",
   "editable": true,
   "graphTooltip": 0,
   "schemaVersion": 39,
+  "version": 2,
   "refresh": "30s",
   "time": { "from": "now-1h", "to": "now" },
   "timezone": "",
@@ -12,101 +13,378 @@
   "uid": "envoy-gateway-controller",
   "templating": {
     "list": [
-      { "name": "datasource", "query": "prometheus", "type": "datasource", "hide": 0 }
+      { "name": "prometheusds", "type": "datasource", "query": "prometheus", "hide": 0 },
+      {
+        "name": "juju_model",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+        "query": "label_values(controller_runtime_reconcile_total, juju_model)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1
+      },
+      {
+        "name": "juju_application",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+        "query": "label_values(controller_runtime_reconcile_total{juju_model=~\"$juju_model\"}, juju_application)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1
+      },
+      {
+        "name": "juju_unit",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+        "query": "label_values(controller_runtime_reconcile_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\"}, juju_unit)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1
+      },
+      {
+        "name": "controller",
+        "type": "query",
+        "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+        "query": "label_values(controller_runtime_reconcile_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}, controller)",
+        "refresh": 1,
+        "includeAll": true,
+        "multi": true,
+        "sort": 1
+      }
     ]
   },
   "panels": [
     {
-      "id": 1,
-      "type": "stat",
-      "title": "Controller availability",
+      "id": 100, "type": "row", "title": "SLO overview",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 0 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 1, "type": "stat", "title": "Scrape up",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 6, "w": 6, "x": 0, "y": 0 },
+      "gridPos": { "h": 5, "w": 4, "x": 0, "y": 1 },
       "fieldConfig": {
         "defaults": {
           "mappings": [
-            { "type": "value", "options": { "0": { "text": "Down" }, "1": { "text": "Up" } } }
+            { "type": "value", "options": { "0": { "text": "Down", "color": "red" }, "1": { "text": "Up", "color": "green" } } }
           ],
-          "thresholds": {
-            "mode": "absolute",
-            "steps": [
-              { "color": "red", "value": null },
-              { "color": "green", "value": 1 }
-            ]
-          }
-        },
-        "overrides": []
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "red", "value": null }, { "color": "green", "value": 1 } ] }
+        }
       },
       "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "max(up)",
-          "refId": "A"
-        }
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "min(up{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"})",
+          "refId": "A" }
       ]
     },
     {
-      "id": 2,
-      "type": "timeseries",
-      "title": "Reconcile rate",
+      "id": 2, "type": "stat", "title": "Leader",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 9, "x": 6, "y": 0 },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (controller) (rate(controller_runtime_reconcile_total[5m]))",
-          "legendFormat": "{{controller}}",
-          "refId": "A"
+      "gridPos": { "h": 5, "w": 4, "x": 4, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "mappings": [
+            { "type": "value", "options": { "0": { "text": "Not leader", "color": "yellow" }, "1": { "text": "Leader", "color": "green" } } }
+          ],
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "yellow", "value": null }, { "color": "green", "value": 1 } ] }
         }
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "max(leader_election_master_status{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"})",
+          "refId": "A" }
       ]
     },
     {
-      "id": 3,
-      "type": "timeseries",
-      "title": "Reconcile errors",
+      "id": 3, "type": "stat", "title": "Reconciles / min",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 9, "x": 15, "y": 0 },
-      "fieldConfig": { "defaults": { "unit": "ops" }, "overrides": [] },
+      "gridPos": { "h": 5, "w": 5, "x": 8, "y": 1 },
+      "fieldConfig": { "defaults": { "unit": "opm", "decimals": 1 } },
       "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (controller) (rate(controller_runtime_reconcile_errors_total[5m]))",
-          "legendFormat": "{{controller}}",
-          "refId": "A"
-        }
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum(rate(controller_runtime_reconcile_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m])) * 60",
+          "refId": "A" }
       ]
     },
     {
-      "id": 4,
-      "type": "timeseries",
-      "title": "Workqueue depth",
+      "id": 4, "type": "stat", "title": "Reconcile error %",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 8 },
-      "fieldConfig": { "defaults": { "unit": "short" }, "overrides": [] },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "sum by (name) (workqueue_depth)",
-          "legendFormat": "{{name}}",
-          "refId": "A"
+      "gridPos": { "h": 5, "w": 5, "x": 13, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "percent", "decimals": 2,
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 5 } ] }
         }
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "100 * sum(rate(controller_runtime_reconcile_errors_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m])) / clamp_min(sum(rate(controller_runtime_reconcile_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m])), 0.001)",
+          "refId": "A" }
       ]
     },
     {
-      "id": 5,
-      "type": "timeseries",
-      "title": "Controller memory (RSS)",
+      "id": 5, "type": "stat", "title": "Workqueue depth",
       "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 8 },
-      "fieldConfig": { "defaults": { "unit": "bytes" }, "overrides": [] },
-      "targets": [
-        {
-          "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
-          "expr": "process_resident_memory_bytes",
-          "legendFormat": "RSS",
-          "refId": "A"
+      "gridPos": { "h": 5, "w": 6, "x": 18, "y": 1 },
+      "fieldConfig": {
+        "defaults": {
+          "unit": "short",
+          "thresholds": { "mode": "absolute", "steps": [ { "color": "green", "value": null }, { "color": "yellow", "value": 1 }, { "color": "red", "value": 50 } ] }
         }
+      },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum(workqueue_depth{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"})",
+          "refId": "A" }
+      ]
+    },
+
+    {
+      "id": 200, "type": "row", "title": "Reconciler",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 6 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Reconcile rate by controller",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (controller) (rate(controller_runtime_reconcile_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",controller=~\"$controller\"}[5m]))",
+          "legendFormat": "{{controller}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 11, "type": "timeseries", "title": "Reconcile latency (p50 / p95 / p99)",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 7 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "histogram_quantile(0.50, sum by (le) (rate(controller_runtime_reconcile_time_seconds_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",controller=~\"$controller\"}[5m])))",
+          "legendFormat": "p50", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(controller_runtime_reconcile_time_seconds_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",controller=~\"$controller\"}[5m])))",
+          "legendFormat": "p95", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "histogram_quantile(0.99, sum by (le) (rate(controller_runtime_reconcile_time_seconds_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",controller=~\"$controller\"}[5m])))",
+          "legendFormat": "p99", "refId": "C" }
+      ]
+    },
+    {
+      "id": 12, "type": "timeseries", "title": "Reconcile errors by controller",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 15 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (controller) (rate(controller_runtime_reconcile_errors_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",controller=~\"$controller\"}[5m]))",
+          "legendFormat": "{{controller}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 13, "type": "timeseries", "title": "Terminal errors, timeouts, panics",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 15 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (controller) (rate(controller_runtime_terminal_reconcile_errors_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",controller=~\"$controller\"}[5m]))",
+          "legendFormat": "terminal – {{controller}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (controller) (rate(controller_runtime_reconcile_timeouts_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",controller=~\"$controller\"}[5m]))",
+          "legendFormat": "timeout – {{controller}}", "refId": "B" },
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (controller) (rate(controller_runtime_reconcile_panics_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",controller=~\"$controller\"}[5m]))",
+          "legendFormat": "panic – {{controller}}", "refId": "C" }
+      ]
+    },
+
+    {
+      "id": 300, "type": "row", "title": "Workqueue",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 23 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 20, "type": "timeseries", "title": "Depth by queue",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (name) (workqueue_depth{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"})",
+          "legendFormat": "{{name}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 21, "type": "timeseries", "title": "Adds & retries",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 24 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (name) (rate(workqueue_adds_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m]))",
+          "legendFormat": "adds – {{name}}", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (name) (rate(workqueue_retries_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m]))",
+          "legendFormat": "retries – {{name}}", "refId": "B" }
+      ]
+    },
+    {
+      "id": 22, "type": "timeseries", "title": "Queue-wait p95 (time item spent enqueued)",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 32 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "histogram_quantile(0.95, sum by (le, name) (rate(workqueue_queue_duration_seconds_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m])))",
+          "legendFormat": "{{name}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 23, "type": "timeseries", "title": "Work-duration p95 (processing time)",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 32 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "histogram_quantile(0.95, sum by (le, name) (rate(workqueue_work_duration_seconds_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m])))",
+          "legendFormat": "{{name}}", "refId": "A" }
+      ]
+    },
+
+    {
+      "id": 400, "type": "row", "title": "Kubernetes API client",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 40 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 30, "type": "timeseries", "title": "Request rate by method",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 41 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (method) (rate(rest_client_requests_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m]))",
+          "legendFormat": "{{method}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 31, "type": "timeseries", "title": "Non-2xx responses by code",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 41 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (code) (rate(rest_client_requests_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\",code!~\"2..\"}[5m]))",
+          "legendFormat": "{{code}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 32, "type": "timeseries", "title": "Request latency p95 by verb",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 0, "y": 49 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "histogram_quantile(0.95, sum by (le, verb) (rate(rest_client_request_duration_seconds_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m])))",
+          "legendFormat": "{{verb}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 33, "type": "timeseries", "title": "Retry rate",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 12, "x": 12, "y": 49 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum(rate(rest_client_requests_retry_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m]))",
+          "legendFormat": "retries", "refId": "A" }
+      ]
+    },
+
+    {
+      "id": 500, "type": "row", "title": "Admission webhook & certwatcher",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 57 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 40, "type": "timeseries", "title": "Webhook requests by HTTP code",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 58 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum by (code) (rate(controller_runtime_webhook_requests_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m]))",
+          "legendFormat": "{{code}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 41, "type": "timeseries", "title": "Webhook requests in flight",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 58 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum(controller_runtime_webhook_requests_in_flight{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"})",
+          "legendFormat": "in flight", "refId": "A" }
+      ]
+    },
+    {
+      "id": 42, "type": "timeseries", "title": "Certwatcher reads & errors",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 58 },
+      "fieldConfig": { "defaults": { "unit": "ops" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum(rate(certwatcher_read_certificate_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m]))",
+          "legendFormat": "reads", "refId": "A" },
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "sum(rate(certwatcher_read_certificate_errors_total{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m]))",
+          "legendFormat": "errors", "refId": "B" }
+      ]
+    },
+
+    {
+      "id": 600, "type": "row", "title": "Runtime footprint",
+      "gridPos": { "h": 1, "w": 24, "x": 0, "y": 66 },
+      "collapsed": false, "panels": []
+    },
+    {
+      "id": 50, "type": "timeseries", "title": "Resident memory (RSS)",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 8, "x": 0, "y": 67 },
+      "fieldConfig": { "defaults": { "unit": "bytes" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "process_resident_memory_bytes{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}",
+          "legendFormat": "{{juju_unit}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 51, "type": "timeseries", "title": "Goroutines",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 8, "x": 8, "y": 67 },
+      "fieldConfig": { "defaults": { "unit": "short" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "go_goroutines{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}",
+          "legendFormat": "{{juju_unit}}", "refId": "A" }
+      ]
+    },
+    {
+      "id": 52, "type": "timeseries", "title": "GC pause p95",
+      "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+      "gridPos": { "h": 8, "w": 8, "x": 16, "y": 67 },
+      "fieldConfig": { "defaults": { "unit": "s" } },
+      "targets": [
+        { "datasource": { "type": "prometheus", "uid": "${prometheusds}" },
+          "expr": "histogram_quantile(0.95, sum by (le) (rate(go_gc_duration_seconds_bucket{juju_model=~\"$juju_model\",juju_application=~\"$juju_application\",juju_unit=~\"$juju_unit\"}[5m])))",
+          "legendFormat": "p95 pause", "refId": "A" }
       ]
     }
   ]

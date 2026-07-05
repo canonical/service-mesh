@@ -37,6 +37,7 @@ from canonical_service_mesh.models.envoy import (
 )
 from charmlibs.interfaces.otlp import OtlpRequirer, RuleStore
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
+from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from cosl.juju_topology import JujuTopology
 from lightkube import ApiError, Client
 from lightkube.codecs import load_all_yaml
@@ -89,6 +90,8 @@ GATEWAY_CONTAINER = "envoy-gateway"
 CONTROL_PLANE_NAME = "envoy-gateway"
 XDS_PORT = 18000
 WASM_PORT = 18002
+# controller-runtime Prometheus /metrics endpoint exposed by the envoy-gateway binary.
+METRICS_PORT = 19001
 
 # Secrets minted by `envoy-gateway certgen`. They are app-scoped (not per-unit) and
 # unmanaged by KRM, so they are deleted explicitly on last-unit teardown — otherwise a
@@ -148,6 +151,12 @@ class EnvoyControllerCharm(ops.CharmBase):
             rules=_rules,
         )
         self.grafana_dashboards = GrafanaDashboardProvider(self)
+        self._metrics_endpoint = MetricsEndpointProvider(
+            self,
+            jobs=[{"static_configs": [{"targets": [f"*:{METRICS_PORT}"]}]}],
+            alert_rules_path=str(SOURCE_PATH / "prometheus_alert_rules"),
+            refresh_event=[self.on.envoy_gateway_pebble_ready],
+        )
         self.ext_server = ExtensionServerRequirer(self)
 
         self.framework.observe(self.on.config_changed, self._reconcile)
