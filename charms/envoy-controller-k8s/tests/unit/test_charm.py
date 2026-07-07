@@ -150,22 +150,25 @@ def test_reconcile_defers_on_api_429(ctx, krm_mocks):
     assert state_out.unit_status == ops.MaintenanceStatus("Setting up Envoy Gateway control plane")
 
 
-@pytest.mark.parametrize(
-    "ref, expected",
-    [
-        # Normal tagged reference -> the tag is the version.
-        ("docker.io/envoyproxy/gateway:v1.7.0", "v1.7.0"),
-        # Registry with a port: the host ':port' must not be mistaken for a tag.
-        ("registry.example.com:5000/ns/gateway:1.2.3", "1.2.3"),
-        # Digest-pinned, no tag: report nothing rather than fabricate a version.
-        ("docker.io/envoyproxy/gateway@sha256:" + "a" * 64, ""),
-    ],
-)
-def test_workload_version_from_image_tag(ctx, ref, expected):
-    # The controller binary self-reports no version, so the deployed image tag is the
-    # source of truth. A digest-pinned/untagged image must not invent a version.
-    with ctx(ctx.on.config_changed(), make_state(envoy_gateway_image=ref)) as mgr:
-        assert mgr.charm._workload_version == expected
+def test_workload_version_from_envoy_gateway_binary(ctx, krm_mocks):
+    # `envoy-gateway version` is the source of truth for the deployed controller version;
+    # parsing the image tag (as we used to) fails when the image is digest-pinned — which
+    # is exactly how Charmhub delivers its proxied OCI resources.
+    version_out = (
+        "ENVOY_GATEWAY_VERSION: v1.7.0\n"
+        "ENVOY_PROXY_VERSION: distroless-v1.37.0\n"
+        "GATEWAYAPI_VERSION: v1.4.1\n"
+    )
+    state = make_state(exec_stdout=version_out)
+    state_out = ctx.run(ctx.on.config_changed(), state)
+    assert state_out.workload_version == "v1.7.0"
+
+
+def test_workload_version_empty_when_container_unreachable(ctx):
+    # No version until Pebble is up — do not fabricate one; reconcile bails earlier
+    # anyway (waiting for Pebble).
+    state_out = ctx.run(ctx.on.config_changed(), make_state(can_connect=False))
+    assert state_out.workload_version == ""
 
 
 def test_invalid_log_level_falls_back_to_default(ctx, krm_mocks):

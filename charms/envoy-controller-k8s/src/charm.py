@@ -108,13 +108,12 @@ CERTGEN_SECRETS = ("envoy", "envoy-gateway", "envoy-rate-limit", "envoy-oidc-hma
 DEFAULT_LOG_LEVEL = "info"
 VALID_LOG_LEVELS = frozenset({"debug", "info", "warn", "error"})
 
-# Docker/distribution tag grammar: a word char followed by up to 127 word/dot/dash
-# chars, ASCII-only. Used to pull the version tag out of the controller's image
-# reference. The controller binary self-reports no version, so the tag of the image the
-# pod runs is the only source of truth for the deployed version. This is the tag grammar
-# only, not the full reference grammar — enough to validate a candidate tag without
-# pulling in a reference-parsing dependency.
-_IMAGE_TAG = re.compile(r"[\w][\w.-]{0,127}", re.ASCII)
+# Line of `envoy-gateway version` output that carries the controller version, e.g.
+# `ENVOY_GATEWAY_VERSION: v1.7.0`. Parsing this instead of the image tag makes the
+# version accurate regardless of how the OCI image is delivered — Charmhub, for
+# instance, digest-pins its proxied images (`...@sha256:...`), stripping the tag we
+# used to rely on.
+_VERSION_LINE = re.compile(r"^ENVOY_GATEWAY_VERSION:\s*(\S+)", re.MULTILINE)
 
 
 def _load_crd_yaml(directory: str) -> list:
@@ -193,24 +192,20 @@ class EnvoyControllerCharm(ops.CharmBase):
             return DEFAULT_LOG_LEVEL
         return level
 
-    def _image_ref(self, resource: str) -> Optional[str]:
-        """Return the OCI image reference for an oci-image resource, or None if absent."""
-        try:
-            path = self.model.resources.fetch(resource)
-        except (ops.ModelError, NameError):
-            return None
-        data = yaml.safe_load(Path(path).read_text())
-        return data.get("registrypath") if data else None
-
     @property
     def _workload_version(self) -> str:
-        """Deployed controller version from its OCI image tag, or "" if untagged."""
-        ref = self._image_ref("envoy-gateway-image")
-        if not ref:
+        """Deployed controller version from `envoy-gateway version`, or "" if unreadable."""
+        # Requires the container to be up (any exec failure — pebble not connected,
+        # binary missing, non-zero exit — falls back to "").
+        container = self.unit.get_container(GATEWAY_CONTAINER)
+        if not container.can_connect():
             return ""
-        last = ref.split("@", 1)[0].rsplit("/", 1)[-1]
-        _, sep, tag = last.partition(":")
-        return tag if sep and _IMAGE_TAG.fullmatch(tag) else ""
+        try:
+            stdout, _ = container.exec(["envoy-gateway", "version"]).wait_output()
+        except (ExecError, ops.pebble.Error):
+            return ""
+        match = _VERSION_LINE.search(stdout)
+        return match.group(1) if match else ""
 
     @property
     def _otlp_endpoint(self) -> Optional[str]:
@@ -290,8 +285,7 @@ class EnvoyControllerCharm(ops.CharmBase):
         "storage is (re)initializing") — juju retries via the next event rather than
         flipping to error state during the sub-second window.
         """
-        # Step 0: observability + identity + workload version — no cluster access needed
-        self.unit.set_workload_version(self._workload_version)
+        # Step 0: observability + identity — no cluster access needed
         self.grafana_dashboards.update_dashboards()
         self.otlp.publish()
         # Advertise our control-plane identity so a related extension server can gate
@@ -307,6 +301,9 @@ class EnvoyControllerCharm(ops.CharmBase):
         if not self.unit.get_container(GATEWAY_CONTAINER).can_connect():
             logger.info("Pebble not ready; skipping reconciliation")
             return
+        # Workload version comes from `envoy-gateway version` (see _workload_version) so it
+        # must run after the container-connect gate above.
+        self.unit.set_workload_version(self._workload_version)
 
         try:
             self._reconcile_crds()
