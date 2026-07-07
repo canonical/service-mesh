@@ -102,6 +102,9 @@ class IstioBeaconCharm(ops.CharmBase):
             self,
             jobs=[{"static_configs": [{"targets": [f"*:{METRICS_PORT}"]}]}],
         )
+        # Charm tracing
+        # We don't provide a CA cert because istio does TLS its own way.
+        # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
         self._tracing = tracing.Tracing(self, tracing_relation_name="charm-tracing")
 
         self._label_configmap_name = label_configmap_name_template.format(app_name=self.app.name)
