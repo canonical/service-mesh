@@ -325,16 +325,20 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         Steps:
           0. Publish observability — Grafana dashboards and OTLP alert rules are pure
              databag work, so they need none of the preconditions below.
-          1. Check preconditions — trust and Pebble. Any unmet precondition halts
-             reconciliation; status is set via _on_collect_status.
+          1. Check preconditions — trust, Pebble, and issued TLS cert. Any unmet
+             precondition halts reconciliation; status is set via _on_collect_status.
           2. Apply CRDs — the aigateway.envoyproxy.io schemas the controller indexes
              at startup. Halts until they reach Established.
-          3. Push the webhook serving cert into the container. Halts until issued.
-          4. Open the controller's ports on Juju's application Service (gRPC + webhook
-             + metrics); no charm-managed Service is needed.
-          5. Reconcile the ExtProc MutatingWebhookConfiguration (caBundle = issuing CA).
-          6. Publish the Extension Server address over the relation (the AI on/off switch).
-          7. Reconcile Pebble services — add the controller layer and replan.
+          3. Push the webhook serving cert into the container.
+          4. Reconcile the ExtProc MutatingWebhookConfiguration (caBundle = issuing CA),
+             or tear it down when the extension-server relation is absent.
+          5. Advertise the Extension Server endpoint on Juju's Service + publish over
+             the relation (the AI on/off switch).
+          6. Reconcile Pebble services — add the controller layer and replan.
+
+        Steps 3–6 defer cleanly on a k8s API 429 (freshly-established CRDs briefly return
+        "storage is (re)initializing") — juju retries via the next event rather than
+        flipping to error state during the sub-second window.
         """
         self.unit.set_workload_version(self._workload_version)
 
@@ -357,47 +361,78 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             logger.info("CRDs applied but not yet Established; deferring controller start")
             return
 
-        # Step 3: webhook serving cert
+        if not self._tls_ready:
+            logger.info("TLS certificate not issued yet; deferring cert-dependent reconcile")
+            return
+
+        try:
+            self._reconcile_serving_certs()
+            if not self._reconcile_extproc_webhook():
+                return
+            self._reconcile_extension_server_endpoint()
+            self._reconcile_pebble_services()
+        except ApiError as e:
+            if e.status.code == 429:
+                logger.info("k8s API returned 429 (%s); deferring", e.status.message)
+                return
+            raise
+
+    def _reconcile_serving_certs(self):
+        """Push the AI controller's TLS serving cert + issuing CA into its container."""
+        # The controller reads the CA bundle from disk to patch the webhook's caBundle
+        # at startup and exits if the file is missing. It is the same CA we set on the
+        # webhook below, so the controller's equality check passes and it does not
+        # fight our field manager.
         cert = self._webhook_cert()
         if cert is None:
-            logger.info("TLS certificate not issued yet; skipping cert-dependent reconcile")
-            return
+            return  # cert relation became not-ready mid-hook; next event re-reconciles
         ca_pem, cert_pem, key_pem = cert
         self._push_files(
             CONTAINER,
             {
                 f"{CERT_DIR}/{TLS_CERT_NAME}": cert_pem,
                 f"{CERT_DIR}/{TLS_KEY_NAME}": key_pem,
-                # The controller reads this to patch the webhook's caBundle; it exits
-                # if the file is missing. Same CA we set on the webhook below, so its
-                # equality check passes and it does not fight our field manager.
                 f"{CERT_DIR}/{CA_BUNDLE_NAME}": ca_pem,
             },
         )
 
-        # Without an active envoy-extension-server relation, tear down the ExtProc webhook.
-        # Leaving it in place would keep intercepting Envoy Gateway data-plane pod CREATEs
-        # against a Service the API server can no longer usefully reach — either injecting
-        # against a stale controller or, under failurePolicy=Fail, blocking pod creation.
-        # `.active` catches the relation-broken hook, where get_relation() still returns
-        # the departing relation object.
+    def _reconcile_extproc_webhook(self) -> bool:
+        """Reconcile the ExtProc webhook, or tear it down when unrelated.
+
+        Returns True when the extension-server relation is active and the webhook was
+        applied. Returns False when the relation is absent — the webhook is removed
+        and remaining reconcile steps are skipped so we do not advertise an inert
+        extension server.
+        """
+        # Without an active envoy-extension-server relation, tear down the ExtProc
+        # webhook. Leaving it in place would keep intercepting Envoy Gateway
+        # data-plane pod CREATEs against a Service the API server can no longer
+        # usefully reach — either injecting against a stale controller or, under
+        # failurePolicy=Fail, blocking pod creation. `.active` catches the
+        # relation-broken hook, where get_relation() still returns the departing
+        # relation object.
         relation = self.model.get_relation("envoy-extension-server")
         if not relation or not relation.active:
             logger.info("envoy-extension-server relation absent; removing ExtProc webhook")
             self._webhook_krm().reconcile([])
-            return
-
-        # Step 4: expose the controller's ports on Juju's application Service
-        self.unit.set_ports(EXTENSION_SERVER_PORT, WEBHOOK_PORT, METRICS_PORT)
-        # Step 5: ExtProc admission webhook (issuing CA as caBundle)
+            return False
+        cert = self._webhook_cert()
+        if cert is None:
+            return False  # cert relation became not-ready mid-hook
+        ca_pem, _, _ = cert
         self._webhook_krm().reconcile([self._construct_webhook(ca_pem)])
-        # Step 6: advertise the Extension Server endpoint (AI on/off switch)
+        return True
+
+    def _reconcile_extension_server_endpoint(self):
+        """Open the controller's ports on Juju's Service and publish the endpoint."""
+        # The extension-server gRPC endpoint and the ExtProc webhook are both reached
+        # through Juju's application Service; set_ports opens them there so no
+        # charm-managed Service is needed.
+        self.unit.set_ports(EXTENSION_SERVER_PORT, WEBHOOK_PORT, METRICS_PORT)
         self.ext_server.publish_data(
             extension_server_fqdn=self._service_fqdn,
             extension_server_port=str(EXTENSION_SERVER_PORT),
         )
-        # Step 7: Pebble services
-        self._reconcile_pebble_services()
 
     def _on_collect_status(self, event: ops.CollectStatusEvent):
         """Evaluate current state and add unit statuses."""
