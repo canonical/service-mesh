@@ -19,7 +19,6 @@ dependencies = [
 
 [project.optional-dependencies]
 dev = [
-    "setuptools",
     # Linting
     "ruff",
     # Static
