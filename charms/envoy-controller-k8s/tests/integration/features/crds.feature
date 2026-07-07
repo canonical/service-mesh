@@ -19,8 +19,12 @@ Feature: CRD management
 
   Scenario: Gateway Inference Extension CRDs are installed
     Then the following CRDs exist on the cluster:
-      | crd                                              |
-      | inferencepools.inference.networking.k8s.io        |
+      | crd                                                    |
+      | inferencepools.inference.networking.k8s.io              |
+      | inferencepools.inference.networking.x-k8s.io            |
+      | inferenceobjectives.inference.networking.x-k8s.io       |
+      | inferencepoolimports.inference.networking.x-k8s.io      |
+      | inferencemodelrewrites.inference.networking.x-k8s.io    |
 
   Scenario: AI Gateway CRDs are not installed by this charm
     Then the following CRDs do not exist on the cluster:

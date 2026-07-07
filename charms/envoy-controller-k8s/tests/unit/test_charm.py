@@ -137,6 +137,19 @@ def test_maintenance_while_crds_not_established(ctx, krm_mocks):
     assert state_out.unit_status == ops.MaintenanceStatus("Setting up Envoy Gateway control plane")
 
 
+def test_reconcile_defers_on_api_429(ctx, krm_mocks):
+    # GIVEN a freshly-Established CRD whose storage backend is still initializing —
+    # the first list against a CR of that CRD returns 429 "storage is (re)initializing".
+    # This is a known k8s race window between Established=True and the CRD's aggregated
+    # storage actually serving; crashing the hook would flip the unit to error and flake
+    # deploy pipelines that assert "no error was ever seen."
+    krm_mocks.proxy.reconcile.side_effect = _api_error(429)
+    # WHEN the charm reconciles
+    state_out = ctx.run(ctx.on.config_changed(), make_state())
+    # THEN it returns cleanly (maintenance, not error) — the next event re-runs reconcile
+    assert state_out.unit_status == ops.MaintenanceStatus("Setting up Envoy Gateway control plane")
+
+
 @pytest.mark.parametrize(
     "ref, expected",
     [

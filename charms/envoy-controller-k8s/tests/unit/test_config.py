@@ -89,7 +89,9 @@ def test_no_extension_manager_when_provider_not_published(ctx, krm_mocks):
 
 def test_extension_manager_wired_when_related(ctx, krm_mocks):
     # GIVEN a ready extension server, THEN its gRPC endpoint is wired into extensionManager
-    # with the hook set the extension server needs to fine-tune translated xDS.
+    # with the hook set the extension server needs to fine-tune translated xDS, and
+    # InferencePool is declared as an allowed backend resource so EG delegates its xDS
+    # translation to the extension server (fixes #128).
     cfg = _render_config(
         ctx,
         krm_mocks,
@@ -110,6 +112,9 @@ def test_extension_manager_wired_when_related(ctx, krm_mocks):
         "cluster": {"includeAll": True},
         "secret": {"includeAll": True},
     }
+    assert em["backendResources"] == [
+        {"group": "inference.networking.k8s.io", "kind": "InferencePool", "version": "v1"},
+    ]
 
 
 def test_controller_identity_published_to_extension_server(ctx, krm_mocks):

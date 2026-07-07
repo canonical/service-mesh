@@ -285,6 +285,10 @@ class EnvoyControllerCharm(ops.CharmBase):
           6. Reconcile EnvoyProxy — default resource with Juju-topology stats tags and OTLP sink.
           7. Reconcile GatewayClass — the shared "envoy" class ingress charms reference.
           8. Reconcile Pebble services — add the gateway layer and replan.
+
+        Steps 3–8 defer cleanly on a k8s API 429 (freshly-established CRDs briefly return
+        "storage is (re)initializing") — juju retries via the next event rather than
+        flipping to error state during the sub-second window.
         """
         # Step 0: observability + identity + workload version — no cluster access needed
         self.unit.set_workload_version(self._workload_version)
@@ -310,12 +314,25 @@ class EnvoyControllerCharm(ops.CharmBase):
             logger.info("CRDs applied but not yet Established; deferring controller start")
             return
 
-        self._reconcile_certgen()
-        self._reconcile_config_and_certs()
-        self._reconcile_control_plane_service()
-        self._reconcile_envoy_proxy()
-        self._reconcile_gateway_class()
-        self._reconcile_pebble_services()
+        # CRD Established=True marks the schema as registered but does not guarantee the
+        # aggregated storage backend is serving reads yet — freshly-created CRDs briefly
+        # return 429 "storage is (re)initializing" from list/get calls (a well-known k8s
+        # race). Treat any 429 from the first-CR-list calls below as "come back on the
+        # next event" rather than crashing the hook, so juju does not flip to error state
+        # during the sub-second storage-init window; the next reconcile (pebble-ready,
+        # update-status, or juju's own retry) will re-run and succeed.
+        try:
+            self._reconcile_certgen()
+            self._reconcile_config_and_certs()
+            self._reconcile_control_plane_service()
+            self._reconcile_envoy_proxy()
+            self._reconcile_gateway_class()
+            self._reconcile_pebble_services()
+        except ApiError as e:
+            if e.status.code == 429:
+                logger.info("k8s API returned 429 (%s); deferring", e.status.message)
+                return
+            raise
 
     def _on_collect_status(self, event: ops.CollectStatusEvent):
         """Evaluate current state and add unit statuses."""
@@ -563,6 +580,13 @@ class EnvoyControllerCharm(ops.CharmBase):
         # translated xDS: all listener/route/cluster/secret resources are passed through, and
         # it runs post the Translation/Cluster/Route stages (Envoy AI Gateway's required hook
         # set; see the upstream envoy-gateway-values.yaml).
+        # backendResources whitelists InferencePool as an allowed HTTPRoute backendRef so EG
+        # delegates it to the extension server for xDS translation (mirrors the upstream
+        # inference-pool addon values; fix for
+        # https://github.com/canonical/service-mesh/issues/128). Today the only extension
+        # server is Envoy AI Gateway, which handles InferencePool, so this is always safe when
+        # the relation is up; a second extension-server type would need an id on the interface
+        # so this can be enabled per-provider instead of unconditionally.
         return {
             "hooks": {
                 "xdsTranslator": {
@@ -575,6 +599,13 @@ class EnvoyControllerCharm(ops.CharmBase):
                     "post": ["Translation", "Cluster", "Route"],
                 }
             },
+            "backendResources": [
+                {
+                    "group": "inference.networking.k8s.io",
+                    "kind": "InferencePool",
+                    "version": "v1",
+                },
+            ],
             "service": {"fqdn": {"hostname": fqdn, "port": port}},
         }
 
