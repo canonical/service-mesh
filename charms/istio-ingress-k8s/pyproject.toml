@@ -31,7 +31,7 @@ dev = [
     # Integration
     "pytest-asyncio",
     "jubilant",
-    "pytest-jubilant",
+    "pytest-jubilant<2",  # 2.x removed `get_resources`, used in tests/integration/conftest.py
     "pytest-dependency",
     #"juju",
     "requests",
