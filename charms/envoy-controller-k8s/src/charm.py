@@ -108,6 +108,15 @@ CERTGEN_SECRETS = ("envoy", "envoy-gateway", "envoy-rate-limit", "envoy-oidc-hma
 DEFAULT_LOG_LEVEL = "info"
 VALID_LOG_LEVELS = frozenset({"debug", "info", "warn", "error"})
 
+# Envoy Gateway Kubernetes deployment mode (provider.kubernetes.deploy.type). It decides
+# where the controller provisions the Envoy Proxy data plane: ControllerNamespace (default,
+# this controller's namespace) or GatewayNamespace (each Gateway's own namespace). certgen
+# is mode-agnostic (it always mints the same control-plane Secrets here); in GatewayNamespace
+# mode the controller distributes the CA and wires projected-SA-token (JWT) xDS auth into the
+# remote proxies at runtime — so this string in the config is the only knob the charm sets.
+DEPLOY_TYPE_CONTROLLER_NAMESPACE = "ControllerNamespace"
+DEPLOY_TYPE_GATEWAY_NAMESPACE = "GatewayNamespace"
+
 # Line of `envoy-gateway version` output that carries the controller version, e.g.
 # `ENVOY_GATEWAY_VERSION: v1.7.0`. Parsing this instead of the image tag makes the
 # version accurate regardless of how the OCI image is delivered — Charmhub, for
@@ -191,6 +200,13 @@ class EnvoyControllerCharm(ops.CharmBase):
             logger.warning("Invalid log-level %r; falling back to %r", level, DEFAULT_LOG_LEVEL)
             return DEFAULT_LOG_LEVEL
         return level
+
+    @property
+    def _deploy_type(self) -> str:
+        """Envoy Gateway Kubernetes deploy type from the gateway-namespace-mode config."""
+        if bool(self.config["gateway-namespace-mode"]):
+            return DEPLOY_TYPE_GATEWAY_NAMESPACE
+        return DEPLOY_TYPE_CONTROLLER_NAMESPACE
 
     @property
     def _workload_version(self) -> str:
@@ -548,6 +564,14 @@ class EnvoyControllerCharm(ops.CharmBase):
             "extensionApis": {
                 "enableEnvoyPatchPolicy": True,
                 "enableBackend": True,
+            },
+            # deploy.type is emitted explicitly in both modes so the rendered config is
+            # self-documenting and a mode change alters the layer config-hash (see
+            # _construct_gateway_layer), which forces the controller restart EG needs to
+            # pick up the new deploy mode (EG does not hot-reload its config).
+            "provider": {
+                "type": "Kubernetes",
+                "kubernetes": {"deploy": {"type": self._deploy_type}},
             },
         }
         sink = self._otlp_metric_sink()

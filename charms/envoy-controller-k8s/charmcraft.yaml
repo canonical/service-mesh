@@ -39,6 +39,27 @@ config:
         Logging level for the Envoy Gateway controller.
         Valid values: debug, info, warn, error. Any other value logs a warning and
         falls back to the default rather than being passed to the controller.
+    gateway-namespace-mode:
+      type: boolean
+      default: false
+      description: |
+        Selects Envoy Gateway's Kubernetes deployment mode, i.e. where the Envoy
+        Proxy data plane (Deployment, Service, ServiceAccount, ConfigMap) is created.
+
+        false (default) — Controller Namespace mode: every proxy is created in this
+        controller's own namespace, regardless of where its Gateway lives.
+
+        true — Gateway Namespace mode: each proxy is created in the namespace of the
+        Gateway it serves (e.g. the ingress charm's model), giving stronger
+        cross-tenant isolation and letting the Gateway's address be discovered
+        locally. In this mode proxies authenticate to the control plane with a
+        projected service-account token (JWT) rather than an mTLS client cert; the
+        controller distributes the CA and creates the data-plane resources across
+        namespaces, which requires trust ('juju trust').
+
+        Incompatible with merged-gateways (not used by this charm). Toggling this
+        relocates where new proxies are created; existing proxies are re-provisioned
+        by the controller in the new location.
 
 provides:
   grafana-dashboard:

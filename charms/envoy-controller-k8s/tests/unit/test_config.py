@@ -29,6 +29,36 @@ def test_log_level_propagates_to_config(ctx, krm_mocks):
     assert cfg["logging"]["level"]["default"] == "debug"
 
 
+def test_deploy_type_defaults_to_controller_namespace(ctx, krm_mocks):
+    # GIVEN no gateway-namespace-mode config (default false)
+    # WHEN the config is rendered
+    cfg = _render_config(ctx, krm_mocks)
+    # THEN Envoy Gateway provisions the data plane in the controller namespace
+    assert cfg["provider"] == {
+        "type": "Kubernetes",
+        "kubernetes": {"deploy": {"type": "ControllerNamespace"}},
+    }
+
+
+def test_deploy_type_gateway_namespace_when_enabled(ctx, krm_mocks):
+    # GIVEN gateway-namespace-mode is enabled
+    # WHEN the config is rendered
+    cfg = _render_config(ctx, krm_mocks, config={"gateway-namespace-mode": True})
+    # THEN Envoy Gateway provisions each proxy in its Gateway's namespace
+    assert cfg["provider"]["kubernetes"]["deploy"]["type"] == "GatewayNamespace"
+
+
+def test_gateway_namespace_mode_change_alters_layer_hash(ctx, krm_mocks):
+    # EG does not hot-reload its config and replan() only restarts on layer changes, so
+    # flipping the deploy mode must change the config hash stamped into the layer env —
+    # otherwise the controller would keep running in the old mode after a config-changed.
+    with ctx(ctx.on.config_changed(), make_state(config={"gateway-namespace-mode": False})) as mgr:
+        controller_env = mgr.charm._construct_gateway_layer().services["envoy-gateway"].environment
+    with ctx(ctx.on.config_changed(), make_state(config={"gateway-namespace-mode": True})) as mgr:
+        gateway_env = mgr.charm._construct_gateway_layer().services["envoy-gateway"].environment
+    assert controller_env["EG_CONFIG_HASH"] != gateway_env["EG_CONFIG_HASH"]
+
+
 def test_extension_apis_always_enabled(ctx, krm_mocks):
     # Backend + EnvoyPatchPolicy are required by the AI extension server and are kept
     # enabled unconditionally (see Discussion Points in specs/envoy.spec.md).

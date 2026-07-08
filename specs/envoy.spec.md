@@ -329,6 +329,7 @@ The charm does **not** use Helm at runtime. All upstream Helm chart complexity (
 |---|---|---|---|
 | `log-level` | string enum: `debug`, `info`, `warn`, `error` | `info` | Logging level for both Envoy Gateway and AI Gateway controllers |
 | `enable-ai-gateway` | boolean | `false` | Enables/disables AI Gateway features (see below) |
+| `gateway-namespace-mode` | boolean | `false` | Selects Envoy Gateway's Kubernetes deploy mode — where the Envoy Proxy data plane is created (see below) |
 
 ### `enable-ai-gateway` Behavior
 
@@ -336,6 +337,23 @@ The charm does **not** use Helm at runtime. All upstream Helm chart complexity (
 |---|---|
 | `true` | Installs AI Gateway CRDs, runs AI Gateway controller container, configures extension manager in Envoy Gateway config, creates ExtProc MutatingWebhookConfiguration. Full AI Gateway functionality. |
 | `false` (default) | Only runs Envoy Gateway controller with standard Gateway API + GIE support. No AI CRDs, no AI Gateway controller container, no extension manager config, no ExtProc webhook. Plain Envoy Gateway operator for general-purpose ingress. **Destructive when toggled from `true` → `false`:** removing the AI Gateway CRDs cascade-deletes all AI Gateway custom resources cluster-wide (`AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `MCPRoute`, `GatewayConfig`). Only disable AI Gateway when no AI Gateway custom resources are in use. |
+
+### `gateway-namespace-mode` Behavior
+
+Sets the Envoy Gateway controller-config field `provider.kubernetes.deploy.type`, which decides **where the controller provisions the Envoy Proxy data plane** (Deployment, Service, ServiceAccount, ConfigMap). It is the *only* charm-side knob for the mode — everything else the mode needs is handled by the controller at runtime (verified live against Envoy Gateway v1.7.0).
+
+| State | `deploy.type` | Effect |
+|---|---|---|
+| `false` (default) | `ControllerNamespace` | Every proxy is created in **this controller's namespace**, regardless of where its Gateway lives. Control-plane↔proxy auth is **mTLS** (proxies mount the certgen `envoy` client-cert Secret). |
+| `true` | `GatewayNamespace` | Each proxy is created in **its Gateway's own namespace** (e.g. the ingress charm's model), giving stronger cross-tenant isolation and letting the Gateway's LoadBalancer address be discovered locally. Control-plane↔proxy auth shifts to **server-side TLS + a projected service-account-token (JWT)**: the controller copies the CA (`ca.crt` from the controller-namespace `envoy` Secret) into a ConfigMap in each Gateway namespace and mounts a projected SA token (audience `envoy-gateway.<controller-ns>.svc.<dns-domain>`) into each proxy pod. |
+
+**certgen is mode-agnostic.** `envoy-gateway certgen` reads no config file and has no `--config-path`; it always mints the same four control-plane Secrets (`envoy`, `envoy-gateway`, `envoy-rate-limit`, `envoy-oidc-hmac`) in the controller namespace from `ENVOY_GATEWAY_NAMESPACE`. So switching modes needs **no** change to the certgen step, the `CERTGEN_SECRETS` guard, or the reconcile order.
+
+**Restart on toggle.** Envoy Gateway does not hot-reload its config, so the mode string is stamped into the layer config-hash (`_construct_gateway_layer`); a `config-changed` alters the hash and `replan()` restarts the controller to adopt the new mode.
+
+**RBAC.** GatewayNamespace mode needs the controller to create/manage data-plane resources across arbitrary namespaces plus `tokenreviews`. Juju `--trust` (cluster-admin) already covers this — no extra ClusterRole manifests are shipped (unlike the upstream Helm chart, which adds a dedicated `cluster-infra-manager` ClusterRole).
+
+**Incompatible with merged-gateways** (the charm does not set `mergeGateways`). Toggling relocates where *new* proxies are created; the controller re-provisions existing proxies in the new location.
 
 ### Internally Computed (not exposed)
 
@@ -353,7 +371,6 @@ The charm does **not** use Helm at runtime. All upstream Helm chart complexity (
 | Config Key | When | Why |
 |---|---|---|
 | `watch-namespaces` | Multi-tenant support | Restrict which namespaces the controller watches |
-| `deploy-mode` | Advanced deployments | `GatewayNamespace` mode for per-namespace Envoy fleets |
 | `enable-topology-injector` | Zone-aware routing | Optional MutatingWebhookConfiguration for zone info injection |
 | `telemetry-*` | Observability relation | Metrics/tracing config when relating to Prometheus/Grafana charms |
 | `rate-limit-*` | Redis relation | Global rate limiting config when relating to a Redis charm |
