@@ -10,7 +10,7 @@ on:
       - 'uv.lock'
       - '.github/workflows/pull_request.yaml'
       - '.github/workflows/_istio-solution-tests.yaml'
-      - '.github/actions/setup-k8s-substrate/**'
+      - '.github/actions/setup-env/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -36,7 +36,7 @@ jobs:
               - 'tests/pyproject.toml'
               - 'tests/tox.ini'
               - 'tests/uv.lock'
-              - '.github/actions/setup-k8s-substrate/**'
+              - '.github/actions/setup-env/**'
               - '.github/workflows/_istio-solution-tests.yaml'
               - '.github/workflows/pull_request.yaml'
 
@@ -71,4 +71,4 @@ jobs:
     uses: ./.github/workflows/_istio-solution-tests.yaml
     with:
       istio-channel: "dev/edge"
-      substrates: '["canonical-k8s"]'
+      k8s-distributions: '["canonical-k8s"]'

@@ -13,8 +13,8 @@ on:
         options:
           - all
           - istio
-      substrate:
-        description: "Substrate(s) to test on"
+      k8s-distribution:
+        description: "K8s distribution(s) to test on"
         type: choice
         default: all
         options:
@@ -32,24 +32,24 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       solutions: ${{ steps.resolve.outputs.solutions }}
-      substrates: ${{ steps.resolve.outputs.substrates }}
+      k8s-distributions: ${{ steps.resolve.outputs.k8s-distributions }}
     steps:
-      - name: Resolve solution and substrate selections
+      - name: Resolve solution and k8s distribution selections
         id: resolve
         env:
           SOLUTION_INPUT: ${{ inputs.solution || 'all' }}
-          SUBSTRATE_INPUT: ${{ inputs.substrate || 'all' }}
+          K8S_DISTRIBUTION_INPUT: ${{ inputs.k8s-distribution || 'all' }}
         run: |
           case "$SOLUTION_INPUT" in
             all) solutions='["istio"]' ;;
             *)   solutions="[\"$SOLUTION_INPUT\"]" ;;
           esac
-          case "$SUBSTRATE_INPUT" in
-            all) substrates='["microk8s","canonical-k8s"]' ;;
-            *)   substrates="[\"$SUBSTRATE_INPUT\"]" ;;
+          case "$K8S_DISTRIBUTION_INPUT" in
+            all) k8s_distributions='["microk8s","canonical-k8s"]' ;;
+            *)   k8s_distributions="[\"$K8S_DISTRIBUTION_INPUT\"]" ;;
           esac
           echo "solutions=$solutions" >> "$GITHUB_OUTPUT"
-          echo "substrates=$substrates" >> "$GITHUB_OUTPUT"
+          echo "k8s-distributions=$k8s_distributions" >> "$GITHUB_OUTPUT"
 
   istio:
     name: Istio
@@ -58,4 +58,4 @@ jobs:
     uses: ./.github/workflows/_istio-solution-tests.yaml
     with:
       istio-channel: "dev/edge"
-      substrates: ${{ needs.dispatch-inputs.outputs.substrates }}
+      k8s-distributions: ${{ needs.dispatch-inputs.outputs.k8s-distributions }}
