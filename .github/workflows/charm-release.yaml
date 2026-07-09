@@ -54,3 +54,4 @@ jobs:
     with:
       charm-path: ${{ matrix.charm-path }}
       default-track: dev
+      provider: microk8s
