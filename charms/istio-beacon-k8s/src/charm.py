@@ -47,8 +47,6 @@ from charmlibs.interfaces.service_mesh import (
     get_data_from_cmr_relation,
 )
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
-from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 from lightkube import Client
 from lightkube.core.exceptions import ApiError
 from lightkube.generic_resource import create_namespaced_resource
@@ -60,6 +58,7 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import Deployment
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Namespace
+from ops import tracing
 from ops.model import ActiveStatus, MaintenanceStatus
 from ops.pebble import ChangeError, Layer
 
@@ -84,12 +83,6 @@ WAYPOINT_RESOURCE_TYPES = {
 PEERS_RELATION = "peers"
 
 
-@trace_charm(
-    tracing_endpoint="_charm_tracing_endpoint",
-    # we don't add a cert because istio does TLS his way
-    # TODO: fix this when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
-    extra_types=[ServiceMeshProvider, MetricsEndpointProvider],
-)
 class IstioBeaconCharm(ops.CharmBase):
     """Charm the service."""
 
@@ -109,13 +102,10 @@ class IstioBeaconCharm(ops.CharmBase):
             self,
             jobs=[{"static_configs": [{"targets": [f"*:{METRICS_PORT}"]}]}],
         )
-        self._tracing = TracingEndpointRequirer(
-            self, protocols=["otlp_http"], relation_name="charm-tracing"
-        )
-
-        self._charm_tracing_endpoint = (
-            self._tracing.get_endpoint("otlp_http") if self._tracing.relations else None
-        )
+        # Charm tracing
+        # We don't provide a CA cert because istio does TLS its own way.
+        # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
+        self._tracing = tracing.Tracing(self, tracing_relation_name="charm-tracing")
 
         self._label_configmap_name = label_configmap_name_template.format(app_name=self.app.name)
 
