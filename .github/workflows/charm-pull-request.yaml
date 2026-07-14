@@ -25,17 +25,18 @@ jobs:
           sparse-checkout: charms
           sparse-checkout-cone-mode: true
       - id: discover
-        run: echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+        run: echo "charms=$(ls -d1 charms/* | jq -Rsc '[split("\n")[:-1][] | {("charm-path"): ., ("charm-name"): ltrimstr("charms/")}]')" >> "$GITHUB_OUTPUT"
 
   pull-request:
     name: PR (${{ matrix.charm-path }})
     needs: discover-charms
     strategy:
       matrix:
-        charm-path: ${{ fromJSON(needs.discover-charms.outputs.charms) }}
+        include: ${{ fromJSON(needs.discover-charms.outputs.charms) }}
       fail-fast: false
-    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@metallb-fix
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
     with:
       charm-path: ${{ matrix.charm-path }}
+      git-tag-prefix: ${{ matrix.charm-name }}
       provider: microk8s
     secrets: inherit
