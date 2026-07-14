@@ -33,9 +33,9 @@ jobs:
         id: set-charms
         run: |
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.charm }}" != "all" ]]; then
-            echo 'charms=["charms/${{ inputs.charm }}"]' >> "$GITHUB_OUTPUT"
+            echo 'charms=[{"charm-path": "charms/${{ inputs.charm }}", "charm-name": "${{ inputs.charm }}"}]' >> "$GITHUB_OUTPUT"
           else
-            echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+            echo "charms=$(ls -d1 charms/* | jq -Rsc '[split("\n")[:-1][] | {("charm-path"): ., ("charm-name"): ltrimstr("charms/")}]')" >> "$GITHUB_OUTPUT"
           fi
 
   release:
@@ -43,7 +43,7 @@ jobs:
     needs: set-charms
     strategy:
       matrix:
-        charm-path: ${{ fromJSON(needs.set-charms.outputs.charms) }}
+        include: ${{ fromJSON(needs.set-charms.outputs.charms) }}
       fail-fast: false
     permissions:
       actions: read
@@ -53,5 +53,6 @@ jobs:
     secrets: inherit
     with:
       charm-path: ${{ matrix.charm-path }}
+      git-tag-prefix: ${{ matrix.charm-name }}
       default-track: dev
       provider: microk8s
