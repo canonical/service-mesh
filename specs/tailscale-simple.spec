@@ -15,4 +15,14 @@
 
 ## Remember to ask for next session
 * Adi's dns pod mystery
-* We did not finish addressing each object deployed by the upstream helm chart.
+
+## Requirements
+* Make sure we cover the main use cases of Canonical's managed solutions team
+* Secure cross cluster communication
+* Expose workloads to users on the tailnet
+* Provide secure communication channel between parties
+* Charms should be written in such a way to make the added workloads detectable in the ACLs
+* Make using tailscale easy
+* Support headscale as a coordination server
+* Charms with an ingress enpoint should join to the tailnet witout additional code changes
+* While we will not *block* such deployments, putting the same charm on the tailnet and a service mesh is not a goal
