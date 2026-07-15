@@ -623,9 +623,6 @@ class IstioIngressCharm(CharmBase):
             Gateway lightkube resource
         """
         allowed_routes = AllowedRoutes(namespaces={"from": "All"})
-        # Use local gateway address for the K8s Gateway resource hostname,
-        # not the cascaded upstream address
-        hostname = self._local_gateway_address if self._is_valid_hostname(self._local_gateway_address) else None
 
         listeners = []
         for norm_listener in normalized_listeners:
@@ -637,7 +634,6 @@ class IstioIngressCharm(CharmBase):
                 port=norm_listener["port"],
                 protocol=norm_listener["gateway_protocol"],
                 allowedRoutes=allowed_routes,
-                hostname=hostname,
             )
 
             # Add TLS config if this is an HTTPS listener
