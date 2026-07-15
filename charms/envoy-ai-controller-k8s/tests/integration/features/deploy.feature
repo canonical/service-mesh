@@ -6,8 +6,9 @@ Feature: Charm deployment
   Background:
     Given a Juju Kubernetes model
 
-  # Authored before the trusted scenario: both run against one module-scoped model,
-  # so the untrusted (blocked) case must be observed before trust is granted.
+  # Scenarios in this feature share one module-scoped model and run top-to-bottom.
+  # This must stay the first scenario: trust cannot be revoked within a run, so the
+  # untrusted (blocked) state can only be observed before any later scenario grants it.
   Scenario: Charm blocks without trust
     When the envoy-ai-controller-k8s charm is deployed without trust
     Then the charm is blocked with message "Trust not granted. Run 'juju trust envoy-ai-controller-k8s'"

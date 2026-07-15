@@ -10,6 +10,7 @@ from unittest.mock import MagicMock, patch
 import ops
 import pytest
 import scenario
+import yaml
 
 import charm
 from charm import EnvoyAiControllerCharm
@@ -18,7 +19,11 @@ CA_PEM = "CAPEM"
 CERT_PEM = "CERTPEM"
 KEY_PEM = "KEYPEM"
 
-DEFAULT_AI_GATEWAY_IMAGE = "docker.io/envoyproxy/ai-gateway-controller:v0.6.0"
+# Default image ref, read from charmcraft.yaml so it can't drift from the packed resource.
+_CHARMCRAFT = yaml.safe_load(
+    (Path(__file__).parent.parent.parent / "charmcraft.yaml").read_text()
+)
+DEFAULT_AI_GATEWAY_IMAGE = _CHARMCRAFT["resources"]["ai-gateway-image"]["upstream-source"]
 
 # oci-image resources surface to the charm as a YAML file holding the image reference
 # under `registrypath`. Materialise those files once so make_state can hand scenario a

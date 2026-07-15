@@ -447,7 +447,7 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             return
         container = self.unit.get_container(CONTAINER)
         if not container.can_connect():
-            event.add_status(ops.WaitingStatus("Waiting for Pebble (ai-gateway container)"))
+            event.add_status(ops.WaitingStatus("Waiting for ai-gateway container"))
             return
         if not self.model.get_relation("certificates"):
             event.add_status(ops.BlockedStatus("Missing relation: certificates"))
@@ -469,7 +469,7 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             return
         if not self._container_healthy(container):
             event.add_status(
-                ops.WaitingStatus("Waiting for AI Gateway controller to become healthy")
+                ops.WaitingStatus("Waiting for ai-gateway to become healthy")
             )
             return
         event.add_status(ops.ActiveStatus())

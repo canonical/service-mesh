@@ -85,6 +85,8 @@ requires:
       Publishes alert/recording rules into the relation databag.
   certificates:
     interface: tls-certificates
+    # Mandatory: the ExtProc admission webhook cannot serve without a TLS cert, so the
+    # charm blocks until this relation is established.
     optional: false
     limit: 1
     description: |

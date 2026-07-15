@@ -1,14 +1,6 @@
 groups:
   - name: EnvoyAiGatewayControllerRules
     rules:
-      - alert: EnvoyAiGatewayControllerDown
-        expr: up == 0
-        for: 5m
-        labels:
-          severity: critical
-        annotations:
-          summary: "Envoy AI Gateway controller is down"
-          description: "The Envoy AI Gateway controller has been unreachable for more than 5 minutes; AI route changes will not be reconciled and new data-plane pods cannot have ExtProc sidecars injected."
       - alert: EnvoyAiGatewayReconcileErrors
         expr: rate(controller_runtime_reconcile_errors_total[5m]) > 0
         for: 15m

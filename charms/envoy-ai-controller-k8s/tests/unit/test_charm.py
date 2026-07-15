@@ -54,7 +54,7 @@ def test_waiting_without_pebble(ctx):
     state_out = ctx.run(ctx.on.config_changed(), make_state(can_connect=False))
     # THEN it waits for Pebble
     assert state_out.unit_status == ops.WaitingStatus(
-        "Waiting for Pebble (ai-gateway container)"
+        "Waiting for ai-gateway container"
     )
 
 
@@ -135,7 +135,7 @@ def test_waiting_when_controller_health_check_fails(ctx, krm_mocks):
     # THEN it reports waiting, not active. Only liveness is restart-wired, so a sustained
     # readiness failure stays in waiting rather than restart-looping.
     assert state_out.unit_status == ops.WaitingStatus(
-        "Waiting for AI Gateway controller to become healthy"
+        "Waiting for ai-gateway to become healthy"
     )
 
 
