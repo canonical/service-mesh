@@ -28,6 +28,8 @@ jobs:
         id: filter
         with:
           filters: |
+            # dorny/paths-filter sets steps.filter.outputs.<name> to 'true' when any
+            # path listed under that filter changes, which gates the istio job below.
             istio:
               - 'tests/integration/istio/**'
               - 'tests/integration/helpers.py'
