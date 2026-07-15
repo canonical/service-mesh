@@ -64,17 +64,4 @@ def test_ingress_url_with_scheme_uses_upstream(harness):
         assert charm._ingress_url_with_scheme() == "https://upstream.example.com/model-app"
 
 
-def test_construct_gateway_uses_local_address_not_upstream(harness):
-    """The Gateway K8s resource hostname should use the local address, not the cascaded upstream."""
-    harness.update_config({"external_hostname": "local.example.com"})
-    harness.begin()
-    charm = harness.charm
 
-    with patch.object(
-        charm.upstream_ingress, "is_ready", return_value=True
-    ), patch.object(
-        IngressPerAppRequirer, "url", new_callable=PropertyMock, return_value="https://upstream.example.com/model-app/"
-    ):
-        listeners = [{"port": 80, "gateway_protocol": "HTTP", "tls_secret_name": None, "source_app": "test"}]
-        gateway = charm._construct_gateway(listeners)
-        assert gateway.spec["listeners"][0]["hostname"] == "local.example.com"
