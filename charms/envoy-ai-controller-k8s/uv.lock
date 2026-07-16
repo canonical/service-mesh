@@ -28,7 +28,7 @@ wheels = [
 [[package]]
 name = "canonical-service-mesh"
 version = "0.0.2"
-source = { git = "https://github.com/canonical/service-mesh.git?subdirectory=canonical_service_mesh&rev=feat%2FSMS-783-models-for-envoy-charms#f1263513882c77e27fe5bd1d86a2807d7facc7e6" }
+source = { git = "https://github.com/canonical/service-mesh.git?subdirectory=canonical_service_mesh&rev=feat%2FSMS-783-models-for-envoy-charms#f73b3512d87a1f4f81e290db3229ea4ba413cfc1" }
 dependencies = [
     { name = "httpx" },
     { name = "lightkube" },

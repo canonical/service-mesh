@@ -18,6 +18,7 @@ import ops
 import yaml
 from canonical_service_mesh.interfaces.envoy_extension_server import ExtensionServerProvider
 from canonical_service_mesh.k8s.resource_manager import (
+    CustomResourceDefinitionManager,
     KubernetesResourceManager,
     create_charm_default_labels,
 )
@@ -39,7 +40,6 @@ from lightkube.models.admissionregistration_v1 import (
 )
 from lightkube.models.meta_v1 import LabelSelector, ObjectMeta
 from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfiguration
-from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from ops.pebble import Layer
 
@@ -495,34 +495,17 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         # The controller indexes the v1beta1 schemas at startup and exits if they are
         # not registered, so the controller is not started until every CRD is Established.
         for scope, directory in CRD_SCOPES.items():
-            self._crd_krm(scope).reconcile(_load_crd_yaml(directory))
+            self._crd_manager(scope).reconcile(_load_crd_yaml(directory))
 
         if not self._crds_established():
             raise _CrdsNotEstablishedError()
 
     def _crds_established(self) -> bool:
-        """Return True when every bundled CRD is present AND has Established=True."""
-        for scope, directory in CRD_SCOPES.items():
-            expected = {crd.metadata.name for crd in _load_crd_yaml(directory)}
-            try:
-                deployed = {
-                    crd.metadata.name: crd
-                    for crd in self._crd_krm(scope).get_deployed_resources()
-                }
-            except ApiError:
-                return False
-            for name in expected:
-                crd = deployed.get(name)
-                if crd is None:
-                    logger.debug("CRD %s not yet present", name)
-                    return False
-                conditions = (crd.status.conditions or []) if crd.status else []
-                if not any(
-                    c.type == "Established" and c.status == "True" for c in conditions
-                ):
-                    logger.debug("CRD %s not yet Established", name)
-                    return False
-        return True
+        """Return True when every bundled CRD reports Established=True."""
+        return all(
+            self._crd_manager(scope).established(_load_crd_yaml(directory))
+            for scope, directory in CRD_SCOPES.items()
+        )
 
     def _reconcile_pebble_services(self):
         """Add the controller Pebble layer and replan."""
@@ -663,12 +646,9 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             return False
         return all(c.status == ops.pebble.CheckStatus.UP for c in checks.values())
 
-    def _crd_krm(self, scope: str) -> KubernetesResourceManager:
-        return KubernetesResourceManager(
-            labels=create_charm_default_labels(self.app.name, self.model.name, scope=scope),
-            resource_types={CustomResourceDefinition},
-            lightkube_client=self.lightkube_client,
-            logger=logger,
+    def _crd_manager(self, scope: str) -> CustomResourceDefinitionManager:
+        return CustomResourceDefinitionManager(
+            self, self.lightkube_client, scope=scope, logger=logger
         )
 
     def _webhook_krm(self) -> KubernetesResourceManager:

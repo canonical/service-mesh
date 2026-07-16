@@ -95,10 +95,10 @@ def certs_absent():
 
 @pytest.fixture()
 def krm_mocks():
-    """Replace the KRM factories with mocks and treat CRDs as Established.
+    """Replace the resource-manager factories with mocks and treat CRDs as Established.
 
     Yields a namespace with:
-      - ``crd``: dict of scope -> KRM mock (populated as the charm calls _crd_krm)
+      - ``crd``: dict of scope -> CRD manager mock (populated as the charm calls _crd_manager)
       - ``webhook``: the ExtProc MutatingWebhookConfiguration KRM mock
     """
     crd: dict = {}
@@ -107,7 +107,7 @@ def krm_mocks():
         return crd.setdefault(scope, MagicMock())
 
     with patch.object(
-        EnvoyAiControllerCharm, "_crd_krm", side_effect=crd_factory
+        EnvoyAiControllerCharm, "_crd_manager", side_effect=crd_factory
     ), patch.object(EnvoyAiControllerCharm, "_webhook_krm") as webhook, patch.object(
         EnvoyAiControllerCharm, "_crds_established", return_value=True
     ):
