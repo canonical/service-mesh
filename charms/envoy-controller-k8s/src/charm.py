@@ -20,6 +20,7 @@ import ops
 import yaml
 from canonical_service_mesh.interfaces.envoy_extension_server import ExtensionServerRequirer
 from canonical_service_mesh.k8s.resource_manager import (
+    CustomResourceDefinitionManager,
     KubernetesResourceManager,
     create_charm_default_labels,
 )
@@ -43,7 +44,6 @@ from lightkube import ApiError, Client
 from lightkube.codecs import load_all_yaml
 from lightkube.models.core_v1 import ServicePort, ServiceSpec
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.core_v1 import Secret, Service
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from ops.pebble import ExecError, Layer
@@ -356,7 +356,7 @@ class EnvoyControllerCharm(ops.CharmBase):
             return
         container = self.unit.get_container(GATEWAY_CONTAINER)
         if not container.can_connect():
-            event.add_status(ops.WaitingStatus("Waiting for Pebble (envoy-gateway container)"))
+            event.add_status(ops.WaitingStatus("Waiting for envoy-gateway container"))
             return
         if GATEWAY_CONTAINER not in container.get_plan().services:
             # Reconciliation has not yet started the controller — most commonly it is
@@ -365,7 +365,7 @@ class EnvoyControllerCharm(ops.CharmBase):
             return
         if not self._container_healthy(container):
             event.add_status(
-                ops.WaitingStatus("Waiting for envoy-gateway controller to become healthy")
+                ops.WaitingStatus("Waiting for envoy-gateway to become healthy")
             )
             return
         if self._foreign_gateway_class_owner() is not None:
@@ -402,7 +402,7 @@ class EnvoyControllerCharm(ops.CharmBase):
     def _reconcile_crds(self):
         """Apply Gateway API + Envoy Gateway + GIE CRDs."""
         for scope, directory in CRD_SCOPES.items():
-            self._crd_krm(scope).reconcile(_load_crd_yaml(directory))
+            self._crd_manager(scope).reconcile(_load_crd_yaml(directory))
 
         # Wait for all CRDs to reach Established=True before returning so the controller
         # does not start against unregistered schemas.
@@ -738,32 +738,15 @@ class EnvoyControllerCharm(ops.CharmBase):
         )
 
     def _crds_established(self) -> bool:
-        """Return True when every bundled CRD is present AND has Established=True."""
-        # Each expected CRD (from the bundled YAML) must be found in the deployed set and carry
-        # Established=True. Checking presence — not just iterating whatever the list returns —
-        # guards against an empty/lagging label-indexed list being mistaken for "all
-        # established", which would green-light the controller against unregistered schemas.
-        for scope, directory in CRD_SCOPES.items():
-            expected = {crd.metadata.name for crd in _load_crd_yaml(directory)}
-            try:
-                deployed = {
-                    crd.metadata.name: crd
-                    for crd in self._crd_krm(scope).get_deployed_resources()
-                }
-            except ApiError:
-                return False
-            for name in expected:
-                crd = deployed.get(name)
-                if crd is None:
-                    logger.debug("CRD %s not yet present", name)
-                    return False
-                conditions = (crd.status.conditions or []) if crd.status else []
-                if not any(
-                    c.type == "Established" and c.status == "True" for c in conditions
-                ):
-                    logger.debug("CRD %s not yet Established", name)
-                    return False
-        return True
+        """Return True when every bundled CRD reports Established=True."""
+        # established() fetches each expected CRD by name and treats an ApiError (e.g. a
+        # 404 before the schema is registered) as not-yet-established, so a lagging API
+        # can never be mistaken for "all established" and green-light the controller
+        # against unregistered schemas.
+        return all(
+            self._crd_manager(scope).established(_load_crd_yaml(directory))
+            for scope, directory in CRD_SCOPES.items()
+        )
 
     def _construct_gateway_layer(self) -> Layer:
         """Construct the Pebble layer for the Envoy Gateway controller."""
@@ -835,12 +818,9 @@ class EnvoyControllerCharm(ops.CharmBase):
             return False
         return all(c.status == ops.pebble.CheckStatus.UP for c in checks.values())
 
-    def _crd_krm(self, scope: str) -> KubernetesResourceManager:
-        return KubernetesResourceManager(
-            labels=create_charm_default_labels(self.app.name, self.model.name, scope=scope),
-            resource_types={CustomResourceDefinition},
-            lightkube_client=self.lightkube_client,
-            logger=logger,
+    def _crd_manager(self, scope: str) -> CustomResourceDefinitionManager:
+        return CustomResourceDefinitionManager(
+            self, self.lightkube_client, scope=scope, logger=logger
         )
 
     def _envoy_proxy_krm(self) -> KubernetesResourceManager:

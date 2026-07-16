@@ -3,12 +3,14 @@
 
 import base64
 import json
+from pathlib import Path
 from types import SimpleNamespace
 from unittest.mock import MagicMock, patch
 
 import ops
 import pytest
 import scenario
+import yaml
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Secret
 
@@ -35,7 +37,15 @@ CA_PEM = "CAPEM"
 CERT_PEM = "CERTPEM"
 KEY_PEM = "KEYPEM"
 
-DEFAULT_ENVOY_GATEWAY_VERSION_OUT = "ENVOY_GATEWAY_VERSION: v1.7.0\n"
+# Version reported by `envoy-gateway version`, derived from the image tag in
+# charmcraft.yaml so the default can't drift from the packed resource.
+_CHARMCRAFT = yaml.safe_load(
+    (Path(__file__).parent.parent.parent / "charmcraft.yaml").read_text()
+)
+_ENVOY_GATEWAY_TAG = _CHARMCRAFT["resources"]["envoy-gateway-image"][
+    "upstream-source"
+].rsplit(":", 1)[-1]
+DEFAULT_ENVOY_GATEWAY_VERSION_OUT = f"ENVOY_GATEWAY_VERSION: {_ENVOY_GATEWAY_TAG}\n"
 
 # The certgen-issued control-plane Secret, as lightkube returns it: a TLS Secret
 # named "envoy-gateway" whose data values are base64-encoded PEM (Secret wire format).
@@ -74,7 +84,7 @@ def krm_mocks():
     """Replace the KRM factories with mocks and treat CRDs as Established.
 
     Yields a namespace with:
-      - ``crd``: dict of scope -> KRM mock (populated as the charm calls _crd_krm)
+      - ``crd``: dict of scope -> manager mock (populated as the charm calls _crd_manager)
       - ``proxy``: the EnvoyProxy KRM mock
       - ``service``: the control-plane Service KRM mock
       - ``gateway_class``: the shared GatewayClass KRM mock
@@ -86,7 +96,7 @@ def krm_mocks():
     def crd_factory(scope):
         return crd.setdefault(scope, MagicMock())
 
-    with patch.object(EnvoyControllerCharm, "_crd_krm", side_effect=crd_factory), patch.object(
+    with patch.object(EnvoyControllerCharm, "_crd_manager", side_effect=crd_factory), patch.object(
         EnvoyControllerCharm, "_envoy_proxy_krm"
     ) as proxy, patch.object(
         EnvoyControllerCharm, "_control_plane_service_krm"

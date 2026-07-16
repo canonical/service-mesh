@@ -39,9 +39,7 @@ def test_waiting_without_pebble(ctx):
     # WHEN the charm reconciles
     state_out = ctx.run(ctx.on.config_changed(), make_state(can_connect=False))
     # THEN it waits for Pebble
-    assert state_out.unit_status == ops.WaitingStatus(
-        "Waiting for Pebble (envoy-gateway container)"
-    )
+    assert state_out.unit_status == ops.WaitingStatus("Waiting for envoy-gateway container")
 
 
 def test_active_when_all_preconditions_met(ctx, krm_mocks):
@@ -110,12 +108,10 @@ def test_waiting_when_controller_health_check_fails(ctx, krm_mocks):
     # THEN it reports waiting, not active. Note: readiness is NOT restart-wired (only
     # liveness is), so a sustained readiness failure stays in waiting rather than
     # restart-looping.
-    assert state_out.unit_status == ops.WaitingStatus(
-        "Waiting for envoy-gateway controller to become healthy"
-    )
+    assert state_out.unit_status == ops.WaitingStatus("Waiting for envoy-gateway to become healthy")
 
 
-def test_unexpected_api_error_is_not_swallowed(ctx, mock_lightkube_client):
+def test_unexpected_api_error_is_not_swallowed(ctx, mock_lightkube_client, krm_mocks):
     # GIVEN the trust probe fails with a non-auth error (API unreachable, 500, ...)
     mock_lightkube_client.list.side_effect = _api_error(500)
     # WHEN trust is evaluated
