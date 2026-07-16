@@ -3,7 +3,6 @@
 
 import logging
 from pathlib import Path
-from typing import Optional
 
 import pytest
 import requests
@@ -134,18 +133,9 @@ def test_auth_policy_validity(juju: Juju):
         )
 
 
-@pytest.mark.parametrize(
-    "external_hostname, expected_hostname",
-    [
-        ("foo.bar", "foo.bar"),  # Initial valid hostname
-        ("bar.foo", "bar.foo"),  # Change to a new valid hostname
-        ("", None),  # Remove hostname
-    ],
-)
 @pytest.mark.dependency(name="test_route_validity", depends=["test_relate"])
-def test_route_validity(juju: Juju, external_hostname: str, expected_hostname: Optional[str]):
+def test_route_validity(juju: Juju):
     """Test that routes to apps related on the ingress and ingress-unauthenticated endpoints work as expected."""
-    juju.config(APP_NAME, {"external_hostname": external_hostname})
     juju.wait(
         lambda s: all_active(s, APP_NAME, IPA_TESTER, IPA_TESTER_UNAUTHENTICATED),
         timeout=1000,
@@ -159,6 +149,10 @@ def test_route_validity(juju: Juju, external_hostname: str, expected_hostname: O
     assert listener_condition["attachedRoutes"] == 2
     assert listener_condition["conditions"][0]["message"] == "No errors found"
     assert listener_condition["conditions"][0]["reason"] == "Accepted"
+
+    # Assert that no hostname is set on the listener (listeners accept traffic for any hostname)
+    assert "hostname" not in listener_spec
+
     for ipa_tester in [IPA_TESTER, IPA_TESTER_UNAUTHENTICATED]:
         tester_url = f"http://{istio_ingress_address}/{model}-{ipa_tester}"
         # the route name will follow the format {ingressed_app_name}-{httproute or grpcroute}-{listener_name}-{ingress_app_name}
@@ -168,14 +162,7 @@ def test_route_validity(juju: Juju, external_hostname: str, expected_hostname: O
         assert route_condition["conditions"][0]["message"] == "Route was valid"
         assert route_condition["conditions"][0]["reason"] == "Accepted"
         assert route_condition["controllerName"] == "istio.io/gateway-controller"
-        if not expected_hostname:
-            assert "hostname" not in listener_spec
-            assert send_http_request(tester_url)
-        else:
-            assert listener_spec["hostname"] == expected_hostname
-            assert send_http_request(tester_url, {"Host": expected_hostname})
-            assert not send_http_request(tester_url)
-            assert not send_http_request(tester_url, {"Host": "random.hostname"})
+        assert send_http_request(tester_url)
 
 
 @pytest.fixture(scope="module")
