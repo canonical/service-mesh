@@ -567,10 +567,10 @@ class IstioCoreCharm(ops.CharmBase):
         # Ignore the settings if they are not set or empty
         if self.parsed_config["platform"]:
             setting_overrides["values.global.platform"] = self.parsed_config["platform"]
-        if self.parsed_config["cniBinDir"]:
-            setting_overrides["values.cni.cniBinDir"] = self.parsed_config["cniBinDir"]
-        if self.parsed_config["cniConfDir"]:
-            setting_overrides["values.cni.cniConfDir"] = self.parsed_config["cniConfDir"]
+        if self.parsed_config["cni-bin-dir"]:
+            setting_overrides["values.cni.cniBinDir"] = self.parsed_config["cni-bin-dir"]
+        if self.parsed_config["cni-conf-dir"]:
+            setting_overrides["values.cni.cniConfDir"] = self.parsed_config["cni-conf-dir"]
 
         # Configure the sidecar injector to exclude outbound traffic to all IP ranges.  This is a
         # workaround for CNI limitations with init containers

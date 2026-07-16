@@ -102,8 +102,8 @@ def test_get_istioctl_without_ca(istio_core_context):
         charm: IstioCoreCharm = mgr.charm
         with patch.object(type(charm), "parsed_config", new_callable=lambda: property(lambda self: {
             "platform": "microk8s",
-            "cniBinDir": "",
-            "cniConfDir": "",
+            "cni-bin-dir": "",
+            "cni-conf-dir": "",
             "auto-allow-waypoint-policy": True,
         })):
             ictl = charm._get_istioctl()
@@ -118,8 +118,8 @@ def test_get_istioctl_with_ca(istio_core_context, jwks_ca_cert_relation_single):
         charm: IstioCoreCharm = mgr.charm
         with patch.object(type(charm), "parsed_config", new_callable=lambda: property(lambda self: {
             "platform": "microk8s",
-            "cniBinDir": "",
-            "cniConfDir": "",
+            "cni-bin-dir": "",
+            "cni-conf-dir": "",
             "auto-allow-waypoint-policy": True,
         })):
             ictl = charm._get_istioctl()
