@@ -64,7 +64,6 @@ def test_construct_gateway(istio_ingress_charm, istio_ingress_context):
         assert gateway.spec["listeners"][0].get("hostname", None) is None
 
 
-
 def test_construct_gateway_with_tls(istio_ingress_charm, istio_ingress_context):
     """Assert that when TLS is configured, the Gateway definition is constructed using TLS as expected."""
     tls_secret_name = "tls-secret"
