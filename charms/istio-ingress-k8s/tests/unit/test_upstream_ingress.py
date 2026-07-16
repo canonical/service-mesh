@@ -62,6 +62,3 @@ def test_ingress_url_with_scheme_uses_upstream(harness):
         IngressPerAppRequirer, "url", new_callable=PropertyMock, return_value="https://upstream.example.com/model-app/"
     ):
         assert charm._ingress_url_with_scheme() == "https://upstream.example.com/model-app"
-
-
-
