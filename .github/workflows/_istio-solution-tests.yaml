@@ -1,4 +1,4 @@
-name: Quality Checks
+name: Istio Solution Tests
 
 on:
   workflow_call:
@@ -13,10 +13,20 @@ on:
         required: false
         default: "1.32-strict/stable"
         description: "The snap channel from which to install MicroK8s"
+      canonical-k8s-channel:
+        type: string
+        required: false
+        default: "1.32-classic/stable"
+        description: "The snap channel from which to install Canonical K8s"
       istio-channel:
         type: string
         required: true
         description: "The channel to deploy Istio from"
+      k8s-distributions:
+        type: string
+        required: false
+        default: '["microk8s"]'
+        description: 'JSON array of K8s distributions to run on, e.g. ["microk8s","canonical-k8s"].'
 
 jobs:
   snap-channels:
@@ -25,6 +35,7 @@ jobs:
     outputs:
       juju-channel: ${{ steps.channels.outputs.juju-channel }}
       microk8s-channel: ${{ steps.channels.outputs.microk8s-channel }}
+      canonical-k8s-channel: ${{ steps.channels.outputs.canonical-k8s-channel }}
       istio-channel: ${{ steps.channels.outputs.istio-channel }}
     steps:
       - name: Determine channels
@@ -32,36 +43,12 @@ jobs:
         run: |
           echo "juju-channel=${{ inputs.juju-channel }}" >> "$GITHUB_OUTPUT"
           echo "microk8s-channel=${{ inputs.microk8s-channel }}" >> "$GITHUB_OUTPUT"
+          echo "canonical-k8s-channel=${{ inputs.canonical-k8s-channel }}" >> "$GITHUB_OUTPUT"
           echo "istio-channel=${{ inputs.istio-channel }}" >> "$GITHUB_OUTPUT"
-
-  linting:
-    name: Linting
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Lint
-        run: |
-          cd tests
-          sudo snap install astral-uv --classic
-          uvx tox -e lint
-
-  static-analysis:
-    name: Static analysis
-    runs-on: ubuntu-latest
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v4
-      - name: Static analysis
-        run: |
-          cd tests
-          sudo snap install astral-uv --classic
-          uvx tox -e static
 
   integration-matrix:
     name: Define Integration tests matrix
     runs-on: ubuntu-latest
-    needs: [linting, static-analysis]
     outputs:
       suites: ${{ steps.suites.outputs.suites }}
     steps:
@@ -76,26 +63,25 @@ jobs:
           echo "suites=$list" >> "$GITHUB_OUTPUT"
 
   integration-test:
-    name: Integration Tests
+    name: Integration Tests (${{ matrix.k8s_distribution }})
     runs-on: ubuntu-latest
     needs: [snap-channels, integration-matrix]
     strategy:
       fail-fast: false
       matrix:
         suite: ${{ fromJSON(needs.integration-matrix.outputs.suites) }}
-    env:
-      CONCIERGE_JUJU_CHANNEL: ${{ needs.snap-channels.outputs.juju-channel }}
-      CONCIERGE_MICROK8S_CHANNEL: ${{ needs.snap-channels.outputs.microk8s-channel }}
+        k8s_distribution: ${{ fromJSON(inputs.k8s-distributions) }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
 
-      - name: Install dependencies
-        run: |
-          sudo snap install concierge --classic
-          sudo concierge prepare -p microk8s --extra-snaps=astral-uv,terraform
-          sudo snap install kubectl --classic
-          juju model-defaults automatically-retry-hooks=true
+      - name: Setup env
+        uses: ./.github/actions/setup-env
+        with:
+          k8s-distribution: ${{ matrix.k8s_distribution }}
+          juju-channel: ${{ needs.snap-channels.outputs.juju-channel }}
+          k8s-channel: ${{ matrix.k8s_distribution == 'microk8s' && needs.snap-channels.outputs.microk8s-channel || needs.snap-channels.outputs.canonical-k8s-channel }}
+          configure-cni-for-istio: "true"
 
       - name: Run integration tests
         run: |
@@ -109,6 +95,7 @@ jobs:
           fi
         env:
           ISTIO_CHANNEL: ${{ needs.snap-channels.outputs.istio-channel }}
+          K8S_DISTRIBUTION: ${{ matrix.k8s_distribution }}
         timeout-minutes: 90
 
       - name: Dump logs on failure
