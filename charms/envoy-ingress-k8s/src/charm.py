@@ -14,7 +14,9 @@ container: the control plane reconciles these objects into running Envoy proxies
 # pyright: reportAttributeAccessIssue=false, reportInvalidTypeForm=false
 # Lightkube generic resource types (create_namespaced_resource) lack proper type stubs.
 
+import ipaddress
 import logging
+import re
 from typing import Optional
 from urllib.parse import urlparse
 
@@ -87,6 +89,10 @@ HTTP_PORT = 80
 HTTPS_LISTENER_NAME = "https"
 HTTPS_PORT = 443
 
+# RFC 1123 / Gateway API Hostname: DNS labels only, no wildcard, no scheme, no port.
+# https://gateway-api.sigs.k8s.io/reference/spec/#gateway.networking.k8s.io/v1.Hostname
+_HOSTNAME_RE = re.compile(r"^[a-z0-9]([-a-z0-9]*[a-z0-9])?(\.[a-z0-9]([-a-z0-9]*[a-z0-9])?)*$")
+
 
 class EnvoyIngressCharm(ops.CharmBase):
     """Charm for managing Envoy Gateway ingress resources."""
@@ -142,8 +148,38 @@ class EnvoyIngressCharm(ops.CharmBase):
 
     @property
     def _external_hostname(self) -> Optional[str]:
+        """The configured external hostname, or None when unset or invalid.
+
+        An invalid value is ignored (treated as unset) so it never reaches the Gateway
+        listener or cert SANs; the misconfiguration is surfaced via a BlockedStatus in
+        _on_collect_status rather than silently producing a broken gateway.
+        """
         value = self.config.get("external_hostname")
-        return str(value) if value else None
+        if not value:
+            return None
+        host = str(value)
+        if not self._is_valid_hostname(host):
+            logger.warning("Ignoring invalid external_hostname %r (must be a bare RFC 1123 hostname)", host)
+            return None
+        return host
+
+    @property
+    def _external_hostname_invalid(self) -> bool:
+        """True when external_hostname is set but not a valid bare hostname."""
+        value = self.config.get("external_hostname")
+        return bool(value) and not self._is_valid_hostname(str(value))
+
+    @staticmethod
+    def _is_valid_hostname(hostname: str) -> bool:
+        """Return True if hostname is a valid bare RFC 1123 DNS name (no wildcard/IP/port)."""
+        if not 1 <= len(hostname) <= 253:
+            return False
+        try:
+            ipaddress.ip_address(hostname)
+            return False  # an IP address is not a valid hostname
+        except ValueError:
+            pass
+        return bool(_HOSTNAME_RE.match(hostname))
 
     @property
     def _tls_ready(self) -> bool:
@@ -202,6 +238,11 @@ class EnvoyIngressCharm(ops.CharmBase):
         if not self._trusted:
             event.add_status(
                 ops.BlockedStatus(f"Trust not granted. Run 'juju trust {self.app.name}'")
+            )
+            return
+        if self._external_hostname_invalid:
+            event.add_status(
+                ops.BlockedStatus("Invalid external_hostname; must be a bare RFC 1123 hostname")
             )
             return
         if not self._gateway_class_accepted():

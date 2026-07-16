@@ -12,8 +12,8 @@ dependencies = [
     "charmlibs-interfaces-gateway_metadata",
     "ops~=2.5",
     "pydantic>=2",
-    "cosl",
     "lightkube",
+    # Required by the vendored charms.oauth2_proxy_k8s.v0.forward_auth lib, which imports it.
     "jsonschema",
 ]
 

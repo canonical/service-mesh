@@ -55,6 +55,18 @@ def test_active_reports_serving_address(ctx, gateway_class_accepted, krm_mocks):
     assert state_out.unit_status == ops.ActiveStatus("Serving at ingress.example.com")
 
 
+def test_invalid_external_hostname_blocks(ctx, gateway_class_accepted, krm_mocks):
+    # GIVEN a hostname carrying a scheme and port (not a bare RFC 1123 name)
+    state_out = ctx.run(
+        ctx.on.config_changed(),
+        make_state(config={"external_hostname": "https://foo.example.com:443"}),
+    )
+    # THEN it blocks on the config error rather than silently serving a broken gateway
+    assert state_out.unit_status == ops.BlockedStatus(
+        "Invalid external_hostname; must be a bare RFC 1123 hostname"
+    )
+
+
 def test_waiting_without_gateway_address(ctx, gateway_class_accepted, krm_mocks):
     # GIVEN trust and an Accepted GatewayClass but the Gateway has no address yet
     # (no external_hostname config and no LB address in the Gateway status)
