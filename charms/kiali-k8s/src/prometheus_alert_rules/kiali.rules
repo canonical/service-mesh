@@ -1,0 +1,12 @@
+groups:
+- name: kiali.rules
+  rules:
+  # Alert if there are API failures
+  - alert: KialiAPIFailuresHigh
+    expr: kiali_api_failures_total > 1
+    for: 5m
+    labels:
+      severity: critical
+    annotations:
+      summary: "Kiali API Failures Detected"
+      description: "Kiali API encountered an error when reaching out to route `{{ $labels.route }}`."
