@@ -90,9 +90,6 @@ parts:
     # include rustc and cargo to compile pydantic
     build-packages: [git, rustc, cargo]
     build-snaps: [astral-uv]
-    override-build: |
-      craftctl default
-      git describe --always > $CRAFT_PART_INSTALL/version
 
 resources:
   kiali-image:
