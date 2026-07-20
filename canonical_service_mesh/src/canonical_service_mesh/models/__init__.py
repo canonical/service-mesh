@@ -6,6 +6,8 @@
 from ._gateway import (
     AllowedRoutes,
     BackendRef,
+    GatewayClassSpec,
+    GatewaySpec,
     GatewayTLSConfig,
     GRPCMethodMatch,
     GRPCRouteMatch,
@@ -20,6 +22,7 @@ from ._gateway import (
     IstioGatewayResource,
     IstioGatewaySpec,
     Listener,
+    ParametersRef,
     ParentRef,
     SecretObjectReference,
 )
@@ -28,6 +31,8 @@ from ._metadata import Metadata
 __all__ = [
     "AllowedRoutes",
     "BackendRef",
+    "GatewayClassSpec",
+    "GatewaySpec",
     "GatewayTLSConfig",
     "GRPCMethodMatch",
     "GRPCRouteMatch",
@@ -44,5 +49,6 @@ __all__ = [
     "Listener",
     "Metadata",
     "ParentRef",
+    "ParametersRef",
     "SecretObjectReference",
 ]
