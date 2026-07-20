@@ -7,7 +7,7 @@ version = "0.0"
 requires-python = ">=3.10"
 
 dependencies = [
-    "canonical-service-mesh @ git+https://github.com/canonical/service-mesh.git@feat/SMS-783-models-for-envoy-charms#subdirectory=canonical_service_mesh",
+    "canonical-service-mesh>=0.1.0",
     "charmlibs-interfaces-otlp",
     "ops~=2.5",
     "pydantic>=2",
