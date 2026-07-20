@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.1.0](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.0.2...canonical-service-mesh-v0.1.0) (2026-07-20)
+
+
+### Features
+
+* **canonical-service-mesh:** adds utilities for envoy proxy charm ([#103](https://github.com/canonical/service-mesh/issues/103)) ([073b22a](https://github.com/canonical/service-mesh/commit/073b22a0631c73e9f65177c6fa0cb029294ce68d))
+
 ## [0.0.2](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.0.1...canonical-service-mesh-v0.0.2) (2026-05-14)
 
 

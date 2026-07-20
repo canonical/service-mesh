@@ -9,10 +9,9 @@ requires-python = ">=3.10"
 dependencies = [
     "canonical-service-mesh>=0.0.2",
     "charmlibs-interfaces-certificate_transfer",
-    "ops~=2.5",
+    "ops[tracing]~=2.5",
     "pydantic>=2",
     "cosl",
-    "opentelemetry-exporter-otlp-proto-http==1.21.0",
 ]
 
 [project.optional-dependencies]

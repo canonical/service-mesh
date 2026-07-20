@@ -5,14 +5,57 @@ on:
     # Run every Sunday at 12:00 UTC
     - cron: "0 12 * * 0"
   workflow_dispatch:
-    # Allow manual trigger
+    inputs:
+      solution:
+        description: "Solution(s) to test"
+        type: choice
+        default: all
+        options:
+          - all
+          - istio
+      k8s-distribution:
+        description: "K8s distribution(s) to test on"
+        type: choice
+        default: all
+        options:
+          - all
+          - microk8s
+          - canonical-k8s
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
-  quality-checks:
-    uses: ./.github/workflows/_solution-level-tests.yaml
+  dispatch-inputs:
+    name: Resolve dispatch inputs
+    runs-on: ubuntu-latest
+    outputs:
+      solutions: ${{ steps.resolve.outputs.solutions }}
+      k8s-distributions: ${{ steps.resolve.outputs.k8s-distributions }}
+    steps:
+      - name: Resolve solution and k8s distribution selections
+        id: resolve
+        env:
+          SOLUTION_INPUT: ${{ inputs.solution || 'all' }}
+          K8S_DISTRIBUTION_INPUT: ${{ inputs.k8s-distribution || 'all' }}
+        run: |
+          case "$SOLUTION_INPUT" in
+            all) solutions='["istio"]' ;;
+            *)   solutions="[\"$SOLUTION_INPUT\"]" ;;
+          esac
+          case "$K8S_DISTRIBUTION_INPUT" in
+            all) k8s_distributions='["microk8s","canonical-k8s"]' ;;
+            *)   k8s_distributions="[\"$K8S_DISTRIBUTION_INPUT\"]" ;;
+          esac
+          echo "solutions=$solutions" >> "$GITHUB_OUTPUT"
+          echo "k8s-distributions=$k8s_distributions" >> "$GITHUB_OUTPUT"
+
+  istio:
+    name: Istio
+    needs: dispatch-inputs
+    if: contains(fromJSON(needs.dispatch-inputs.outputs.solutions), 'istio')
+    uses: ./.github/workflows/_istio-solution-tests.yaml
     with:
       istio-channel: "dev/edge"
+      k8s-distributions: ${{ needs.dispatch-inputs.outputs.k8s-distributions }}

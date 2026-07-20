@@ -1,0 +1,79 @@
+name: Setup Env
+description: Prepare a test environment (Juju + a Kubernetes distribution via concierge) for service-mesh tests.
+
+inputs:
+  k8s-distribution:
+    description: 'Kubernetes distribution to prepare. One of: "microk8s", "canonical-k8s".'
+    required: true
+  juju-channel:
+    description: Snap channel from which to install Juju.
+    required: false
+    default: "3.6/stable"
+  k8s-channel:
+    description: Snap channel for the chosen Kubernetes distribution. Routed to CONCIERGE_MICROK8S_CHANNEL or CONCIERGE_K8S_CHANNEL depending on the distribution.
+    required: true
+  configure-cni-for-istio:
+    description: Apply CNI configuration tweaks required by Istio sidecars. No-op on distributions that do not use Cilium.
+    required: false
+    default: "false"
+  automatically-retry-hooks:
+    description: Value for the juju model-default `automatically-retry-hooks`.
+    required: false
+    default: "true"
+
+runs:
+  using: composite
+  steps:
+    # Free disk early: larger integration test charm sets can exhaust the default
+    # GitHub-hosted runner space.
+    - name: Maximise GH runner space
+      uses: jlumbroso/free-disk-space@v1.3.1
+
+    # Remove preinstalled Docker bits we do not use to reclaim more runner space.
+    - name: Remove conflicting docker components
+      shell: bash
+      run: |
+        sudo apt-get remove -y docker-ce docker-ce-cli containerd.io || true
+        sudo rm -rf /run/containerd
+
+    - name: Map k8s distribution to concierge configuration
+      id: concierge-config
+      shell: bash
+      env:
+        K8S_DISTRIBUTION: ${{ inputs.k8s-distribution }}
+        K8S_CHANNEL: ${{ inputs.k8s-channel }}
+      run: |
+        case "$K8S_DISTRIBUTION" in
+          microk8s)
+            echo "profile=microk8s" >> "$GITHUB_OUTPUT"
+            echo "CONCIERGE_MICROK8S_CHANNEL=$K8S_CHANNEL" >> "$GITHUB_ENV"
+            ;;
+          canonical-k8s)
+            echo "profile=k8s" >> "$GITHUB_OUTPUT"
+            echo "extra-flags=--trace" >> "$GITHUB_OUTPUT"
+            echo "CONCIERGE_K8S_CHANNEL=$K8S_CHANNEL" >> "$GITHUB_ENV"
+            ;;
+          *)
+            echo "Unknown k8s distribution: $K8S_DISTRIBUTION" >&2
+            exit 1
+            ;;
+        esac
+
+    - name: Install concierge and prepare k8s distribution
+      shell: bash
+      env:
+        CONCIERGE_JUJU_CHANNEL: ${{ inputs.juju-channel }}
+      run: |
+        sudo snap install concierge --classic
+        sudo concierge prepare -p ${{ steps.concierge-config.outputs.profile }} --extra-snaps=astral-uv,terraform ${{ steps.concierge-config.outputs.extra-flags }}
+        sudo snap install kubectl --classic
+        juju model-defaults automatically-retry-hooks=${{ inputs.automatically-retry-hooks }}
+
+    - name: Configure Cilium for Istio
+      # See https://docs.cilium.io/en/stable/network/servicemesh/istio/
+      if: inputs.configure-cni-for-istio == 'true' && inputs.k8s-distribution == 'canonical-k8s'
+      shell: bash
+      run: |
+        kubectl -n kube-system patch configmap cilium-config --type merge --patch '{"data":{"bpf-lb-sock-hostns-only":"true"}}'
+        kubectl -n kube-system rollout restart daemonset cilium
+        kubectl -n kube-system rollout status daemonset cilium --timeout=300s

@@ -31,7 +31,6 @@ from charmlibs.interfaces.certificate_transfer import (
 from charms.grafana_k8s.v0.grafana_dashboard import GrafanaDashboardProvider
 from charms.istio_k8s.v0.istio_metadata import IstioMetadataProvider
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
@@ -46,6 +45,8 @@ from lightkube.models.core_v1 import EmptyDirVolumeSource, EnvVar, Volume, Volum
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.admissionregistration_v1 import (
     MutatingWebhookConfiguration,
+    ValidatingAdmissionPolicy,
+    ValidatingAdmissionPolicyBinding,
     ValidatingWebhookConfiguration,
 )
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
@@ -59,6 +60,7 @@ from lightkube.resources.rbac_authorization_v1 import (
     Role,
     RoleBinding,
 )
+from ops import tracing
 from ops.pebble import ChangeError, Layer
 
 from config import CharmConfig
@@ -90,7 +92,11 @@ ISTIO_CRDS_LABEL = "istio-crds"
 ISTIO_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
 GATEWAY_API_CRDS_MANIFEST = [SOURCE_PATH / "manifests" / "gateway-apis-crds.yaml"]
 GATEWAY_API_CRDS_LABEL = "gateway-apis-crds"
-GATEWAY_API_CRDS_RESOURCE_TYPES = {CustomResourceDefinition}
+GATEWAY_API_CRDS_RESOURCE_TYPES = {
+    CustomResourceDefinition,
+    ValidatingAdmissionPolicy,
+    ValidatingAdmissionPolicyBinding,
+}
 
 # Rock image settings
 ROCK_REGISTRY = "docker.io/ubuntu"
@@ -112,16 +118,6 @@ JWKS_CA_CERT_RELATION = "jwks-ca-cert"
 AUTHORIZATION_POLICY_RESOURCE_TYPES = {RESOURCE_TYPES["AuthorizationPolicy"]}
 
 
-@trace_charm(
-    tracing_endpoint="_charm_tracing_endpoint",
-    extra_types=[
-        Istioctl,
-        MetricsEndpointProvider,
-        GrafanaDashboardProvider,
-    ],
-    # we don't add a cert because istio does TLS it's way
-    # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
-)
 class IstioCoreCharm(ops.CharmBase):
     """Charm for managing the Istio service mesh control plane."""
 
@@ -142,15 +138,14 @@ class IstioCoreCharm(ops.CharmBase):
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
         )
         self.grafana_dashboards = GrafanaDashboardProvider(self)
-        self.charm_tracing = TracingEndpointRequirer(
-            self, relation_name="charm-tracing", protocols=["otlp_http"]
-        )
+
+        # Charm tracing
+        # We don't provide a CA cert because istio does TLS its own way.
+        # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
+        self.charm_tracing = tracing.Tracing(self, tracing_relation_name="charm-tracing")
 
         self.workload_tracing = TracingEndpointRequirer(
             self, relation_name="workload-tracing", protocols=["otlp_grpc"]
-        )
-        self._charm_tracing_endpoint = (
-            self.charm_tracing.get_endpoint("otlp_http") if self.charm_tracing.relations else None
         )
         self.ingress_config = IngressConfigRequirer(
             relation_mapping=self.model.relations, app=self.app
@@ -572,10 +567,10 @@ class IstioCoreCharm(ops.CharmBase):
         # Ignore the settings if they are not set or empty
         if self.parsed_config["platform"]:
             setting_overrides["values.global.platform"] = self.parsed_config["platform"]
-        if self.parsed_config["cniBinDir"]:
-            setting_overrides["values.cni.cniBinDir"] = self.parsed_config["cniBinDir"]
-        if self.parsed_config["cniConfDir"]:
-            setting_overrides["values.cni.cniConfDir"] = self.parsed_config["cniConfDir"]
+        if self.parsed_config["cni-bin-dir"]:
+            setting_overrides["values.cni.cniBinDir"] = self.parsed_config["cni-bin-dir"]
+        if self.parsed_config["cni-conf-dir"]:
+            setting_overrides["values.cni.cniConfDir"] = self.parsed_config["cni-conf-dir"]
 
         # Configure the sidecar injector to exclude outbound traffic to all IP ranges.  This is a
         # workaround for CNI limitations with init containers
