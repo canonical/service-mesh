@@ -203,7 +203,7 @@ Layers 1 and 2 (Gateway API CRDs + Gateway Inference Extension CRDs) will eventu
 
 > **This section supersedes the original design above wherever they conflict — it is the authoritative as-built/as-planned record.** Everything before this point captures the **original design** as first specified (single control-plane pod with two controllers, certs from a `tls-certificates` relation). During implementation on a live cluster, two load-bearing assumptions of that design broke. The original text is retained deliberately as a record of the reasoning and the dead ends; this section documents the **walls that were hit** and the **revised architecture** adopted in response.
 >
-> **Legend:** ✅ **Built & verified live** · 🔵 **Revised design (agreed direction, not yet implemented)**
+> **Legend:** ✅ **Built & verified live** · ✅ **Revised design (agreed direction, not yet implemented)**
 
 ### Wall 1 — Two controllers cannot share one pod ✅ (diagnosed)
 
@@ -213,7 +213,7 @@ This is **not configurable away**: controller-runtime defaults `Metrics.BindAddr
 
 The only single-pod fix is to **fork/patch a controller image** (e.g. set `Metrics.BindAddress: "0"` at build time — viable since we build our own rocks, but it carries a per-version rebase burden, costs that controller's metrics, and still leaves `:9443`, dual leader-election, and shared-restart fragility).
 
-#### Resolution: split into two charms 🔵
+#### Resolution: split into two charms ✅
 
 Run each controller in its **own pod** as its **own charm** — the topology upstream Helm itself uses (two Deployments). This eliminates the entire co-location conflict class (not just `:8080`), requires no image fork, stays on the upstream-tested path, and gives the two control planes independent lifecycle, scaling, and upgrade cadence.
 
@@ -235,20 +235,20 @@ The original design sources the xDS-server cert (and the AI webhook cert) from a
 - **Charm-managed `envoy-gateway` Service.** The charm reconciles (SSA via KRM) a `Service` named **`envoy-gateway`** in the model namespace, selecting the controller pods (`app.kubernetes.io/name: envoy-controller-k8s`), exposing `18000` (xDS) and `18002` (wasm). This is the name the proxy bootstrap dials, so DNS resolves and the upstream is healthy.
 - **Result (verified live):** one certgen CA spans control + data plane; proxy connects over mTLS; Gateway reaches `Programmed=True` (control plane `active`, proxy pods `2/2`, no `CERTIFICATE_VERIFY_FAILED`).
 
-### Revised Architecture: Two Charms 🔵
+### Revised Architecture: Two Charms ✅
 
 #### Charm A — `envoy-controller-k8s` (Envoy Gateway control plane) ✅
 
 Plain Envoy Gateway operator: installs Gateway API CRDs + the `gateway.envoyproxy.io` control-plane CRD group + the stable GIE `InferencePool`, runs the Envoy Gateway controller, owns certgen and the `envoy-gateway` Service, and manages the default `EnvoyProxy` resource. **No `tls-certificates` relation.** No AI controller, no AI CRDs, no ExtProc webhook in this charm.
 
-#### Charm B — `envoy-ai-controller-k8s` (AI Gateway control plane) 🔵 *(new)*
+#### Charm B — `envoy-ai-controller-k8s` (AI Gateway control plane) ✅ *(new)*
 
 The AI Gateway controller in its own pod. Owns:
 - the **`aigateway.envoyproxy.io` CRDs** (6: `AIGatewayRoute`, `AIServiceBackend`, `BackendSecurityPolicy`, `MCPRoute`, `GatewayConfig`, `QuotaPolicy`);
 - the **ExtProc sidecar-injector `MutatingWebhookConfiguration`** and **its serving cert** — this hop is **apiserver → AI-controller webhook**, entirely internal to the AI side, so the cert is self-contained in this charm (self-signed in-charm, or via its own `tls-certificates` relation). It does **not** cross the EG↔AI relation and does **not** use EG's certgen;
 - injecting the ExtProc sidecar into Envoy Proxy pods (proxy ↔ ExtProc is **intra-pod localhost** — no cross-pod cert).
 
-#### The EG ↔ AI relation 🔵
+#### The EG ↔ AI relation ✅
 
 A relation between the two charms is **required**, not just a convenience gate: Envoy Gateway must be *configured* to call the AI controller via EG's **Extension Server protocol** (gRPC) to fine-tune xDS. EG's config must carry `extensionManager.service.fqdn = <ai-controller-svc>.<ns>.svc.cluster.local`, `port: 1063`, the `xdsTranslator` hooks, `extensionManager.backendResources: [{group: inference.networking.k8s.io, kind: InferencePool, version: v1}]` (mirrors the upstream `inference-pool` addon values so EG accepts `InferencePool` as an HTTPRoute `backendRef` and delegates its xDS translation to the extension server), and `extensionApis.enableBackend: true` / `enableEnvoyPatchPolicy: true`. EG cannot know the AI controller's service address until related — hence the relation.
 
@@ -257,7 +257,7 @@ A relation between the two charms is **required**, not just a convenience gate: 
 - **The relation is the AI on/off switch** (replaces `enable-ai-gateway`): unrelated → EG runs plain; relate → EG writes `extensionManager` and AI comes alive; unrelate → EG reverts to plain. Without the relation the AI controller has nothing to fine-tune, so it is inert by construction.
 - **Caveat:** Envoy Gateway reads its `EnvoyGateway` config at startup and does **not** hot-reload it, so the EG charm's relation-changed handler must rewrite the config and **restart the EG Pebble service**.
 
-#### Certificate ownership (three hops) 🔵
+#### Certificate ownership (three hops) ✅
 
 | Hop | Direction | Trust source | Owner |
 |---|---|---|---|
@@ -267,7 +267,7 @@ A relation between the two charms is **required**, not just a convenience gate: 
 
 ExtProc ↔ proxy is localhost inside the proxy pod (no cert). Splitting cleanly separates the two cert domains the single charm had conflated: **EG charm → certgen**; **AI charm → its webhook cert**.
 
-#### CRD ownership split 🔵
+#### CRD ownership split ✅
 
 - **`envoy-controller-k8s`** owns: Gateway API CRDs + `gateway.envoyproxy.io` control-plane group (8) + stable GIE `InferencePool`.
 - **`envoy-ai-controller-k8s`** owns: `aigateway.envoyproxy.io` CRDs (6).
