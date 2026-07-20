@@ -1,0 +1,25 @@
+name: Update Rocks
+
+on:
+  workflow_dispatch: {}
+  schedule:
+    - cron: '0 0 * * 1'
+
+jobs:
+  update:
+    name: Update (${{ matrix.rock-path }})
+    strategy:
+      matrix:
+        include:
+          - rock-path: rocks/istio-pilot-rock
+            source-repo: istio/istio
+          - rock-path: rocks/istio-ztunnel-rock
+            source-repo: istio/ztunnel
+          - rock-path: rocks/istio-install-cni-rock
+            source-repo: istio/istio
+      fail-fast: false
+    uses: canonical/observability/.github/workflows/rock-update.yaml@v2
+    with:
+      rock-path: ${{ matrix.rock-path }}
+      source-repo: ${{ matrix.source-repo }}
+    secrets: inherit

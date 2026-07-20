@@ -1,5 +1,5 @@
 <!-- vale off -->
-# Monitor istio ambient using 
+# Monitor istio ambient using Kiali
 
 <!-- vale on -->
 
@@ -93,7 +93,7 @@ juju consume istio-system.istio-k8s
 juju integrate kiali-k8s:istio-metadata istio-k8s
 
 juju consume istio-system.prometheus-k8s
-juju integrate kiali-k8s:prometheus prometheus-k8s
+juju integrate kiali-k8s:prometheus-api prometheus-k8s
 ```
 
 <!-- vale off -->
@@ -105,7 +105,7 @@ To make Kiali accessible from outside the Kubernetes cluster, for example, from 
 
 ```bash
 juju consume istio-system.istio-ingress-k8s
-juju integrate kiali-k8s istio-ingress-k8s
+juju integrate kiali-k8s istio-ingress-k8s:ingress
 ```
 
 Now you can sit back and watch the deployment take place:

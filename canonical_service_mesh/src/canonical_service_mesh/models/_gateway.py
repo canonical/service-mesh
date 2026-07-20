@@ -42,6 +42,32 @@ class Listener(BaseModel):
     tls: Optional[GatewayTLSConfig] = None
 
 
+class ParametersRef(BaseModel):
+    """ParametersRef references an implementation-specific resource for GatewayClass config."""
+
+    group: str
+    kind: str
+    name: str
+    namespace: Optional[str] = None
+
+
+class GatewayClassSpec(BaseModel):
+    """GatewayClassSpec defines the specification of a GatewayClass resource."""
+
+    controllerName: str  # noqa: N815
+    parametersRef: Optional[ParametersRef] = None  # noqa: N815
+
+
+class GatewaySpec(BaseModel):
+    """Generic GatewaySpec for any Gateway API implementation."""
+
+    gatewayClassName: str  # noqa: N815
+    listeners: List[Listener]
+    parametersRef: Optional[ParametersRef] = None  # noqa: N815
+
+
+# TODO: remove IstioGatewaySpec and IstioGatewayResource — use GatewaySpec instead.
+# Tracked in specs/envoy.spec.md Discussion Points.
 class IstioGatewaySpec(BaseModel):
     """GatewaySpec defines the specification of a gateway."""
 

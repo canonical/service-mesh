@@ -59,6 +59,16 @@ def get_gateway_address(namespace: str) -> str:
 # Version 2 doesn't work with iam so running dev for now. We can consider switching to a stable track when a new one releases.
 ISTIO_CHANNEL = os.environ.get("ISTIO_CHANNEL", "dev/edge")
 
+# K8s distribution the tests are running on (set by CI). Drives per-distribution charm config.
+K8S_DISTRIBUTION = os.environ.get("K8S_DISTRIBUTION", "")
+
+# Per-distribution overrides for the istio-k8s charm config. Set explicitly so the deploy is not
+# coupled to whatever the charm's current default for `platform` is.
+_K8S_DISTRIBUTION_ISTIO_CONFIG = {
+    "microk8s": {"platform": "microk8s"},
+    "canonical-k8s": {"platform": ""},
+}
+
 
 def get_authorization_policies(juju: jubilant.Juju) -> List[str]:
     """Get list of AuthorizationPolicy resources in the model's namespace.
@@ -114,7 +124,10 @@ def deploy_istio(juju: jubilant.Juju, config: Optional[dict] = None) -> None:
     terraform_dir = Path(__file__).parent / "terraform" / "istio"
     state_file = Path(tempfile.gettempdir()) / f"istio-{juju.model}.tfstate"
 
-    logger.info(f"Deploying istio-k8s to {juju.model} (channel={ISTIO_CHANNEL}, config={config})")
+    # Stack k8s distribution defaults under any scenario-provided overrides.
+    config = {**_K8S_DISTRIBUTION_ISTIO_CONFIG.get(K8S_DISTRIBUTION, {}), **(config or {})}
+
+    logger.info(f"Deploying istio-k8s to {juju.model} (channel={ISTIO_CHANNEL}, k8s_distribution={K8S_DISTRIBUTION!r}, config={config})")
 
     terraform = TFManager(terraform_dir, state_file)
     terraform.init()

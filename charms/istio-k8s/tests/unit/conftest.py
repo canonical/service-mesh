@@ -5,16 +5,9 @@ import json
 from unittest.mock import patch
 
 import pytest
-from charms.tempo_coordinator_k8s.v0 import charm_tracing
 from scenario import Context, Relation
 
 from src.charm import IstioCoreCharm
-
-
-@pytest.fixture(autouse=True)
-def charm_tracing_buffer_to_tmp(tmp_path):
-    with patch.object(charm_tracing, "BUFFER_DEFAULT_CACHE_FILE_NAME", tmp_path):
-        yield
 
 
 @pytest.fixture()

@@ -4,6 +4,7 @@
 """Kubernetes resource managers."""
 
 from ._batch_operations import apply_many, delete_many, patch_many
+from ._crd_manager import CustomResourceDefinitionManager
 from ._mocking import FakeApiError
 from ._resource_manager import (
     K8sApiError,
@@ -13,6 +14,7 @@ from ._resource_manager import (
 )
 
 __all__ = [
+    "CustomResourceDefinitionManager",
     "FakeApiError",
     "K8sApiError",
     "KubernetesResourceManager",
