@@ -4,9 +4,7 @@ Feature: OTLP relation
 
   Background:
     Given a Juju Kubernetes model
-    And the self-signed-certificates charm is deployed
     And the envoy-controller-k8s charm is deployed with trust
-    And the certificates relation is established with self-signed-certificates
     And the charm reaches active status
 
   Scenario: Charm remains active without OTLP relation
