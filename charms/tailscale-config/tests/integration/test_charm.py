@@ -19,5 +19,16 @@ logger = logging.getLogger(__name__)
 @pytest.mark.juju_setup
 def test_deploy(charm: pathlib.Path, juju: jubilant.Juju):
     """Deploy the workloadless charm under test and check it goes active."""
-    juju.deploy(charm, app="tailscale-config")
+    app = "tailscale-config"
+    juju.deploy(charm, app=app)
+
+    # The charm blocks until it has a valid backend and a root credential, so
+    # mint a fake root-credential secret, grant it to the app, and configure it.
+    secret_uri = juju.add_secret(
+        "tailscale-config-root-credential",
+        {"credential": "fake-root-credential"},
+    )
+    juju.grant_secret(secret_uri, app)
+    juju.config(app, {"backend": "tailscale", "root-credential": secret_uri})
+
     juju.wait(jubilant.all_active)
