@@ -64,36 +64,8 @@ def test_construct_gateway(istio_ingress_charm, istio_ingress_context):
         assert gateway.spec["listeners"][0].get("hostname", None) is None
 
 
-@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
-def test_construct_gateway_with_loadbalancer_address(
-    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
-):
-    """Assert that when a LoadBalancer address is available, the Gateway definition uses that hostname."""
-    hostname = "example.com"
-    mock_get_lb_external_address.return_value = hostname
-    with istio_ingress_context(
-        istio_ingress_context.on.update_status(),
-        state=scenario.State(),
-    ) as manager:
-        charm = manager.charm
-        normalized_listeners = create_test_listeners()
-        gateway = charm._construct_gateway(normalized_listeners)
-
-        # Assert that the Gateway has an http listener with the correct configurations
-        _validate_gateway_listener(gateway, "http-80", hostname, tls_secret_name=None)
-
-
-@patch(
-    "charm.IstioIngressCharm._get_lb_external_address",
-    new_callable=PropertyMock,
-    return_value=None,
-)
-def test_construct_gateway_with_tls(
-    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
-):
+def test_construct_gateway_with_tls(istio_ingress_charm, istio_ingress_context):
     """Assert that when TLS is configured, the Gateway definition is constructed using TLS as expected."""
-    hostname = "example.com"
-    mock_get_lb_external_address.return_value = hostname
     tls_secret_name = "tls-secret"
     with istio_ingress_context(
         istio_ingress_context.on.update_status(),
@@ -108,8 +80,12 @@ def test_construct_gateway_with_tls(
         gateway = charm._construct_gateway(normalized_listeners)
 
         # Assert that the Gateway has http and https listeners with the correct configurations.
-        _validate_gateway_listener(gateway, "http-80", hostname, tls_secret_name=None)
-        _validate_gateway_listener(gateway, "https-443", hostname, tls_secret_name=tls_secret_name)
+        _validate_gateway_listener(gateway, "http-80", tls_secret_name=None)
+        _validate_gateway_listener(gateway, "https-443", tls_secret_name=tls_secret_name)
+
+        # Assert that no hostname is set on any listener
+        for listener in gateway.spec["listeners"]:
+            assert listener.get("hostname", None) is None
 
 
 def test_sync_gateway_resources_without_tls(istio_ingress_charm, istio_ingress_context):
@@ -143,7 +119,7 @@ def test_sync_gateway_resources_without_tls(istio_ingress_charm, istio_ingress_c
     return_value=None,
 )
 def test_sync_gateway_resources_with_tls_without_loadbalancer_address(
-    istio_ingress_charm, istio_ingress_context
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
 ):
     """Test that when we have a full TLS relation but no LoadBalancer address, the Gateway has only an http listener."""
     mock_krm = MagicMock()
@@ -169,15 +145,12 @@ def test_sync_gateway_resources_with_tls_without_loadbalancer_address(
             _get_listener_given_name(gateway, "https-443")
 
 
-@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
 def test_sync_gateway_resources_with_tls_with_loadbalancer_address(
-    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
+    istio_ingress_charm, istio_ingress_context
 ):
     """Test that when we have a TLS relation and a LoadBalancer address, the Gateway has http and https listeners."""
     mock_krm = MagicMock()
     mock_krm_factory = MagicMock(return_value=mock_krm)
-    hostname = "example.com"
-    mock_get_lb_external_address.return_value = hostname
     certificate_info = generate_certificates_relation()
 
     with istio_ingress_context(
@@ -202,10 +175,14 @@ def test_sync_gateway_resources_with_tls_with_loadbalancer_address(
 
         # Assert that the Gateway was created and has http and https listeners with the correct configurations.
         gateway = charm._get_gateway_resource_manager().reconcile.call_args[0][0][1]
-        _validate_gateway_listener(gateway, "http-80", hostname, tls_secret_name=None)
+        _validate_gateway_listener(gateway, "http-80", tls_secret_name=None)
         _validate_gateway_listener(
-            gateway, "https-443", hostname, tls_secret_name=charm._certificate_secret_name
+            gateway, "https-443", tls_secret_name=charm._certificate_secret_name
         )
+
+        # Assert that no hostname is set on any listener
+        for listener in gateway.spec["listeners"]:
+            assert listener.get("hostname", None) is None
 
 
 def test_sync_gateway_resources_with_tls_with_external_hostname_config(
@@ -241,10 +218,14 @@ def test_sync_gateway_resources_with_tls_with_external_hostname_config(
 
         # Assert that the Gateway was created and has http and https listeners with the correct configurations.
         gateway = charm._get_gateway_resource_manager().reconcile.call_args[0][0][1]
-        _validate_gateway_listener(gateway, "http-80", hostname, tls_secret_name=None)
+        _validate_gateway_listener(gateway, "http-80", tls_secret_name=None)
         _validate_gateway_listener(
-            gateway, "https-443", hostname, tls_secret_name=charm._certificate_secret_name
+            gateway, "https-443", tls_secret_name=charm._certificate_secret_name
         )
+
+        # Assert that no hostname is set on any listener
+        for listener in gateway.spec["listeners"]:
+            assert listener.get("hostname", None) is None
 
 
 @pytest.mark.parametrize(
@@ -370,13 +351,10 @@ def generate_certificates_relation(subject="example.com"):
 def _validate_gateway_listener(
     gateway,
     listener_name: str,
-    hostname: Optional[str] = None,
     tls_secret_name: Optional[str] = None,
 ):
     """Validates the Gateway object has the listener with expected configuration."""
     listener = _get_listener_given_name(gateway, listener_name)
-    if hostname:
-        assert listener.get("hostname", None) == hostname
     if tls_secret_name:
         assert len(listener["tls"]["certificateRefs"]) == 1
         assert listener["tls"]["certificateRefs"][0]["name"] == tls_secret_name
