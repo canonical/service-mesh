@@ -52,8 +52,8 @@ jobs:
       - uses: googleapis/release-please-action@v4
         id: release
         with:
-          config-file: canonical_service_mesh/release-please-config.json
-          manifest-file: canonical_service_mesh/.release-please-manifest.json
+          config-file: release-please-config.json
+          manifest-file: .release-please-manifest.json
 
   publish:
     needs: release-please
