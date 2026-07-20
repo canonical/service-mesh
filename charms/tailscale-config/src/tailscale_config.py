@@ -32,6 +32,11 @@ class CharmState(BaseModel):
     root_credential: str | None
     """URI of the Juju user secret holding the root credential, if set."""
 
+    root_credential_content: dict[str, str] | None = None
+    """Resolved content of the root credential secret, or ``None`` if unset or
+    unreadable. For the ``tailscale`` backend this carries ``client-id`` and
+    ``client-secret``."""
+
     login_server: str | None
     """URL of the control plane, or ``None`` when left empty."""
 

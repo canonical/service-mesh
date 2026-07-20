@@ -13,19 +13,45 @@ run on or off the cluster.
 
 ## Usage
 
+### Tailscale backend
+
+Create a root OAuth client in the Tailscale admin console (with the
+`oauth_keys` scope plus the union of scopes it will delegate) and store its
+`client-id` and `client-secret` in a Juju user secret:
+
 ```bash
-# Provide the root credential (a Tailscale root OAuth client, or a Headscale
-# API key) as a Juju user secret and grant it to the charm.
-juju add-secret tailscale-root <key>=<value>
+# Store the root OAuth client credentials and grant the secret to the charm.
+juju add-secret tailscale-root \
+  client-id=<oauth-client-id> \
+  client-secret=tskey-client-xxxxxxxxxxxx-xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx
 juju grant-secret tailscale-root tailscale-config
 
 juju deploy tailscale-config
 juju config tailscale-config \
   backend=tailscale \
-  root-credential=secret:...   # the secret URI from `juju add-secret`
-# For Headscale, also set: login-server=<headscale-url>
+  root-credential=secret:...   # the secret URI printed by `juju add-secret`
+
+# Verify the root client is reachable and inspect its scopes.
+juju run tailscale-config/leader get-root-client-info
 
 # Relate to downstream charms to distribute credentials automatically.
+juju integrate tailscale-config tailscale-k8s
+juju integrate tailscale-config tailscale-beacon
+```
+
+### Headscale backend
+
+```bash
+# Store the Headscale API key and grant the secret to the charm.
+juju add-secret tailscale-root api-key=<headscale-api-key>
+juju grant-secret tailscale-root tailscale-config
+
+juju deploy tailscale-config
+juju config tailscale-config \
+  backend=headscale \
+  login-server=<headscale-url> \
+  root-credential=secret:...   # the secret URI printed by `juju add-secret`
+
 juju integrate tailscale-config tailscale-k8s
 juju integrate tailscale-config tailscale-beacon
 ```

@@ -75,6 +75,12 @@ config:
         secret URI (e.g. `juju config tailscale-config root-credential=secret:...`).
       type: secret
 
+actions:
+  get-root-client-info:
+    description: |
+      Print information about the root OAuth client configured in the
+      root-credential secret.
+
 provides:
   # TODO: the exact relation data field names (e.g. client-id, client-secret /
   # auth-key, login-server, tags) are not yet finalized — see the Open Questions

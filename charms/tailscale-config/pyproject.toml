@@ -75,7 +75,7 @@ extend-exclude = ["__pycache__", "*.egg_info"]
 max-complexity = 10
 
 [tool.codespell]
-skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage"
+skip = "build,lib,venv,icon.svg,.tox,.git,.mypy_cache,.ruff_cache,.coverage,docs"
 
 [tool.pyright]
 include = ["src", "tests"]
