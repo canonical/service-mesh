@@ -8,7 +8,9 @@ on:
         description: Which charm to release
         options:
           - all
+          - envoy-ai-controller-k8s
           - envoy-controller-k8s
+          - envoy-ingress-k8s
           - istio-beacon-k8s
           - istio-ingress-k8s
           - istio-k8s

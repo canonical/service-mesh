@@ -73,9 +73,14 @@ Controller in `envoy-ai-gateway-system` that:
 apiVersion: gateway.networking.k8s.io/v1
 kind: GatewayClass
 metadata:
-  name: envoy
+  name: envoy   # constant, cluster-scoped, owned by the controller charm
 spec:
   controllerName: gateway.envoyproxy.io/gatewayclass-controller
+  parametersRef:
+    group: gateway.envoyproxy.io
+    kind: EnvoyProxy
+    name: <ENVOY_PROXY_NAME>        # controller's EnvoyProxy
+    namespace: <CONTROLLER_MODEL>   # controller's own model
 ---
 apiVersion: gateway.networking.k8s.io/v1
 kind: Gateway
@@ -95,7 +100,7 @@ spec:
     labels:
       serving.kserve.io/gateway: <GATEWAY_NAME>
 ```
-Runtime resources: `GatewayClass` registers Envoy Gateway as the implementation; `Gateway` creates an HTTP listener on port 80, accepting routes from all namespaces, labeled for KServe integration. Triggers Envoy Proxy pod provisioning.
+Runtime resources: the **`GatewayClass` is created once by the controller charm** (constant name `envoy`), registering Envoy Gateway as the implementation and carrying the `parametersRef` → the controller's `EnvoyProxy` so every provisioned proxy inherits the Juju-topology stats tags and OTLP sink. The GatewayClass is cluster-scoped and shared by **all** ingress deployments. Each **`Gateway` is created by an ingress charm** in its own model, referencing `gatewayClassName: envoy`; it creates an HTTP listener on port 80, accepts routes from all namespaces, labeled for KServe integration. Triggers Envoy Proxy pod provisioning.
 
 ### External Dependency: KServe (v0.17.0)
 KServe is **assumed to already exist** on the cluster. The charm(s) do not install or manage KServe — they only integrate with it via the Gateway's `serving.kserve.io/gateway` label.
@@ -113,7 +118,7 @@ Installs all platform infrastructure (layers 1–5):
 - AI Gateway CRDs (Only when AI features are enabled)
 - AI Gateway Controller
 
-**Does not** create any Gateway or GatewayClass resources.
+Also creates the **single, shared `GatewayClass`** (constant name `envoy`) that binds Gateways to Envoy Gateway and carries the `parametersRef` → the controller's own `EnvoyProxy` config. **Does not** create any `Gateway` resources — those belong to the ingress charm(s).
 
 #### Pod Structure
 
@@ -133,7 +138,8 @@ All charm-managed Kubernetes objects (CRDs and the webhook) are managed through 
 |---|---|---|
 | CRDs (Gateway API + GIE + AI Gateway) | ~23 | Applied from bundled YAML on install (via KRM) |
 | MutatingWebhookConfiguration (ExtProc sidecar injector) | 1 | Injects AI Gateway ExtProc sidecar into Envoy Proxy pods (via KRM) |
-| `EnvoyProxy` (`gateway.envoyproxy.io/v1alpha1`) | 1 | Default proxy configuration. Carries the OTLP metrics sink (endpoint from the `otlp` relation) **and** fixed Juju-topology stats tags (see [Proxy Metrics Topology](#proxy-metrics-topology)). Referenced by the ingress charm's `GatewayClass.spec.parametersRef` (via KRM). |
+| `EnvoyProxy` (`gateway.envoyproxy.io/v1alpha1`) | 1 | Default proxy configuration. Carries the OTLP metrics sink (endpoint from the `otlp` relation) **and** fixed Juju-topology stats tags (see [Proxy Metrics Topology](#proxy-metrics-topology)). Referenced by the controller's own `GatewayClass.spec.parametersRef` (via KRM), so all proxies share it. |
+| `GatewayClass` (`gateway.networking.k8s.io/v1`) | 1 | The single, cluster-scoped, shared class (constant name `envoy`). Carries `controllerName` + `parametersRef` → the `EnvoyProxy` above. Ingress charms reference it by name (via KRM). |
 
 #### Pebble-managed
 
@@ -170,7 +176,7 @@ Envoy Proxy pods are provisioned by the Envoy Gateway controller at runtime, not
 - `juju_model`, `juju_model_uuid`, `juju_application`, `juju_charm`
 - `juju_unit` is **omitted** — there are many proxy pods per app, and COS alert scoping is app-level.
 
-The same `EnvoyProxy` also carries the `telemetry.metrics.sinks` OpenTelemetry sink (endpoint from the `otlp` relation). With Juju labels present on proxy metrics, the `otlp` library's automatic topology injection into alert rules matches correctly, and Grafana dashboards use the standard `$juju_model`/`$juju_application` variables (plus `gateway_name`/`gateway_namespace` for per-gateway breakdown). The ingress charm's `GatewayClass` references this resource via `spec.parametersRef`.
+The same `EnvoyProxy` also carries the `telemetry.metrics.sinks` OpenTelemetry sink (endpoint from the `otlp` relation). Because a single shared `EnvoyProxy` backs every ingress deployment, its static Juju-topology stats tags reflect the **controller's** topology; per-ingress breakdown comes from Envoy Gateway's built-in `gateway_name`/`gateway_namespace` metric labels rather than per-ingress Juju tags. The controller's `GatewayClass` references this resource via `spec.parametersRef`.
 
 **Two telemetry surfaces.** Envoy Gateway emits metrics from two distinct places, and the `otlp` relation feeds both:
 
@@ -607,10 +613,10 @@ End-to-end traffic flow tests (AI routing, ExtProc processing, model inference) 
 
 | Relation Name | Interface | Direction | Purpose |
 |---|---|---|---|
-| `ingress` | `ingress` | provides | Provides ingress for requiring charms. Receives app name, model, host, and port from the requirer; creates an HTTPRoute through the Gateway to expose the application. Returns the ingress URL. |
+| `ingress` | `ingress` | provides | Provides ingress for requiring charms. Receives app name, model, port, and `strip_prefix` from the requirer; creates an HTTPRoute through the Gateway to expose the application at `/{model}-{app}`. When `strip_prefix` is set, the route carries a `URLRewrite` (`ReplacePrefixMatch: /`) filter so the backend receives the unprefixed path. Routes attach per-listener via `parentRef.sectionName`: without TLS the backend route attaches to the HTTP listener; with TLS the backend route attaches to the HTTPS listener and a second route on the HTTP listener redirects plaintext to HTTPS (301). Each HTTPRoute is created in the requirer's namespace (co-located with its backend Service) so the same-namespace `backendRef` needs no `ReferenceGrant` for cross-model requirers; the route attaches to the Gateway via its `allowedRoutes: {from: All}` listeners. Returns the ingress URL. |
 | `certificates` | `tls-certificates` | requires | TLS certs for Gateway HTTPS listeners |
 | `gateway-metadata` | `gateway-metadata` | provides | Publishes Gateway info (gateway name, namespace, listener addresses, ports) for downstream consumers |
-| `forward-auth` | `forward-auth` | requires | Connects to an external auth provider charm; configures Envoy Gateway `SecurityPolicy` with `extAuth` pointing at the related auth provider |
+| `forward-auth` | `forward-auth` | requires | Connects to an external auth provider charm. The provider advertises a `decisions_address` URL (not a Service name), so the charm parses its host/port into an Envoy Gateway `Backend` CR (`spec.endpoints[].fqdn`) and creates a `SecurityPolicy` whose `extAuth.http.backendRefs[0]` references that `Backend` (`kind: Backend`), carrying the URL path when present. The `Backend` and `SecurityPolicy` are created together and removed when the relation breaks. |
 
 ---
 
@@ -622,15 +628,15 @@ End-to-end traffic flow tests (AI routing, ExtProc processing, model inference) 
 
 ## Cross-Charm Discovery
 
-Charm 2 needs to know that Charm 1 (Envoy Gateway controller) is running before creating GatewayClass/Gateway resources. For v1, there is **no cross-charm relation**. Instead:
+Charm 2 needs to know that Charm 1 (Envoy Gateway controller) is running before creating Gateway/HTTPRoute resources. For v1, there is **no cross-charm relation**. Instead, the shared `GatewayClass` (owned by Charm 1) is the discovery signal:
 
-- Charm 2 hardcodes `controllerName: gateway.envoyproxy.io/gatewayclass-controller` in the GatewayClass spec.
-- During `_reconcile()`, Charm 2 uses **lightkube** to check if a GatewayClass with that controller name has an `Accepted` condition — indicating the controller is running and has claimed it.
-- If the GatewayClass is not yet accepted, Charm 2 sets `waiting` status: `Waiting for GatewayClass controller to become available`.
-- If the GatewayClass is accepted, Charm 2 proceeds to create/update the Gateway resource.
-- Charm 2's `GatewayClass` sets `spec.parametersRef` to the default `EnvoyProxy` resource managed by Charm 1 (by name/namespace), so proxies inherit the OTLP sink and Juju-topology stats tags. The `EnvoyProxy` name is part of the cross-charm contract (hardcoded for v1, alongside the controller name).
+- The `GatewayClass` name is a hardcoded constant (`envoy`) on **both** charms — the cross-charm contract. Charm 1 creates it; Charm 2 only references it.
+- During `_reconcile()`, Charm 2 uses **lightkube** to **read** `GatewayClass/envoy` and check for an `Accepted=True` condition — indicating the controller is running and has claimed it.
+- If the GatewayClass is not yet accepted (or absent), Charm 2 sets `waiting` status: `Waiting for GatewayClass controller to become available`.
+- If the GatewayClass is accepted, Charm 2 proceeds to create/update its `Gateway` with `gatewayClassName: envoy`.
+- Charm 2 sets **no** `parametersRef` and does **not** create a `GatewayClass` or `EnvoyProxy`. The `parametersRef` → `EnvoyProxy` lives on Charm 1's `GatewayClass` (Charm 1 owns the `EnvoyProxy` and the `otlp` relation that populates its OTLP sink), so **all** proxies across all ingress deployments inherit one shared config. Charm 2 has no `otlp` relation and therefore nothing to contribute to proxy config.
 
-This avoids a cross-charm relation while still giving the user clear status feedback.
+This avoids a cross-charm relation while still giving the user clear status feedback, and works uniformly for one controller serving many ingresses across multiple models (and multiple ingresses in a single model).
 
 ---
 
