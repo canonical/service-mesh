@@ -1,0 +1,16 @@
+# Files excluded from the inclusive-naming (woke) check.
+# These reference the literal term `master`/`whitelist` in upstream URLs,
+# vendored specs, or established API/config names that cannot be changed
+# without breaking links, vendored content, or compatibility.
+
+# Envoy Gateway charm: vendored upstream CRDs (link to grpc `master` docs).
+charms/envoy-controller-k8s/src/crds/
+
+# Istio rocks link to upstream istio `master` Dockerfiles/paths.
+rocks/istio-install-cni-rock/
+rocks/istio-pilot-rock/
+rocks/istio-ztunnel-rock/
+
+# Sphinx starter-pack docs link to sphinx-doc.org/en/master.
+docs/reuse/links.txt
+docs/conf.py

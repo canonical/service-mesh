@@ -62,8 +62,8 @@ jobs:
       matrix:
         charm-path: ${{ fromJSON(needs.discover-charms.outputs.charms) }}
       fail-fast: false
-    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@metallb-fix
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
     with:
       charm-path: ${{ matrix.charm-path }}
-      provider: microk8s
+      provider: k8s
     secrets: inherit
