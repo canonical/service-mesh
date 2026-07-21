@@ -5,7 +5,7 @@ name = "istio-ingress-k8s"
 version = "0.0"
 requires-python = "~=3.10"
 dependencies = [
-    "ops~=2.5",
+    "ops[tracing]~=2.5",
     "pydantic>=2",
     "cosl",
     "charmlibs-interfaces-gateway-metadata",
@@ -14,7 +14,6 @@ dependencies = [
     "charmlibs-interfaces-service-mesh",
     "canonical-service-mesh>=0.0.2",
     "cryptography~=42.0.0", # Deps: tls_certificates_interface libs
-    "opentelemetry-exporter-otlp-proto-http==1.21.0", # PYDEPS: lib/charms/tempo_coordinator_k8s/v0/charm_tracing.py
     "jsonschema>=4.22.0", # Deps: traefik_k8s libs, tls_certificates_interface libs
 ]
 
@@ -32,7 +31,7 @@ dev = [
     # Integration
     "pytest-asyncio",
     "jubilant",
-    "pytest-jubilant",
+    "pytest-jubilant<2",  # 2.x removed `get_resources`, used in tests/integration/conftest.py
     "pytest-dependency",
     #"juju",
     "requests",

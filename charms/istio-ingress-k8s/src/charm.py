@@ -68,8 +68,6 @@ from charmlibs.interfaces.service_mesh import MeshType
 from charms.oauth2_proxy_k8s.v0.forward_auth import ForwardAuthRequirer, ForwardAuthRequirerConfig
 from charms.observability_libs.v1.cert_handler import CertHandler
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
-from charms.tempo_coordinator_k8s.v0.charm_tracing import trace_charm
-from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider as IPAv2
 from charms.traefik_k8s.v2.ingress import IngressPerAppRequirer
 from lightkube.core.client import Client
@@ -84,7 +82,7 @@ from lightkube.resources.apps_v1 import Deployment
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Secret, Service
 from lightkube.types import PatchType
-from ops import BlockedStatus, CollectStatusEvent, main
+from ops import BlockedStatus, CollectStatusEvent, main, tracing
 from ops.charm import CharmBase
 from ops.model import ActiveStatus, MaintenanceStatus
 from ops.pebble import ChangeError, Layer
@@ -164,19 +162,16 @@ UPSTREAM_INGRESS_RELATION = "upstream-ingress"
 PEERS_RELATION = "peers"
 
 
-@trace_charm(
-    tracing_endpoint="_charm_tracing_endpoint",
-    extra_types=[
-        MetricsEndpointProvider,
-    ],
-    # we don't add a cert because istio does TLS his way
-    # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
-)
 class IstioIngressCharm(CharmBase):
     """Charm the service."""
 
     def __init__(self, *args):
         super().__init__(*args)
+
+        # Charm tracing
+        # We don't provide a CA cert because istio does TLS its own way.
+        # TODO: fix when https://github.com/canonical/istio-beacon-k8s-operator/issues/33 is closed
+        self.charm_tracing = tracing.Tracing(self, tracing_relation_name="charm-tracing")
 
         # display a status based on the current state
         self.framework.observe(self.on.collect_unit_status, self._on_collect_status)
@@ -235,12 +230,6 @@ class IstioIngressCharm(CharmBase):
         self._scraping = MetricsEndpointProvider(
             self,
             jobs=[{"static_configs": [{"targets": ["*:15090"]}]}],
-        )
-        self.charm_tracing = TracingEndpointRequirer(
-            self, relation_name="charm-tracing", protocols=["otlp_http"]
-        )
-        self._charm_tracing_endpoint = (
-            self.charm_tracing.get_endpoint("otlp_http") if self.charm_tracing.relations else None
         )
         self.forward_auth = ForwardAuthRequirer(self)
         self.ingress_config = IngressConfigProvider(

@@ -1,0 +1,55 @@
+name: "Publish Rocks to GHCR:dev"
+
+on:
+  workflow_dispatch: {}
+  push:
+    branches:
+      - main
+    paths:
+      - 'rocks/**'
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  discover-rocks:
+    name: Discover changed rocks
+    runs-on: ubuntu-latest
+    outputs:
+      rocks: ${{ steps.matrix.outputs.rocks }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            pilot: rocks/istio-pilot-rock/**
+            ztunnel: rocks/istio-ztunnel-rock/**
+            cni: rocks/istio-install-cni-rock/**
+      - id: matrix
+        run: |
+          rocks='[]'
+          if [ "${{ steps.changes.outputs.pilot }}" = "true" ]; then
+            rocks=$(echo "$rocks" | jq -c '. + ["rocks/istio-pilot-rock"]')
+          fi
+          if [ "${{ steps.changes.outputs.ztunnel }}" = "true" ]; then
+            rocks=$(echo "$rocks" | jq -c '. + ["rocks/istio-ztunnel-rock"]')
+          fi
+          if [ "${{ steps.changes.outputs.cni }}" = "true" ]; then
+            rocks=$(echo "$rocks" | jq -c '. + ["rocks/istio-install-cni-rock"]')
+          fi
+          echo "rocks=$rocks" >> "$GITHUB_OUTPUT"
+
+  release-dev:
+    name: Release to GHCR (${{ matrix.rock-path }})
+    needs: discover-rocks
+    if: ${{ needs.discover-rocks.outputs.rocks != '' && needs.discover-rocks.outputs.rocks != '[]' }}
+    strategy:
+      matrix:
+        rock-path: ${{ fromJSON(needs.discover-rocks.outputs.rocks) }}
+      fail-fast: false
+    uses: canonical/observability/.github/workflows/rock-release-dev.yaml@v2
+    with:
+      rock-path: ${{ matrix.rock-path }}
+    secrets: inherit

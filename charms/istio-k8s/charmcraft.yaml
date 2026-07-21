@@ -45,13 +45,13 @@ config:
         specify the platform-specific configuration for the Kubernetes platform on which the charm is deployed.  If left
         blank, no value of `values.global.platform` will be set.
 
-    cniBinDir:
+    cni-bin-dir:
       type: string
       default: ""
       description: >
         On some non-standard Kubernetes installation, certain files are not located in standard locations. This configuration option allows overriding those paths. It maps to the `values.cni.cniBinDir` field in the Istio Helm chart.
 
-    cniConfDir:
+    cni-conf-dir:
       type: string
       default: ""
       description: >

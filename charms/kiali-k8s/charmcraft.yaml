@@ -1,0 +1,98 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: kiali-k8s
+type: charm
+title: Kiali
+summary: A Juju charm to operate Kiali
+description: |
+  Kiali is a dashboard for Istio, providing visualization and control of your service mesh.
+
+links:
+  documentation: https://discourse.charmhub.io/t/kiali-index/17247
+  website: https://charmhub.io/kiali-k8s
+  source: https://github.com/canonical/kiali-k8s-operator
+  issues: https://github.com/canonical/kiali-k8s-operator/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@24.04:amd64:
+
+charm-libs:
+  - lib: "grafana_k8s.grafana_source"
+    version: "0"
+
+containers:
+  kiali:
+    resource: kiali-image
+
+peers:
+  # TODO: Can we remove this?  Required for the grafana_datasource lib, but not for features we use.
+  grafana:
+    interface: grafana_peers
+
+requires:
+  grafana-metadata:
+    interface: grafana_metadata
+    limit: 1
+  ingress:
+    interface: ingress
+    limit: 1
+  istio-metadata:
+    interface: istio_metadata
+    limit: 1
+  logging:
+    interface: loki_push_api
+    description: |
+      Receives Loki's push api endpoint address to push logs to, and forwards charm's built-in alert rules to Loki.
+  prometheus-api:
+    interface: prometheus_api
+    limit: 1
+  require-cmr-mesh:
+    interface: cross_model_mesh
+  service-mesh:
+    interface: service_mesh
+  tempo-api:
+    interface: tempo_api
+    limit: 1
+
+provides:
+  provide-cmr-mesh:
+    interface: cross_model_mesh
+  metrics-endpoint:
+    interface: prometheus_scrape
+    description: |
+      Exposes the Prometheus metrics endpoint providing telemetry about the Kiali instance
+  tempo-datasource-exchange:
+    interface: grafana_datasource_exchange
+    # limit 1 because we support connecting to only 1 tempo
+    limit: 1
+    description: |
+      Integration to receive information about where Tempo is used as a datasource
+
+config:
+  options:
+    view-only-mode:
+      type: boolean
+      default: true
+      description: >
+        Enables view-only mode, restricting Kiali to only read service mesh resources without exposing the ability to make any changes to cluster/mesh resources.
+        By design, this defaults to true to encourage cluster admins and charm authors to make mesh modifications via Juju relations,
+        thereby avoiding state mismatches between Juju and the mesh (since Juju does not track changes made in the Kiali dashboard).
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    # include rustc and cargo to compile pydantic
+    build-packages: [git, rustc, cargo]
+    build-snaps: [astral-uv]
+
+resources:
+  kiali-image:
+    type: oci-image
+    description: Kiali OCI image
+    upstream-source: docker.io/ubuntu/kiali:2.3.0-24.04_stable
