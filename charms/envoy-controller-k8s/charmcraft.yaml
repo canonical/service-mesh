@@ -1,0 +1,105 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: envoy-controller-k8s
+type: charm
+title: Envoy Gateway Controller
+summary: A Juju charm to deploy and operate the Envoy Gateway control plane
+description: |
+  envoy-controller-k8s deploys and manages the Envoy Gateway control plane stack
+  including Gateway API CRDs and Gateway Inference Extension CRDs.
+
+links:
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@26.04:amd64:
+
+containers:
+  envoy-gateway:
+    resource: envoy-gateway-image
+
+charm-libs:
+  - lib: grafana_k8s.grafana_dashboard
+    version: "0"
+  - lib: prometheus_k8s.prometheus_scrape
+    version: "0"
+
+config:
+  options:
+    log-level:
+      type: string
+      default: "info"
+      description: |
+        Logging level for the Envoy Gateway controller.
+        Valid values: debug, info, warn, error. Any other value logs a warning and
+        falls back to the default rather than being passed to the controller.
+    gateway-namespace-mode:
+      type: boolean
+      default: false
+      description: |
+        Selects Envoy Gateway's Kubernetes deployment mode, i.e. where the Envoy
+        Proxy data plane (Deployment, Service, ServiceAccount, ConfigMap) is created.
+
+        false (default) — Controller Namespace mode: every proxy is created in this
+        controller's own namespace, regardless of where its Gateway lives.
+
+        true — Gateway Namespace mode: each proxy is created in the namespace of the
+        Gateway it serves (e.g. the ingress charm's model), giving stronger
+        cross-tenant isolation and letting the Gateway's address be discovered
+        locally. In this mode proxies authenticate to the control plane with a
+        projected service-account token (JWT) rather than an mTLS client cert; the
+        controller distributes the CA and creates the data-plane resources across
+        namespaces, which requires trust ('juju trust').
+
+        Incompatible with merged-gateways (not used by this charm). Toggling this
+        relocates where new proxies are created; existing proxies are re-provisioned
+        by the controller in the new location.
+
+provides:
+  grafana-dashboard:
+    interface: grafana_dashboard
+    optional: true
+  metrics-endpoint:
+    interface: prometheus_scrape
+    optional: true
+    description: |
+      Prometheus scrape target for the controller's :19001/metrics endpoint.
+      Needed alongside otlp because EG doesn't OTLP-export controller-runtime metrics.
+
+requires:
+  otlp:
+    interface: otlp
+    optional: true
+    limit: 1
+    description: |
+      OTLP endpoint for controller and Envoy Proxy metrics.
+      Publishes alert/recording rules into the relation databag.
+  envoy-extension-server:
+    interface: envoy_extension_server
+    optional: true
+    limit: 1
+    description: |
+      gRPC endpoint of a server implementing Envoy Gateway's Extension Server
+      protocol. When related, the endpoint is wired into Envoy Gateway's
+      extensionManager so it delegates xDS fine-tuning to that server (the Envoy
+      AI Gateway controller is one such server). The control plane runs fine
+      without it; the relation is optional.
+
+resources:
+  envoy-gateway-image:
+    type: oci-image
+    description: Envoy Gateway controller OCI image
+    upstream-source: docker.io/envoyproxy/gateway:v1.7.0
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps: [astral-uv]
+    build-packages: [git]
