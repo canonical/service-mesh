@@ -601,7 +601,7 @@ class EnvoyControllerCharm(ops.CharmBase):
         # translated xDS: all listener/route/cluster/secret resources are passed through, and
         # it runs post the Translation/Cluster/Route stages (Envoy AI Gateway's required hook
         # set; see the upstream envoy-gateway-values.yaml).
-        # backendResources whitelists InferencePool as an allowed HTTPRoute backendRef so EG
+        # backendResources allowlists InferencePool as an allowed HTTPRoute backendRef so EG
         # delegates it to the extension server for xDS translation (mirrors the upstream
         # inference-pool addon values; fix for
         # https://github.com/canonical/service-mesh/issues/128). Today the only extension
