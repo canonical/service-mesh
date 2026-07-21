@@ -88,7 +88,7 @@ LIBAPI = 0
 
 # Increment this PATCH version before using `charmcraft publish-lib` or reset
 # to 0 if you are raising the major API version
-LIBPATCH = 1
+LIBPATCH = 2
 
 PYDEPS = ["pydantic>=2"]
 
@@ -147,8 +147,6 @@ class PrometheusApiRequirer:
         """Return the relation instances for applications related to us on the monitored relation."""
         return self._charm_relation_mapping.get(self._relation_name, [])
 
-    # TODO: This signature was patched locally to fix a type error.  Revert back to the standard version once this is
-    #  fixed in mimir-coordinator
     def get_data(self) -> Optional[PrometheusApiAppData]:
         """Return data for at most one related application, raising if more than one is available.
 
