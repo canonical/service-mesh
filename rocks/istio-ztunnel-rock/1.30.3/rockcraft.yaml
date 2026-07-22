@@ -1,23 +1,21 @@
 name: istio-ztunnel
 base: ubuntu@26.04
-version: '1.30.0'
+version: '1.30.3'
 summary: Ztunnel provides an implementation of the ztunnel component of ambient mesh
 description: |
   Ztunnel is intended to be a purpose built implementation of the node proxy in ambient mesh. Part of the goals of this included keeping a narrow feature set, implementing only the bare minimum requirements for ambient. This ensures the project remains simple and high performance.
 platforms:
   amd64:
-
 services:
   ztunnel:
     command: /bin/ztunnel proxy
     override: replace
     startup: enabled
-
 parts:
   istio-ztunnel:
     plugin: rust
     source: https://github.com/istio/ztunnel.git
-    source-tag: 1.30.0
+    source-tag: 1.30.3
     rust-channel: 1.92.0
     build-packages:
       - protobuf-compiler
@@ -29,9 +27,9 @@ parts:
   stage-dependency-packages:
     plugin: nil
     stage-packages:
-      - libc6  # glibc
-      - iptables  # includes both iptables and ip6tables
-      - conntrack  # libnetfilter_conntrack and libnfnetlink (and maybe libmnl?)
+      - libc6 # glibc
+      - iptables # includes both iptables and ip6tables
+      - conntrack # libnetfilter_conntrack and libnfnetlink (and maybe libmnl?)
       - gcc
   ca-certs:
     plugin: nil
