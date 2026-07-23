@@ -22,10 +22,6 @@ One relation = one minted credential (multi-tenant across models/clusters).
 - **Backend-agnostic hot path, backend-specific content.** The requirer's hot
   path is uniform: read `auth-key` from the secret, pass it to the operator /
   `tailscale up --auth-key`; the backend is distinguished by `login-server`.
-  The secret *content* is nonetheless backend-specific — beyond `auth-key` it
-  carries the credential's identifier(s), which differ per backend (see
-  Relation data). The requirer only touches those extras for its own
-  operator-tag self-check, not for joining the tailnet.
 
 ## Cross-controller / cross-model
 
@@ -38,10 +34,6 @@ One relation = one minted credential (multi-tenant across models/clusters).
     configured locally on `tailscale-config`. (Already the design.)
   - **Minted child credential** = charm secret over the relation → DOES cross
     the CMR to the downstream. This is the distribution path.
-- Deployment prerequisite (operator-facing, not charmable): cross-controller
-  CMR needs the controllers reachable — bootstrap with
-  `--controller-external-ips` / `--controller-external-name` when the topology
-  is not flat. Set at bootstrap only.
 
 ## Relation data
 
@@ -50,8 +42,12 @@ Provider app databag (published to the requirer):
 | key            | type      | notes                                   |
 |----------------|-----------|-----------------------------------------|
 | `secret-id`    | str (URI) | URI of the granted credential secret    |
-| `login-server` | str       | control-plane URL; empty for Tailscale SaaS |
+| `login-server` | str       | control-plane URL;                      |
 | `tags`         | str       | comma-separated tag list (encoded)      |
+
+- `login-server` is **never empty on the wire.**  For the Headscale backend 
+  it is the configured Headscale URL; for Tailscale SaaS the provider substitutes 
+  the well-known Tailscale control-plane URL.
 
 - `tags` is **provider → requirer, informational.** The child inherits the
   parent (root) client's tags (spec: child carries the SAME tags as the
@@ -69,25 +65,16 @@ Credential secret content (`dict[str, str]`) — **backend-specific:**
 
 *Headscale backend:*
 
-| key        | type | notes                                              |
-|------------|------|----------------------------------------------------|
-| `auth-key` | str  | pre-auth key; passed to `tailscale up --auth-key`  |
-| `id`       | str  | pre-auth key id (for the requirer's self-check / provider bookkeeping) |
-| `prefix`   | str  | pre-auth key prefix                                |
-
-- **Uniform hot path:** every backend exposes `auth-key`; the requirer joins
-  the tailnet with that field alone and never branches on backend. The extra
-  identifier field(s) are auxiliary — consumed only by the requirer's
-  operator-tag self-check — and are co-located in the secret rather than the
-  databag so all per-credential fields travel together in one `secret-get`.
+We expect that Headscale will be able to use the same kind of OAuth secrets soon.
+See: https://github.com/juanfont/headscale/pull/3334
 
 ## Provider lifecycle (reconciler)
 
-- `relation-joined`/`changed`: mint child (idempotent) → record
+- When a new relation is detected: mint child (idempotent) → record
   `relation-id → key_id` in the peer map → add + grant secret → publish
   `secret-id` + `login-server` + `tags`.
-- `relation-broken`: look up `key_id` in the peer map → revoke child →
-  drop the entry.
+- When an extra `key_id` (not corresponding to any relation) is detected: 
+  revoke child → drop the entry.
 - Tailscale scopes for the mint are a **fixed provider-owned default**, not relation
   data; the requirer supplies none.
 - Mint must be idempotent across hooks (don't re-mint if the peer map already
