@@ -21,6 +21,7 @@ suites:
       sudo snap install docker
 
       # Manual goss install
+      # This follows upstream recommendation: https://github.com/goss-org/goss/blob/ce3ed5d49210e5887739df9b6997b76a50deb171/README.md?plain=1#L44
       curl -L https://github.com/goss-org/goss/releases/latest/download/goss-linux-amd64 -o /usr/local/bin/goss
       chmod +rx /usr/local/bin/goss
       curl -L https://github.com/goss-org/goss/releases/latest/download/dgoss -o /usr/local/bin/dgoss
