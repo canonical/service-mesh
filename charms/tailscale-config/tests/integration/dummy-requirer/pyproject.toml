@@ -1,0 +1,16 @@
+# Copyright 2026 Ubuntu
+# See LICENSE file for licensing details.
+
+[project]
+name = "dummy-requirer"
+version = "0.0.1"
+requires-python = ">=3.10"
+
+dependencies = [
+    "ops~=3.7",
+    "pydantic>=2",
+    "canonical-service-mesh",
+]
+
+[tool.uv.sources]
+canonical-service-mesh = { git = "https://github.com/canonical/service-mesh.git", subdirectory = "canonical_service_mesh", branch = "feat/tailscale-config" }

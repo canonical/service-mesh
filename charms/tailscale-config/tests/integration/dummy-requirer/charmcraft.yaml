@@ -1,0 +1,43 @@
+# Copyright 2026 Ubuntu
+# See LICENSE file for licensing details.
+#
+# Minimal requirer charm used only by the tailscale-config integration tests.
+# It relates to tailscale-config over the tailscale_credentials interface,
+# reads the minted credential, and reaches ActiveStatus only if that credential
+# successfully authenticates against the Tailscale API.
+type: charm
+name: dummy-requirer
+title: Dummy Tailscale Credentials Requirer
+summary: Test-only requirer for the tailscale_credentials interface.
+description: |
+  A minimal, test-only charm that requires the tailscale_credentials relation.
+  It verifies that the credential minted and distributed by tailscale-config
+  works by exchanging it for a short-lived access token against the Tailscale
+  API. It reaches ActiveStatus only when that exchange succeeds.
+
+base: ubuntu@24.04
+platforms:
+  amd64:
+  arm64:
+
+assumes:
+  - juju >= 3.6
+
+parts:
+  charm:
+    plugin: uv
+    source: .
+    build-snaps:
+      - astral-uv
+    build-packages:
+      # Required for uv to fetch the canonical-service-mesh git dependency.
+      - git
+
+requires:
+  tailscale-credentials:
+    interface: tailscale_credentials
+    optional: false
+    limit: 1
+    description: |
+      Consumes a scoped, per-relation tailnet credential minted by
+      tailscale-config, and verifies it against the Tailscale API.

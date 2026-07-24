@@ -1,0 +1,105 @@
+# This file configures Charmcraft.
+# See https://documentation.ubuntu.com/charmcraft/stable/reference/files/charmcraft-yaml-file/
+type: charm
+name: tailscale-config
+title: Tailscale Config
+summary: Central credential authority for a Tailscale or Headscale tailnet.
+description: |
+  tailscale-config is a workloadless charm that acts as the central credential
+  authority for a charmed Tailscale/Headscale solution.
+
+  On relation to a downstream charm (tailscale-k8s or tailscale-beacon) it mints
+  a scoped, per-downstream credential using the control-plane API (a child OAuth
+  client for Tailscale, a pre-auth key for Headscale) and distributes it over a
+  relation. On relation removal it revokes that credential. It holds no cluster
+  or tailnet state beyond the root credential it needs to talk to the
+  control-plane API, so it can run anywhere reachable, on or off the cluster.
+
+  A single tailscale-config is multi-tenant: it can serve many downstream charms
+  across many models and clusters at once, minting an independent credential per
+  relation. It is optional — downstream charms are fully functional standalone
+  via manual config — but it is the recommended default at scale as it automates
+  credential minting and revocation.
+
+  This charm is useful for platform teams operating charmed workloads that need
+  to join a Tailscale or Headscale tailnet without managing per-workload
+  credentials by hand.
+
+links:
+  website: https://charmhub.io/tailscale-config # TODO: not yet created
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
+
+base: ubuntu@24.04
+platforms:
+  amd64:
+  arm64:
+
+assumes:
+  - juju >= 3.6
+
+parts:
+  charm:
+    plugin: uv
+    source: .
+    build-snaps:
+      - astral-uv
+    build-packages:
+      # Required for uv to fetch the canonical-service-mesh git dependency.
+      - git
+
+config:
+  options:
+    backend:
+      description: |
+        The control-plane backend this charm mints credentials against.
+
+        Acceptable values are "tailscale" (Tailscale SaaS) and "headscale".
+      default: "tailscale"
+      type: string
+    login-server:
+      description: |
+        URL of the control plane, passed through to downstream charms.
+
+        Leave empty for Tailscale SaaS. Set to the Headscale server URL when
+        the "headscale" backend is used.
+      default: ""
+      type: string
+    root-credential:
+      description: |
+        A Juju user secret holding the root credential used to mint
+        per-downstream credentials against the control-plane API.
+
+        For the "tailscale" backend this is a root OAuth client (with the
+        oauth_keys scope, plus the union of scopes it will delegate to
+        children). For the "headscale" backend this is a Headscale API key.
+
+        Grant the secret to this application, then set this option to the
+        secret URI (e.g. `juju config tailscale-config root-credential=secret:...`).
+      type: secret
+
+actions:
+  get-root-client-info:
+    description: |
+      Print information about the root OAuth client configured in the
+      root-credential secret.
+
+provides:
+  tailscale-credentials:
+    interface: tailscale_credentials
+    optional: true
+    description: |
+      Provides scoped, per-relation tailnet credentials to a downstream charm
+      (tailscale-k8s or tailscale-beacon), along with the login server URL and
+      tags. The downstream charm is backend-agnostic and passes the credential
+      directly to the Tailscale operator or `tailscale up`.
+
+peers:
+  credentials-map:
+    interface: tailscale_config_peers
+    description: |
+      Provider-internal peer relation. Its app databag holds the
+      `relation-id -> key_id` map of minted child credentials. This is the
+      source of truth for idempotent minting and for revoking a child on
+      relation removal (where the departing relation's own databag is
+      unreliable).
