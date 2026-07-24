@@ -115,25 +115,9 @@ class TailscaleConfigCharm(ops.CharmBase):
         revoke-on-removal.
         """
         state = self._collect_state()
-        if not state.is_leader:
-            logger.debug("not leader; skipping reconcile work")
-            return
-        if not state.has_valid_backend():
-            logger.debug("invalid backend %r; skipping reconcile work", state.backend)
-            return
-        if state.root_credential is None:
-            logger.debug("root credential not set; skipping reconcile work")
-            return
-        if not state.peer_relation_available:
-            logger.debug(
-                "peer relation not yet available; skipping reconcile "
-                "(re-runs on %s-relation-created)",
-                PEER_RELATION_NAME,
-            )
-            return
-
-        if state.resolve_login_server() is None:
-            logger.debug("login-server not resolvable; skipping reconcile work")
+        ready, reason = state.is_ready_to_reconcile()
+        if not ready:
+            logger.debug("skipping reconcile: %s", reason)
             return
 
         credential_map = dict(state.credential_map)

@@ -124,3 +124,81 @@ def test_tailscale_never_blocks_on_missing_login_server():
 
     # Assert:
     assert status == ops.ActiveStatus()
+
+
+def test_is_ready_to_reconcile_when_ready():
+    """A fully configured leader is ready to reconcile with no reason."""
+    # Arrange:
+    state = _state()
+
+    # Act:
+    ready, reason = state.is_ready_to_reconcile()
+
+    # Assert:
+    assert ready is True
+    assert reason == ""
+
+
+def test_is_ready_to_reconcile_not_leader():
+    """A non-leader is not ready to reconcile."""
+    # Arrange:
+    state = _state(is_leader=False)
+
+    # Act:
+    ready, reason = state.is_ready_to_reconcile()
+
+    # Assert:
+    assert ready is False
+    assert "leader" in reason
+
+
+def test_is_ready_to_reconcile_invalid_backend():
+    """An unrecognized backend is not ready to reconcile."""
+    # Arrange:
+    state = _state(backend="bogus")
+
+    # Act:
+    ready, reason = state.is_ready_to_reconcile()
+
+    # Assert:
+    assert ready is False
+    assert "bogus" in reason
+
+
+def test_is_ready_to_reconcile_without_root_credential():
+    """A missing root credential blocks reconcile."""
+    # Arrange:
+    state = _state(root_credential=None)
+
+    # Act:
+    ready, reason = state.is_ready_to_reconcile()
+
+    # Assert:
+    assert ready is False
+    assert "root credential" in reason
+
+
+def test_is_ready_to_reconcile_without_peer_relation():
+    """An absent peer relation blocks reconcile."""
+    # Arrange:
+    state = _state(peer_relation_available=False)
+
+    # Act:
+    ready, reason = state.is_ready_to_reconcile()
+
+    # Assert:
+    assert ready is False
+    assert "peer relation" in reason
+
+
+def test_is_ready_to_reconcile_headscale_without_login_server():
+    """The headscale backend without a login-server blocks reconcile."""
+    # Arrange:
+    state = _state(backend="headscale", login_server=None)
+
+    # Act:
+    ready, reason = state.is_ready_to_reconcile()
+
+    # Assert:
+    assert ready is False
+    assert "login-server" in reason

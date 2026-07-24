@@ -75,6 +75,24 @@ class CharmState(BaseModel):
             return self.login_server or TAILSCALE_LOGIN_SERVER
         return self.login_server
 
+    def is_ready_to_reconcile(self) -> tuple[bool, str]:
+        """Return whether reconcile can run, with a reason when it should not.
+
+        The reason is empty when ready, otherwise a human-readable explanation
+        of the first unmet precondition, suitable for debug logging.
+        """
+        if not self.is_leader:
+            return False, "not leader"
+        if not self.has_valid_backend():
+            return False, f"invalid backend {self.backend!r}"
+        if self.resolve_login_server() is None:
+            return False, "login-server not resolvable"
+        if self.root_credential is None:
+            return False, "root credential not set"
+        if not self.peer_relation_available:
+            return False, "peer relation not yet available"
+        return True, ""
+
 
 def get_charm_status(state: CharmState) -> ops.StatusBase:
     """Derive the unit status from the collected charm state."""
