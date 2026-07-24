@@ -1,0 +1,59 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: tailscale-beacon-k8s
+type: charm
+title: Tailscale Beacon
+summary: A Juju charm to expose Kubernetes workloads onto a tailnet.
+description: |
+  tailscale-beacon-k8s lives in a user application's model and acts as an
+  entrypoint to the tailnet. When an application relates to it over the
+  `ingress` relation, the beacon creates a LoadBalancer Service with
+  `loadBalancerClass: tailscale`. A cluster-wide Tailscale operator (deployed by
+  tailscale-k8s) reconciles that Service onto the tailnet, exposing the app.
+
+  The charm has no workload container: it only writes Kubernetes Service objects
+  via lightkube. It is useless on its own; a tailscale-k8s operator must be
+  running somewhere on the cluster for the Service to be reconciled onto the
+  tailnet.
+
+links:
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@26.04:amd64:
+
+config:
+  options:
+    ready-timeout:
+      type: int
+      default: 30
+      description: |
+        The maximum time (in seconds) to wait, within a single hook execution,
+        for the Tailscale operator to populate a proxy's tailnet address on the
+        LoadBalancer Service it manages. The ingress URL is only published once
+        the address is available. If the address is still unavailable when this
+        timeout elapses, the charm stays in WaitingStatus and logs a warning
+        (the proxy may be awaiting device approval); only a terminal proxy
+        failure (ProxyInvalid/ProxyFailed) raises an error.
+
+provides:
+  ingress:
+    interface: ingress
+    optional: true
+    description: |
+      Exposes a related application onto the tailnet by creating a LoadBalancer
+      Service (loadBalancerClass: tailscale) for it, then publishing the app's
+      tailnet URL (http://<tailnet-hostname>:<port>/) back to the requirer.
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps: [astral-uv]
+    build-packages: [git]
