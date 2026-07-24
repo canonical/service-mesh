@@ -44,6 +44,9 @@ parts:
     source: .
     build-snaps:
       - astral-uv
+    build-packages:
+      # Required for uv to fetch the canonical-service-mesh git dependency.
+      - git
 
 config:
   options:
@@ -82,9 +85,6 @@ actions:
       root-credential secret.
 
 provides:
-  # TODO: the exact relation data field names (e.g. client-id, client-secret /
-  # auth-key, login-server, tags) are not yet finalized — see the Open Questions
-  # in docs/tailscale-charms-spec.md.
   tailscale-credentials:
     interface: tailscale_credentials
     optional: true
@@ -93,3 +93,13 @@ provides:
       (tailscale-k8s or tailscale-beacon), along with the login server URL and
       tags. The downstream charm is backend-agnostic and passes the credential
       directly to the Tailscale operator or `tailscale up`.
+
+peers:
+  credentials-map:
+    interface: tailscale_config_peers
+    description: |
+      Provider-internal peer relation. Its app databag holds the
+      `relation-id -> key_id` map of minted child credentials. This is the
+      source of truth for idempotent minting and for revoking a child on
+      relation removal (where the departing relation's own databag is
+      unreliable).

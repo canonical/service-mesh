@@ -29,6 +29,9 @@ _TOKEN_PATH = "/api/v2/oauth/token"
 DEFAULT_CHILD_DESCRIPTION = "Minted by the tailscale-config charm"
 """Default description stamped onto minted child OAuth clients."""
 
+DEFAULT_CHILD_SCOPES = ["auth_keys", "devices:core"]
+"""Fixed, provider-owned scopes requested for minted child OAuth clients."""
+
 
 class RootClientError(Exception):
     """Base class for failures fetching root OAuth client info.
