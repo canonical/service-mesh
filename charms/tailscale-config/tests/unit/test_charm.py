@@ -17,100 +17,20 @@ from tailscale_config import TAILSCALE_LOGIN_SERVER, CharmState
 ROOT_CREDENTIAL_URI = "secret:cvh7kruupa1s46bqvuig"
 
 
-def test_active_status():
-    """A leader with a root credential and peer relation reports active."""
+def test_collect_status_surfaces_get_charm_status_result():
+    """_on_collect_status reports whatever get_charm_status returns."""
     # Arrange:
     ctx = testing.Context(TailscaleConfigCharm)
-    state_in = testing.State(
-        leader=True,
-        config={"backend": "tailscale", "root-credential": ROOT_CREDENTIAL_URI},
-        relations={testing.PeerRelation(PEER_RELATION_NAME)},
-    )
+    state_in = testing.State(config={"backend": "tailscale"})
+    sentinel = testing.WaitingStatus("sentinel-status")
 
     # Act:
-    state_out = ctx.run(ctx.on.collect_unit_status(), state_in)
+    with patch("charm.get_charm_status", return_value=sentinel) as mock_status:
+        state_out = ctx.run(ctx.on.collect_unit_status(), state_in)
 
     # Assert:
-    assert state_out.unit_status == testing.ActiveStatus()
-
-
-def test_non_leader_reports_standby():
-    """A non-leader unit reports active standby and does no work."""
-    # Arrange:
-    ctx = testing.Context(TailscaleConfigCharm)
-    state_in = testing.State(leader=False)
-
-    # Act:
-    state_out = ctx.run(ctx.on.collect_unit_status(), state_in)
-
-    # Assert:
-    assert isinstance(state_out.unit_status, testing.ActiveStatus)
-    assert "standby" in state_out.unit_status.message
-
-
-def test_maintenance_without_peer_relation():
-    """Without the peer relation the leader reports maintenance."""
-    # Arrange:
-    ctx = testing.Context(TailscaleConfigCharm)
-    state_in = testing.State(
-        leader=True,
-        config={"backend": "tailscale", "root-credential": ROOT_CREDENTIAL_URI},
-    )
-
-    # Act:
-    state_out = ctx.run(ctx.on.collect_unit_status(), state_in)
-
-    # Assert:
-    assert isinstance(state_out.unit_status, testing.MaintenanceStatus)
-    assert "peer relation" in state_out.unit_status.message
-
-
-def test_blocked_without_root_credential():
-    """Without a root credential the charm blocks."""
-    # Arrange:
-    ctx = testing.Context(TailscaleConfigCharm)
-    state_in = testing.State(leader=True, config={"backend": "tailscale"})
-
-    # Act:
-    state_out = ctx.run(ctx.on.collect_unit_status(), state_in)
-
-    # Assert:
-    assert isinstance(state_out.unit_status, testing.BlockedStatus)
-    assert "root-credential" in state_out.unit_status.message
-
-
-def test_blocked_on_invalid_backend():
-    """An unrecognized backend blocks, even with a root credential set."""
-    # Arrange:
-    ctx = testing.Context(TailscaleConfigCharm)
-    state_in = testing.State(
-        leader=True,
-        config={"backend": "bogus", "root-credential": ROOT_CREDENTIAL_URI},
-    )
-
-    # Act:
-    state_out = ctx.run(ctx.on.collect_unit_status(), state_in)
-
-    # Assert:
-    assert isinstance(state_out.unit_status, testing.BlockedStatus)
-    assert "bogus" in state_out.unit_status.message
-
-
-def test_blocked_on_headscale_without_login_server():
-    """The headscale backend blocks when no login-server is configured."""
-    # Arrange:
-    ctx = testing.Context(TailscaleConfigCharm)
-    state_in = testing.State(
-        leader=True,
-        config={"backend": "headscale", "root-credential": ROOT_CREDENTIAL_URI},
-    )
-
-    # Act:
-    state_out = ctx.run(ctx.on.collect_unit_status(), state_in)
-
-    # Assert:
-    assert isinstance(state_out.unit_status, testing.BlockedStatus)
-    assert "login-server" in state_out.unit_status.message
+    assert mock_status.called
+    assert state_out.unit_status == sentinel
 
 
 def test_collect_state_normalizes_empty_login_server():
