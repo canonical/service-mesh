@@ -74,5 +74,5 @@ jobs:
     with:
       charm-path: ${{ matrix.charm-path }}
       git-tag-prefix: ${{ matrix.charm-name }}
-      default-track: dev
+      default-track: 1.29
       provider: microk8s
