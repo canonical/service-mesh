@@ -1,0 +1,36 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Virtual environment
+.venv/
+venv/
+
+# Charm build artifacts
+*.charm
+build/
+parts/
+staging/
+stage/
+prime/
+*.snap
+
+# Coverage
+.coverage
+htmlcov/
+
+# IDE
+.idea/
+.vscode/
+*.swp
+*.swo
+
+# Tox
+.tox/
+
+# pytest
+.pytest_cache/
+
+# Ruff
+.ruff_cache/
