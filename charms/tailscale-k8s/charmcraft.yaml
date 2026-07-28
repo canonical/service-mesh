@@ -13,6 +13,12 @@ description: |
   The charm supports both Tailscale SaaS and Headscale control planes. Credentials can be
   provided manually via charm config or automatically via a relation to tailscale-config.
 
+links:
+  documentation: https://canonical-service-mesh-documentation.readthedocs-hosted.com/en/latest/
+  website: https://charmhub.io/tailscale-k8s
+  source: https://github.com/canonical/tailscale-k8s-operator
+  issues: https://github.com/canonical/tailscale-k8s-operator/issues
+
 assumes:
   - k8s-api
   - juju >= 3.6
@@ -25,6 +31,11 @@ parts:
     source: .
     plugin: uv
     build-snaps: [astral-uv]
+  icon:
+    plugin: dump
+    source: .
+    stage:
+      - icon.svg
 
 containers:
   tailscale-operator:
@@ -79,7 +90,3 @@ config:
 #     tailscale-credentials:
 #       interface: tailscale_credentials
 #       limit: 1
-
-peers:
-  peers:
-    interface: tailscale_k8s_peers
