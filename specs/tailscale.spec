@@ -343,7 +343,7 @@ kind: Service
 metadata:
   name: <app-name>-tailscale
   annotations:
-    tailscale.com/hostname: <app-name>
+    tailscale.com/hostname: <model>-<app-name>
 spec:
   type: LoadBalancer
   loadBalancerClass: tailscale
@@ -356,6 +356,12 @@ spec:
 5. The upstream Tailscale operator (running in the `tailscale-k8s` model)
    detects this Service cluster-wide via its ClusterRole, creates a proxy
    StatefulSet, and the app appears on the tailnet.
+
+The `tailscale.com/hostname` is model-qualified (`<model>-<app-name>`) so the
+tailnet device name is unique across models — the operator reconciles Services
+cluster-wide, so two apps of the same name in different models would otherwise
+collide on the tailnet (Tailscale would silently append a numeric suffix). The
+`<model>-<app>` order matches Traefik's default ingress path prefix.
 
 **Credentials:** None needed. The beacon only creates Kubernetes resources.
 The operator (managed by `tailscale-k8s`) holds the OAuth credentials and
