@@ -53,6 +53,15 @@ class TailscaleK8sCharm(ops.CharmBase):
         ):
             self.framework.observe(event, self._reconcile)
 
+        # Credentials can also arrive over the tailscale-credentials relation;
+        # route its lifecycle events through the same holistic reconcile.
+        for relation_event in (
+            self.on["tailscale-credentials"].relation_created,
+            self.on["tailscale-credentials"].relation_changed,
+            self.on["tailscale-credentials"].relation_broken,
+        ):
+            self.framework.observe(relation_event, self._reconcile)
+
         self.framework.observe(self.on.collect_unit_status, self._on_collect_status)
 
     # --- Properties ---
@@ -76,11 +85,6 @@ class TailscaleK8sCharm(ops.CharmBase):
     def _is_scaled_beyond_one(self) -> bool:
         """Check if the application has been scaled beyond 1 replica."""
         return self.app.planned_units() > 1
-
-    @property
-    def _login_server(self) -> str:
-        """Return the login server URL from config."""
-        return str(self.config.get("login-server", ""))
 
     @property
     def _operator_tags(self) -> str:
@@ -184,13 +188,13 @@ class TailscaleK8sCharm(ops.CharmBase):
             LOGGER.info("Waiting for Pebble to be ready")
             return
 
-        push_credentials(container, credentials)
+        push_credentials(container, credentials.to_workload())
 
         layer = build_pebble_layer(
             namespace=self._namespace,
             operator_tags=self._operator_tags,
             proxy_tags=self._proxy_tags,
-            login_server=self._login_server,
+            login_server=credentials.login_server,
         )
         container.add_layer("tailscale-operator", layer, combine=True)
         try:

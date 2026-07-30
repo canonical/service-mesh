@@ -31,6 +31,7 @@ parts:
     source: .
     plugin: uv
     build-snaps: [astral-uv]
+    build-packages: [git]
 
 containers:
   tailscale-operator:
@@ -73,15 +74,14 @@ config:
         Mutually exclusive with the tailscale-credentials relation - if both
         are present, the charm blocks.
 
-# TODO: Add the `tailscale-credentials` requirer relation before initial release.
-# This charm will receive scoped OAuth credentials (or a Headscale pre-auth key)
-# from `tailscale-config` over this relation, as the recommended alternative to
-# the manual `credentials` config option. When both are present, the charm must
-# block (see the `credentials` config option above and the README "relation
-# mode" section). Not yet wired up: the relation interface has not been
-# finalized and the charm-lib has not been written. Planned shape:
-#
-#   requires:
-#     tailscale-credentials:
-#       interface: tailscale_credentials
-#       limit: 1
+requires:
+  tailscale-credentials:
+    interface: tailscale_credentials
+    limit: 1
+    optional: true
+    description: |
+      Receive scoped OAuth credentials (or a Headscale pre-auth key) and the
+      control-plane login server from tailscale-config. This is the recommended
+      alternative to the manual `credentials` config option. When both the
+      `credentials` config option and this relation are present, the charm
+      blocks rather than picking a winner.

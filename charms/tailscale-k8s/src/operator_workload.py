@@ -38,6 +38,14 @@ def build_pebble_layer(
         "APISERVER_PROXY": "false",
         "PROXY_FIREWALL_MODE": "auto",
         "POD_IP": "",
+        # Override the Kubernetes-injected service-link env var. When the app is
+        # deployed with a name that uppercases to "TS" (e.g. `juju deploy ... ts`),
+        # Kubernetes injects the Docker-link legacy var TS_PORT=tcp://<ip>:<port>
+        # for the app's Service. The operator reads TS_PORT as its tailscaled
+        # listen port and fatals parsing it as a uint16. Pinning it here makes the
+        # operator's own value win regardless of app name. "0" == unset -> tsnet
+        # auto-selects the port.
+        "TS_PORT": "0",
     }
 
     if login_server:

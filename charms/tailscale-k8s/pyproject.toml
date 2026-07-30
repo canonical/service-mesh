@@ -10,8 +10,11 @@ dependencies = [
     "ops~=2.5",
     "lightkube>=0.15",
     "lightkube-models>=1.30",
-    "canonical-service-mesh>=0.0.2",
+    "canonical-service-mesh",
 ]
+
+[tool.uv.sources]
+canonical-service-mesh = { git = "https://github.com/canonical/service-mesh.git", subdirectory = "canonical_service_mesh", branch = "feat/tailscale" }
 
 [project.optional-dependencies]
 dev = [

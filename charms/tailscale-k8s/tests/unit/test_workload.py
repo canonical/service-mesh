@@ -38,6 +38,32 @@ class TestPebbleLayerConstruction:
         assert svc.command == "/usr/local/bin/operator"
         assert svc.environment["APISERVER_PROXY"] == "false"
 
+    def test_ts_port_override(self, tailscale_context):
+        """TS_PORT is pinned so a Kubernetes-injected service-link var can't shadow it.
+
+        When the app is named "ts", Kubernetes injects TS_PORT=tcp://<ip>:<port>
+        for the app's Service, which the operator otherwise fatals parsing as a
+        uint16. Pinning "0" (== unset -> tsnet auto-selects) makes our value win.
+        """
+        secret = Secret(
+            tracked_content={"client-id": "id", "client-secret": "secret"},
+            latest_content={"client-id": "id", "client-secret": "secret"},
+            owner="app",
+        )
+        container = Container(name="tailscale-operator", can_connect=True)
+        state = State(
+            leader=True,
+            containers=[container],
+            planned_units=1,
+            secrets=[secret],
+            config={"credentials": secret.id},
+        )
+        out = tailscale_context.run(tailscale_context.on.config_changed(), state)
+
+        layer = out.get_container("tailscale-operator").layers["tailscale-operator"]
+        svc = layer.services["tailscale-operator"]
+        assert svc.environment["TS_PORT"] == "0"
+
     def test_default_tags(self, tailscale_context):
         """Default tags should be tag:k8s-operator and tag:k8s."""
         secret = Secret(
