@@ -34,3 +34,9 @@ htmlcov/
 
 # Ruff
 .ruff_cache/
+
+# Terraform
+terraform/**/*.tfstate
+terraform/**/*.tfstate.*
+terraform/**/.terraform/
+terraform/**/.terraform.lock.hcl
