@@ -169,10 +169,24 @@ def test_publish_urls_publishes_root_url_when_ready(ctx, service_krm_mock, ingre
         productpage=proxy_state(hostname="productpage.ts.net")
     ):
         ctx.run(ctx.on.config_changed(), make_state(ingress=1))
-    # THEN the root URL (no path prefix) is published
+    # THEN the root URL (no path prefix, default port 80 elided) is published
     ingress_io.publish_url.assert_called_once()
     _relation, url = ingress_io.publish_url.call_args.args
-    assert url == "http://productpage.ts.net:8080/"
+    assert url == "http://productpage.ts.net/"
+
+
+def test_publish_urls_includes_custom_listen_port(ctx, service_krm_mock, ingress_io):
+    # GIVEN a ready proxy and a non-default listen-port
+    with ready_ingress(("productpage", "apps", 8080)), proxy_states(
+        productpage=proxy_state(hostname="productpage.ts.net")
+    ):
+        ctx.run(
+            ctx.on.config_changed(),
+            make_state(ingress=1, config={"listen-port": 8443}),
+        )
+    # THEN the published URL carries the configured listen-port
+    _relation, url = ingress_io.publish_url.call_args.args
+    assert url == "http://productpage.ts.net:8443/"
 
 
 def test_publish_urls_wipes_stale_data_on_terminal_failure(
@@ -263,7 +277,17 @@ def test_build_service_shape(ctx):
     assert svc.spec.type == "LoadBalancer"
     assert svc.spec.loadBalancerClass == "tailscale"
     assert svc.spec.selector == {"app.kubernetes.io/name": "productpage"}
-    assert [p.port for p in svc.spec.ports] == [8080]
+    # The tailnet device listens on the default port 80 and forwards to the
+    # port the app declared over the ingress relation (targetPort).
+    assert [(p.port, p.targetPort) for p in svc.spec.ports] == [(80, 8080)]
+
+
+def test_build_service_uses_configured_listen_port(ctx):
+    with ctx(
+        ctx.on.update_status(), make_state(config={"listen-port": 8443})
+    ) as mgr:
+        svc = mgr.charm._build_service("productpage", "apps", 8080)
+    assert [(p.port, p.targetPort) for p in svc.spec.ports] == [(8443, 8080)]
 
 
 def test_remove_deletes_services_on_last_unit(ctx, service_krm_mock):

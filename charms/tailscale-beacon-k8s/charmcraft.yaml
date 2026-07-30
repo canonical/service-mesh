@@ -30,6 +30,16 @@ platforms:
 
 config:
   options:
+    listen-port:
+      type: int
+      default: 80
+      description: |
+        The port the tailnet device listens on for each exposed application.
+        Inbound tailnet traffic to this port is forwarded to the port the
+        related application declared over the `ingress` relation (its
+        `targetPort`). Defaults to 80 so plain `http://<tailnet-hostname>/`
+        (e.g. `curl <model>-<app>`) reaches the app regardless of the port the
+        workload listens on internally.
     ready-timeout:
       type: int
       default: 30
@@ -49,7 +59,9 @@ provides:
     description: |
       Exposes a related application onto the tailnet by creating a LoadBalancer
       Service (loadBalancerClass: tailscale) for it, then publishing the app's
-      tailnet URL (http://<tailnet-hostname>:<port>/) back to the requirer.
+      tailnet URL (http://<tailnet-hostname>[:<listen-port>]/) back to the
+      requirer. The tailnet device listens on `listen-port` (default 80) and
+      forwards to the port the application declared over this relation.
 
 parts:
   charm:

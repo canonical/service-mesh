@@ -109,6 +109,11 @@ class TailscaleBeaconCharm(ops.CharmBase):
         return int(self.config.get("ready-timeout", 30))
 
     @property
+    def _listen_port(self) -> int:
+        """The tailnet-facing port each exposed app is served on."""
+        return int(self.config.get("listen-port", 80))
+
+    @property
     def _trusted(self) -> bool:
         """Return True when the charm has cluster-scoped permissions."""
         try:
@@ -189,12 +194,17 @@ class TailscaleBeaconCharm(ops.CharmBase):
         ]
         self._service_krm().reconcile(services)
 
-    def _build_service(self, app_name: str, namespace: str, port: int) -> Service:
+    def _build_service(self, app_name: str, namespace: str, target_port: int) -> Service:
         """Build the LoadBalancer Service that exposes an app on the tailnet.
 
         The Service lives in the app's own namespace so its selector matches the
         app's pods, and carries `loadBalancerClass: tailscale` so the cluster-wide
         Tailscale operator (not the cluster's default load balancer) reconciles it.
+
+        The tailnet device listens on `listen-port` (config, default 80) and
+        forwards to `target_port` (the port the app declared over the ingress
+        relation), so a plain `http://<hostname>/` reaches the workload regardless
+        of the port it listens on internally.
         """
         return Service(
             metadata=ObjectMeta(
@@ -206,7 +216,7 @@ class TailscaleBeaconCharm(ops.CharmBase):
                 type="LoadBalancer",
                 loadBalancerClass=TAILSCALE_LOAD_BALANCER_CLASS,
                 selector={"app.kubernetes.io/name": app_name},
-                ports=[ServicePort(port=port)],
+                ports=[ServicePort(port=self._listen_port, targetPort=target_port)],
             ),
         )
 
@@ -243,7 +253,7 @@ class TailscaleBeaconCharm(ops.CharmBase):
             state = states[relation.id]
             if state.hostname:
                 self.ingress.publish_url(
-                    relation, f"http://{state.hostname}:{data.app.port}/"
+                    relation, self._url(state.hostname)
                 )
                 continue
 
@@ -343,6 +353,16 @@ class TailscaleBeaconCharm(ops.CharmBase):
         ``{model}-{app}`` order Traefik uses for its default ingress path prefix.
         """
         return f"{model}-{app_name}"
+
+    def _url(self, hostname: str) -> str:
+        """Return the tailnet URL for an exposed app.
+
+        The port suffix is omitted for the default HTTP port (80) so the URL is
+        a plain ``http://<hostname>/`` that a bare ``curl <hostname>`` reaches.
+        """
+        port = self._listen_port
+        authority = hostname if port == 80 else f"{hostname}:{port}"
+        return f"http://{authority}/"
 
     def _service_krm(self) -> KubernetesResourceManager:
         return KubernetesResourceManager(
