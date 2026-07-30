@@ -1,0 +1,87 @@
+# Copyright 2025 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: tailscale-k8s
+type: charm
+title: Tailscale K8s Operator
+summary: A Juju charm to deploy and manage the Tailscale Kubernetes operator
+description: |
+  tailscale-k8s deploys and manages the upstream Tailscale Kubernetes operator on a Juju-managed
+  Kubernetes cluster. It handles credential injection, proxy lifecycle, and tailnet registration
+  for workloads exposed via LoadBalancer Services with loadBalancerClass: tailscale.
+
+  The charm supports both Tailscale SaaS and Headscale control planes. Credentials can be
+  provided manually via charm config or automatically via a relation to tailscale-config.
+
+links:
+  documentation: https://canonical-service-mesh-documentation.readthedocs-hosted.com/en/latest/
+  website: https://charmhub.io/tailscale-k8s
+  source: https://github.com/canonical/tailscale-k8s-operator
+  issues: https://github.com/canonical/tailscale-k8s-operator/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@24.04:amd64:
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps: [astral-uv]
+
+containers:
+  tailscale-operator:
+    resource: tailscale-operator-image
+
+resources:
+  tailscale-operator-image:
+    type: oci-image
+    description: Tailscale Kubernetes Operator OCI image
+    upstream-source: docker.io/tailscale/k8s-operator:v1.98
+
+config:
+  options:
+    login-server:
+      type: string
+      default: ""
+      description: |
+        URL of the Tailscale control plane. Leave empty for Tailscale SaaS
+        (https://controlplane.tailscale.com). Set to the Headscale URL for
+        Headscale deployments (e.g. https://headscale.example.com).
+    operator-tags:
+      type: string
+      default: "tag:k8s-operator"
+      description: |
+        Comma-separated list of tags to apply to the operator device.
+        These tags are applied via OPERATOR_INITIAL_TAGS env var.
+        The credential must carry these tags for the operator to authenticate.
+    proxy-tags:
+      type: string
+      default: "tag:k8s"
+      description: |
+        Comma-separated list of tags to apply to proxy pods.
+        These tags are applied via PROXY_TAGS env var.
+        The operator tag must own these tags in tagOwners for proxy auth to succeed.
+    credentials:
+      type: secret
+      description: |
+        Juju secret containing OAuth client credentials for manual mode.
+        The secret must contain 'client-id' and 'client-secret' fields.
+        Mutually exclusive with the tailscale-credentials relation - if both
+        are present, the charm blocks.
+
+# TODO: Add the `tailscale-credentials` requirer relation before initial release.
+# This charm will receive scoped OAuth credentials (or a Headscale pre-auth key)
+# from `tailscale-config` over this relation, as the recommended alternative to
+# the manual `credentials` config option. When both are present, the charm must
+# block (see the `credentials` config option above and the README "relation
+# mode" section). Not yet wired up: the relation interface has not been
+# finalized and the charm-lib has not been written. Planned shape:
+#
+#   requires:
+#     tailscale-credentials:
+#       interface: tailscale_credentials
+#       limit: 1
