@@ -157,7 +157,7 @@ def test_inference_pool_crd_established_false_when_absent(ctx, mock_lightkube_cl
         assert mgr.charm._inference_pool_crd_established() is False
 
 
-def test_inference_pool_crd_established_false_on_unexpected_api_error(
+def test_inference_pool_crd_established_logs_and_returns_false_on_unexpected_api_error(
     ctx, mock_lightkube_client, caplog
 ):
     # GIVEN the API server returns a non-404 error (e.g. 403 RBAC, 500 server error)
