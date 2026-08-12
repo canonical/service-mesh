@@ -110,6 +110,8 @@ def krm_mocks():
         EnvoyAiControllerCharm, "_crd_manager", side_effect=crd_factory
     ), patch.object(EnvoyAiControllerCharm, "_webhook_krm") as webhook, patch.object(
         EnvoyAiControllerCharm, "_crds_established", return_value=True
+    ), patch.object(
+        EnvoyAiControllerCharm, "_inference_pool_crd_established", return_value=True
     ):
         yield SimpleNamespace(
             crd=crd,

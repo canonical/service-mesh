@@ -6,6 +6,7 @@
 import base64
 import dataclasses
 from pathlib import Path
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import httpx
@@ -102,6 +103,58 @@ def test_maintenance_while_crds_not_established(ctx, krm_mocks):
     assert state_out.unit_status == ops.MaintenanceStatus(
         "Setting up Envoy AI Gateway control plane"
     )
+
+
+def test_defers_controller_start_until_inference_pool_crd_established(ctx, krm_mocks):
+    # GIVEN every precondition is met except the GIE InferencePool CRD, which is owned by
+    # the separate envoy-controller-k8s charm and may not exist yet on a concurrent deploy.
+    # Starting the controller now would permanently disable its InferencePool controller.
+    with patch.object(
+        EnvoyAiControllerCharm, "_inference_pool_crd_established", return_value=False
+    ):
+        # WHEN the charm reconciles
+        state_out = ctx.run(ctx.on.config_changed(), make_state())
+    # THEN the controller is not started and the unit waits with an actionable message; a
+    # later event re-runs reconcile once the CRD is served.
+    assert state_out.unit_status == ops.WaitingStatus(
+        "Waiting for InferencePool CRD (install envoy-controller-k8s)"
+    )
+    # AND the controller service was never added to the Pebble plan.
+    container = state_out.get_container("ai-gateway")
+    assert "ai-gateway" not in container.plan.services
+
+
+def test_controller_starts_once_inference_pool_crd_established(ctx, krm_mocks):
+    # GIVEN the GIE InferencePool CRD is now Established alongside every other precondition
+    with patch.object(
+        EnvoyAiControllerCharm, "_inference_pool_crd_established", return_value=True
+    ):
+        # WHEN the charm reconciles
+        state_out = ctx.run(ctx.on.config_changed(), make_state())
+    # THEN the controller service is started (so it boots with the InferencePool watch)
+    container = state_out.get_container("ai-gateway")
+    assert "ai-gateway" in container.plan.services
+
+
+def test_inference_pool_crd_established_true_when_condition_present(
+    ctx, mock_lightkube_client
+):
+    # GIVEN the GIE InferencePool CRD exists and reports Established=True
+    mock_lightkube_client.get.return_value = SimpleNamespace(
+        status=SimpleNamespace(
+            conditions=[SimpleNamespace(type="Established", status="True")]
+        )
+    )
+    with ctx(ctx.on.update_status(), make_state()) as mgr:
+        assert mgr.charm._inference_pool_crd_established() is True
+
+
+def test_inference_pool_crd_established_false_when_absent(ctx, mock_lightkube_client):
+    # GIVEN the GIE InferencePool CRD is not present yet (API server returns 404)
+    mock_lightkube_client.get.side_effect = _api_error(404)
+    with ctx(ctx.on.update_status(), make_state()) as mgr:
+        # THEN a missing CRD counts as not-Established rather than erroring
+        assert mgr.charm._inference_pool_crd_established() is False
 
 
 def test_reconcile_defers_on_api_429(ctx, krm_mocks):
