@@ -543,7 +543,14 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             crd = self.lightkube_client.get(
                 CustomResourceDefinition, name=INFERENCE_POOL_CRD
             )
-        except ApiError:
+        except ApiError as e:
+            if e.status.code == 404:
+                return False
+            logger.error(
+                "Unexpected API error querying InferencePool CRD (HTTP %s): %s",
+                e.status.code,
+                e.status.message,
+            )
             return False
         conditions = (crd.status.conditions if crd.status else None) or []
         return any(

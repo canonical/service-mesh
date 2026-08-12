@@ -157,6 +157,18 @@ def test_inference_pool_crd_established_false_when_absent(ctx, mock_lightkube_cl
         assert mgr.charm._inference_pool_crd_established() is False
 
 
+def test_inference_pool_crd_established_false_on_unexpected_api_error(
+    ctx, mock_lightkube_client, caplog
+):
+    # GIVEN the API server returns a non-404 error (e.g. 403 RBAC, 500 server error)
+    mock_lightkube_client.get.side_effect = _api_error(403)
+    with ctx(ctx.on.update_status(), make_state()) as mgr:
+        # THEN the method returns False (not-Established) …
+        assert mgr.charm._inference_pool_crd_established() is False
+    # … and an error is logged so operators can diagnose the real failure
+    assert any("403" in record.message for record in caplog.records)
+
+
 def test_reconcile_defers_on_api_429(ctx, krm_mocks):
     # GIVEN a freshly-Established CRD whose storage backend is still initializing —
     # the first list against a CR of that CRD returns 429 "storage is (re)initializing".
