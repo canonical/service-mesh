@@ -3,6 +3,7 @@
 
 import logging
 from pathlib import Path
+from typing import Optional
 
 import pytest
 import requests
@@ -133,9 +134,28 @@ def test_auth_policy_validity(juju: Juju):
         )
 
 
+@pytest.mark.parametrize(
+    "config, reset, expected_hostname",
+    [
+        # listener-hostname unset: defaults to the local gateway address (external_hostname
+        # here), preserving the previous host-based filtering behavior.
+        ({"external_hostname": "foo.bar"}, ["listener-hostname"], "foo.bar"),
+        # listener-hostname set to a value: overrides the local gateway address.
+        ({"external_hostname": "foo.bar", "listener-hostname": "bar.foo"}, [], "bar.foo"),
+        # listener-hostname set to an empty string: no hostname, accept traffic for any host.
+        # Also reset external_hostname so this leaves a clean slate for subsequent tests.
+        ({"listener-hostname": ""}, ["external_hostname"], None),
+    ],
+)
 @pytest.mark.dependency(name="test_route_validity", depends=["test_relate"])
-def test_route_validity(juju: Juju):
+def test_route_validity(
+    juju: Juju,
+    config: dict,
+    reset: list,
+    expected_hostname: Optional[str],
+):
     """Test that routes to apps related on the ingress and ingress-unauthenticated endpoints work as expected."""
+    juju.config(APP_NAME, config, reset=reset)
     juju.wait(
         lambda s: all_active(s, APP_NAME, IPA_TESTER, IPA_TESTER_UNAUTHENTICATED),
         timeout=1000,
@@ -150,9 +170,6 @@ def test_route_validity(juju: Juju):
     assert listener_condition["conditions"][0]["message"] == "No errors found"
     assert listener_condition["conditions"][0]["reason"] == "Accepted"
 
-    # Assert that no hostname is set on the listener (listeners accept traffic for any hostname)
-    assert "hostname" not in listener_spec
-
     for ipa_tester in [IPA_TESTER, IPA_TESTER_UNAUTHENTICATED]:
         tester_url = f"http://{istio_ingress_address}/{model}-{ipa_tester}"
         # the route name will follow the format {ingressed_app_name}-{httproute or grpcroute}-{listener_name}-{ingress_app_name}
@@ -162,7 +179,17 @@ def test_route_validity(juju: Juju):
         assert route_condition["conditions"][0]["message"] == "Route was valid"
         assert route_condition["conditions"][0]["reason"] == "Accepted"
         assert route_condition["controllerName"] == "istio.io/gateway-controller"
-        assert send_http_request(tester_url)
+        if not expected_hostname:
+            # No hostname set: listeners accept traffic for any hostname.
+            assert "hostname" not in listener_spec
+            assert send_http_request(tester_url)
+        else:
+            # Hostname set: only traffic for the matching host is accepted.
+            assert listener_spec["hostname"] == expected_hostname
+            assert send_http_request(tester_url, {"Host": expected_hostname})
+            assert not send_http_request(tester_url)
+            assert not send_http_request(tester_url, {"Host": "random.hostname"})
+
 
 
 @pytest.fixture(scope="module")

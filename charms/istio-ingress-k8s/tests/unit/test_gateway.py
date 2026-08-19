@@ -15,7 +15,7 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Secret
-from ops import ActiveStatus
+from ops import ActiveStatus, BlockedStatus
 
 from charm import IstioIngressCharm
 from utils import GatewayListener
@@ -88,6 +88,87 @@ def test_construct_gateway_with_tls(istio_ingress_charm, istio_ingress_context):
             assert listener.get("hostname", None) is None
 
 
+@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
+def test_construct_gateway_default_uses_local_address(
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
+):
+    """When listener-hostname is unset, the local gateway address is used (previous behavior)."""
+    hostname = "example.com"
+    mock_get_lb_external_address.return_value = hostname
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(),
+    ) as manager:
+        charm = manager.charm
+        gateway = charm._construct_gateway(create_test_listeners())
+
+        _validate_gateway_listener(gateway, "http-80", hostname, tls_secret_name=None)
+
+
+def test_construct_gateway_with_empty_listener_hostname(
+    istio_ingress_charm, istio_ingress_context
+):
+    """When listener-hostname is an empty string, no hostname is set (accept all)."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(config={"listener-hostname": ""}),
+    ) as manager:
+        charm = manager.charm
+        gateway = charm._construct_gateway(create_test_listeners())
+
+        assert gateway.spec["listeners"][0].get("hostname", None) is None
+
+
+@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
+def test_construct_gateway_with_explicit_listener_hostname(
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
+):
+    """When listener-hostname is set, that value overrides the local gateway address."""
+    mock_get_lb_external_address.return_value = "lb.example.com"
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(config={"listener-hostname": "custom.example.com"}),
+    ) as manager:
+        charm = manager.charm
+        gateway = charm._construct_gateway(create_test_listeners())
+
+        _validate_gateway_listener(
+            gateway, "http-80", "custom.example.com", tls_secret_name=None
+        )
+
+
+def test_invalid_listener_hostname_blocks(istio_ingress_charm, istio_ingress_context):
+    """An invalid, explicitly-set listener-hostname makes the charm block."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(leader=True, config={"listener-hostname": "not a valid host"}),
+    ) as manager:
+        charm = manager.charm
+        # No hostname is applied when the configured value is invalid
+        gateway = charm._construct_gateway(create_test_listeners())
+        assert gateway.spec["listeners"][0].get("hostname", None) is None
+
+        # And the charm surfaces a blocked status about the invalid config
+        event = MagicMock()
+        charm._collect_listener_hostname_status(event)
+        event.add_status.assert_called_once()
+        status = event.add_status.call_args[0][0]
+        assert isinstance(status, BlockedStatus)
+        assert "listener-hostname" in status.message
+
+
+def test_valid_listener_hostname_does_not_block(istio_ingress_charm, istio_ingress_context):
+    """A valid or empty/unset listener-hostname does not add a blocked status."""
+    for config in ({}, {"listener-hostname": ""}, {"listener-hostname": "valid.example.com"}):
+        with istio_ingress_context(
+            istio_ingress_context.on.update_status(),
+            state=scenario.State(leader=True, config=config),
+        ) as manager:
+            event = MagicMock()
+            manager.charm._collect_listener_hostname_status(event)
+            event.add_status.assert_not_called()
+
+
 def test_sync_gateway_resources_without_tls(istio_ingress_charm, istio_ingress_context):
     """Test that when we have no TLS relation, the Gateway has only an http listener."""
     mock_krm = MagicMock()
@@ -145,12 +226,15 @@ def test_sync_gateway_resources_with_tls_without_loadbalancer_address(
             _get_listener_given_name(gateway, "https-443")
 
 
+@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
 def test_sync_gateway_resources_with_tls_with_loadbalancer_address(
-    istio_ingress_charm, istio_ingress_context
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
 ):
     """Test that when we have a TLS relation and a LoadBalancer address, the Gateway has http and https listeners."""
     mock_krm = MagicMock()
     mock_krm_factory = MagicMock(return_value=mock_krm)
+    hostname = "example.com"
+    mock_get_lb_external_address.return_value = hostname
     certificate_info = generate_certificates_relation()
 
     with istio_ingress_context(
@@ -175,14 +259,14 @@ def test_sync_gateway_resources_with_tls_with_loadbalancer_address(
 
         # Assert that the Gateway was created and has http and https listeners with the correct configurations.
         gateway = charm._get_gateway_resource_manager().reconcile.call_args[0][0][1]
-        _validate_gateway_listener(gateway, "http-80", tls_secret_name=None)
+        _validate_gateway_listener(gateway, "http-80", hostname, tls_secret_name=None)
         _validate_gateway_listener(
-            gateway, "https-443", tls_secret_name=charm._certificate_secret_name
+            gateway, "https-443", hostname, tls_secret_name=charm._certificate_secret_name
         )
 
-        # Assert that no hostname is set on any listener
+        # Assert that, by default, the local gateway address is used as the listener hostname
         for listener in gateway.spec["listeners"]:
-            assert listener.get("hostname", None) is None
+            assert listener.get("hostname", None) == hostname
 
 
 def test_sync_gateway_resources_with_tls_with_external_hostname_config(
@@ -218,14 +302,14 @@ def test_sync_gateway_resources_with_tls_with_external_hostname_config(
 
         # Assert that the Gateway was created and has http and https listeners with the correct configurations.
         gateway = charm._get_gateway_resource_manager().reconcile.call_args[0][0][1]
-        _validate_gateway_listener(gateway, "http-80", tls_secret_name=None)
+        _validate_gateway_listener(gateway, "http-80", hostname, tls_secret_name=None)
         _validate_gateway_listener(
-            gateway, "https-443", tls_secret_name=charm._certificate_secret_name
+            gateway, "https-443", hostname, tls_secret_name=charm._certificate_secret_name
         )
 
-        # Assert that no hostname is set on any listener
+        # Assert that, by default, the local gateway address is used as the listener hostname
         for listener in gateway.spec["listeners"]:
-            assert listener.get("hostname", None) is None
+            assert listener.get("hostname", None) == hostname
 
 
 @pytest.mark.parametrize(
@@ -351,10 +435,15 @@ def generate_certificates_relation(subject="example.com"):
 def _validate_gateway_listener(
     gateway,
     listener_name: str,
+    hostname: Optional[str] = None,
     tls_secret_name: Optional[str] = None,
 ):
     """Validates the Gateway object has the listener with expected configuration."""
     listener = _get_listener_given_name(gateway, listener_name)
+    if hostname:
+        assert listener.get("hostname", None) == hostname
+    else:
+        assert listener.get("hostname", None) is None
     if tls_secret_name:
         assert len(listener["tls"]["certificateRefs"]) == 1
         assert listener["tls"]["certificateRefs"][0]["name"] == tls_secret_name
