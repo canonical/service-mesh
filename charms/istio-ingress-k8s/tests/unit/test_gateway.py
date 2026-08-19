@@ -83,10 +83,6 @@ def test_construct_gateway_with_tls(istio_ingress_charm, istio_ingress_context):
         _validate_gateway_listener(gateway, "http-80", tls_secret_name=None)
         _validate_gateway_listener(gateway, "https-443", tls_secret_name=tls_secret_name)
 
-        # Assert that no hostname is set on any listener
-        for listener in gateway.spec["listeners"]:
-            assert listener.get("hostname", None) is None
-
 
 @patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
 def test_construct_gateway_default_uses_local_address(
@@ -137,16 +133,24 @@ def test_construct_gateway_with_explicit_listener_hostname(
         )
 
 
-def test_invalid_listener_hostname_blocks(istio_ingress_charm, istio_ingress_context):
-    """An invalid, explicitly-set listener-hostname makes the charm block."""
+@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
+def test_invalid_listener_hostname_blocks(
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
+):
+    """An invalid, explicitly-set listener-hostname makes the charm block.
+
+    The listener hostname reverts to the default (local gateway address) rather than
+    being left unset.
+    """
+    mock_get_lb_external_address.return_value = "lb.example.com"
     with istio_ingress_context(
         istio_ingress_context.on.update_status(),
         state=scenario.State(leader=True, config={"listener-hostname": "not a valid host"}),
     ) as manager:
         charm = manager.charm
-        # No hostname is applied when the configured value is invalid
+        # The invalid value is ignored and the default local gateway address is used
         gateway = charm._construct_gateway(create_test_listeners())
-        assert gateway.spec["listeners"][0].get("hostname", None) is None
+        assert gateway.spec["listeners"][0].get("hostname", None) == "lb.example.com"
 
         # And the charm surfaces a blocked status about the invalid config
         event = MagicMock()

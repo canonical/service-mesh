@@ -69,7 +69,9 @@ config:
         - If set to an empty string, no hostname is set and the listeners accept
           traffic for any hostname.
         - If set to a value, that hostname is used. Must be a `bare` RFC 1123 hostname:
-          i.e. no schema prefix, no port, and no wildcard prefix.
+          i.e. no schema prefix, no port, and no wildcard prefix. If the value is
+          invalid, the charm blocks and the hostname reverts to the default
+          (gateway's local address).
       type: string
     external-traffic-policy-cidrs:
       description: |

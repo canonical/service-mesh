@@ -1688,19 +1688,21 @@ class IstioIngressCharm(CharmBase):
         - unset (None): default to the local gateway address (previous behavior),
           used only if it is a valid hostname.
         - empty string (""): no hostname, listeners accept traffic for any hostname.
-        - non-empty value: use that hostname (if valid, otherwise None while the charm
-          blocks on the invalid config).
+        - non-empty valid value: use that hostname.
+        - non-empty invalid value: revert to the default (local gateway address) while
+          the charm blocks on the invalid config.
         """
         listener_hostname = cast(Optional[str], self.model.config.get("listener-hostname"))
-        # Unset: preserve the previous behavior of using the local gateway address.
-        if listener_hostname is None:
-            local_address = self._local_gateway_address
-            return local_address if self._is_valid_hostname(local_address) else None
         # Explicit empty string: do not set a hostname (accept all hostnames).
         if listener_hostname == "":
             return None
-        # Explicit value: use it only if valid (the charm blocks otherwise).
-        return listener_hostname if self._is_valid_hostname(listener_hostname) else None
+        # Explicit valid value: use it.
+        if listener_hostname and self._is_valid_hostname(listener_hostname):
+            return listener_hostname
+        # Unset, or explicit but invalid (charm blocks in the latter case): fall back to
+        # the previous behavior of using the local gateway address (if it is valid).
+        local_address = self._local_gateway_address
+        return local_address if self._is_valid_hostname(local_address) else None
 
     @property
     def _ingressed_scheme(self) -> str:
