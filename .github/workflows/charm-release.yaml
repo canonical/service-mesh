@@ -75,4 +75,4 @@ jobs:
       charm-path: ${{ matrix.charm-path }}
       git-tag-prefix: ${{ matrix.charm-name }}
       default-track: dev
-      provider: microk8s
+      provider: k8s
