@@ -17,7 +17,7 @@ jobs:
             sparse-checkout: charms
             sparse-checkout-cone-mode: true
         - id: discover
-          run: echo "charms=$(ls -d1 charms/* | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
+          run: echo "charms=$(ls -d1 charms/* | grep -v '^charms/bookinfo-' | jq -Rsc 'split("\n")[:-1]')" >> "$GITHUB_OUTPUT"
 
     tics:
         name: TiCs (${{ matrix.charm-path }})

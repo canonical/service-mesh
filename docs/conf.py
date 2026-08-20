@@ -190,6 +190,9 @@ linkcheck_ignore = [
     "http://127.0.0.1:8000",
     "https://github.com/canonical/ACME/*",
     r"https://matrix\.to/.*",
+    # Self-referencing links to the Bookinfo charm sources, which only resolve
+    # once this repository's changes are merged to the default branch.
+    r"https://github\.com/canonical/service-mesh/blob/main/charms/bookinfo-.*",
     ]
 
 

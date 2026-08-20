@@ -8,6 +8,8 @@ on:
         description: Which charm to release
         options:
           - all
+          - bookinfo-details-k8s
+          - bookinfo-productpage-k8s
           - envoy-ai-controller-k8s
           - envoy-controller-k8s
           - envoy-ingress-k8s
@@ -37,6 +39,8 @@ jobs:
         if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
+            bookinfo-details-k8s: charms/bookinfo-details-k8s/**
+            bookinfo-productpage-k8s: charms/bookinfo-productpage-k8s/**
             envoy-ai-controller-k8s: charms/envoy-ai-controller-k8s/**
             envoy-controller-k8s: charms/envoy-controller-k8s/**
             envoy-ingress-k8s: charms/envoy-ingress-k8s/**
