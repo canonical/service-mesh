@@ -1,0 +1,64 @@
+name: "Charms: Update Libraries"
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: "0 2 * * 1"
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}
+  cancel-in-progress: false
+
+jobs:
+  update:
+    name: Update
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Install Charmcraft
+        run: sudo snap install charmcraft --classic --channel latest/stable
+      - name: Update vendored libraries
+        run: |
+          while IFS= read -r charm_path; do
+            echo "::group::${charm_path}"
+            (
+              cd "$charm_path"
+              charmcraft fetch-lib
+            )
+            echo "::endgroup::"
+          done < <(
+            find charms \
+              -mindepth 1 \
+              -maxdepth 1 \
+              -type d \
+              ! -name 'bookinfo-*' \
+              -exec test -f '{}/charmcraft.yaml' ';' \
+              -print \
+              | sort
+          )
+        env:
+          CHARMCRAFT_AUTH: ${{ secrets.CHARMHUB_TOKEN }}
+      - name: Create or update pull request
+        uses: peter-evans/create-pull-request@v8
+        with:
+          token: ${{ secrets.OBSERVABILITY_NOCTUA_TOKEN }}
+          commit-message: "chore(deps): update charm libraries"
+          branch: chore/weekly-charmlibs
+          delete-branch: true
+          title: "chore(deps): update charm libraries"
+          body: |
+            Weekly update of vendored Charmhub libraries generated with
+            `charmcraft fetch-lib`.
+
+            Major library API migrations remain manual because they may require
+            source-code changes.
+          labels: dependencies
+          add-paths: |
+            charms/**/lib/charms/**/*.py

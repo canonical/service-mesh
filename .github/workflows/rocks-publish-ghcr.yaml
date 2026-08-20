@@ -1,4 +1,4 @@
-name: "Publish Rocks to GHCR:dev"
+name: "Rocks: Publish to GHCR"
 
 on:
   workflow_dispatch: {}

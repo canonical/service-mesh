@@ -1,4 +1,4 @@
-name: Charm Pull Requests
+name: "Charms: Pull Request"
 
 on:
   pull_request:

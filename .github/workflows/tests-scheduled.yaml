@@ -1,4 +1,4 @@
-name: Scheduled Tests
+name: "Tests: Scheduled"
 
 on:
   schedule:
@@ -55,7 +55,7 @@ jobs:
     name: Istio
     needs: dispatch-inputs
     if: contains(fromJSON(needs.dispatch-inputs.outputs.solutions), 'istio')
-    uses: ./.github/workflows/_istio-solution-tests.yaml
+    uses: ./.github/workflows/tests-istio.yaml
     with:
       istio-channel: "dev/edge"
       k8s-distributions: ${{ needs.dispatch-inputs.outputs.k8s-distributions }}

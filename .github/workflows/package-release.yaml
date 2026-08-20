@@ -1,4 +1,4 @@
-name: "canonical-service-mesh: Release"
+name: "Package: Release"
 
 on:
   push:
@@ -7,7 +7,7 @@ on:
       - "canonical_service_mesh/**"
       - "release-please-config.json"
       - ".release-please-manifest.json"
-      - ".github/workflows/canonical-service-mesh-release.yaml"
+      - ".github/workflows/package-release.yaml"
 
 permissions:
   contents: write

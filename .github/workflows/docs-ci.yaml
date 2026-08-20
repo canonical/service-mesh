@@ -1,0 +1,84 @@
+name: "Docs: CI"
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - "docs/**"
+      - ".readthedocs.yaml"
+      - ".github/workflows/docs-ci.yaml"
+  pull_request:
+    paths:
+      - "docs/**"
+      - ".readthedocs.yaml"
+      - ".github/workflows/docs-ci.yaml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  documentation-checks:
+    name: Documentation checks
+    uses: canonical/documentation-workflows/.github/workflows/documentation-checks.yaml@main
+    with:
+      working-directory: docs
+      fetch-depth: 0
+
+  build:
+    name: Build
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Build HTML documentation
+        run: make -C docs html
+
+  markdown:
+    name: Markdown lint
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+      - name: Lint Markdown
+        continue-on-error: true
+        uses: DavidAnson/markdownlint-cli2-action@v22
+        with:
+          config: docs/.sphinx/.markdownlint.json
+          globs: "docs/**/*.md"
+
+  style:
+    name: Style
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check style guide
+        continue-on-error: true
+        run: make -C docs vale
+
+  accessibility:
+    name: Accessibility
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v6
+        with:
+          fetch-depth: 0
+      - name: Check accessibility
+        continue-on-error: true
+        run: make -C docs pa11y
+
+  removed-urls:
+    name: Removed URLs
+    if: github.event_name == 'pull_request'
+    uses: canonical/sphinx-stack/.github/workflows/check-removed-urls.yml@2.0
