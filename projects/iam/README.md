@@ -63,3 +63,4 @@ just -f setup.just show-hydra
 - `docs/client-credentials-flow.md` - programmatic access via client_credentials grant
 - `docs/request-authentication-findings.md` - how RequestAuthentication could work
   alongside ext_authz for custom header mapping
+- [`ingress-chaining.md`](ingress-chaining.md) - multi-gateway setup with Traefik routing to two Istio ingress gateways (browser auth + JWT auth) via path-based routing
