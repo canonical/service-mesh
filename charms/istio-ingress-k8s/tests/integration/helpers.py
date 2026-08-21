@@ -28,7 +28,11 @@ class CharmDeploymentConfiguration:
 
 
 istio_k8s = CharmDeploymentConfiguration(
-    charm="istio-k8s", app="istio-k8s", channel="2/edge", trust=True
+    charm="istio-k8s",
+    app="istio-k8s",
+    channel="dev/edge",
+    trust=True,
+    config={"platform": ""},
 )
 
 oauth_k8s = CharmDeploymentConfiguration(
