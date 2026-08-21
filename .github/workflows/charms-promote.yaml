@@ -11,8 +11,12 @@ on:
           - beta -> candidate
           - candidate -> stable
       charm:
-        type: string
-        description: Charm to promote (directory name under charms/)
+        type: choice
+        description: Istio charm to promote
+        options:
+          - istio-beacon-k8s
+          - istio-ingress-k8s
+          - istio-k8s
 
 jobs:
   promote:
@@ -21,4 +25,5 @@ jobs:
     with:
       promotion: ${{ github.event.inputs.promotion }}
       charm-path: charms/${{ github.event.inputs.charm }}
+      track: "1.29"
     secrets: inherit
