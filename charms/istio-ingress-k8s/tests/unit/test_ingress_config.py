@@ -44,6 +44,8 @@ def test_config_changed(harness: Harness[MockRequirerCharm]):
     harness.add_network("10.0.0.10")
     relation_id = harness.add_relation("ingress", "istio-ingress")
     harness.add_relation_unit(relation_id, "istio-ingress/0")
+    relation = harness.model.get_relation("ingress", relation_id)
+    harness.charm.on["ingress"].relation_changed.emit(relation)
 
     req_app_data = harness.get_relation_data(relation_id, "test-requirer")
     req_unit_data = harness.get_relation_data(relation_id, "test-requirer/0")
