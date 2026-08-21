@@ -1,4 +1,4 @@
-name: Quality Gates
+name: "Charms: Quality Gates"
 
 on:
   # Manual trigger

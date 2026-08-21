@@ -1,4 +1,4 @@
-name: Promote Charm
+name: "Charms: Promote"
 
 on:
   workflow_dispatch:

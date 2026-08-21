@@ -1,4 +1,4 @@
-name: Tiobe TiCS Analysis
+name: "Charms: TiCS"
 
 on:
     workflow_dispatch:

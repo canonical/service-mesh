@@ -1,4 +1,4 @@
-name: Open a PR to OCI Factory
+name: "Rocks: Publish to OCI Factory"
 
 on:
   workflow_dispatch: {}

@@ -1,10 +1,10 @@
-name: "canonical-service-mesh: CI"
+name: "Package: CI"
 
 on:
   pull_request:
     paths:
       - "canonical_service_mesh/**"
-      - ".github/workflows/canonical-service-mesh-ci.yaml"
+      - ".github/workflows/package-ci.yaml"
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}

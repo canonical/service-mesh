@@ -1,4 +1,4 @@
-name: Pull Request Checks
+name: "Tests: Pull Request"
 
 on:
   pull_request:
@@ -8,8 +8,8 @@ on:
       - 'pyproject.toml'
       - 'tox.ini'
       - 'uv.lock'
-      - '.github/workflows/pull_request.yaml'
-      - '.github/workflows/_istio-solution-tests.yaml'
+      - '.github/workflows/tests-pull-request.yaml'
+      - '.github/workflows/tests-istio.yaml'
       - '.github/actions/setup-env/**'
 
 concurrency:
@@ -39,8 +39,8 @@ jobs:
               - 'tests/tox.ini'
               - 'tests/uv.lock'
               - '.github/actions/setup-env/**'
-              - '.github/workflows/_istio-solution-tests.yaml'
-              - '.github/workflows/pull_request.yaml'
+              - '.github/workflows/tests-istio.yaml'
+              - '.github/workflows/tests-pull-request.yaml'
 
   linting:
     name: Linting
@@ -70,7 +70,7 @@ jobs:
     name: Istio
     needs: [linting, static-analysis, changes]
     if: needs.changes.outputs.istio == 'true'
-    uses: ./.github/workflows/_istio-solution-tests.yaml
+    uses: ./.github/workflows/tests-istio.yaml
     with:
       istio-channel: "dev/edge"
       k8s-distributions: '["canonical-k8s"]'

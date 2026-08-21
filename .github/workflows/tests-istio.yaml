@@ -1,4 +1,4 @@
-name: Istio Solution Tests
+name: "Tests: Istio Integration"
 
 on:
   workflow_call:
