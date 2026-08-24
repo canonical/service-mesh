@@ -14,6 +14,9 @@ dependencies = [
     "cosl",
 ]
 
+[tool.uv.sources]
+canonical-service-mesh = { git = "https://github.com/canonical/service-mesh.git", branch = "feat/SMS-830-grpc-auth-lib-update", subdirectory = "canonical_service_mesh" }
+
 [project.optional-dependencies]
 dev = [
     "ruff",
