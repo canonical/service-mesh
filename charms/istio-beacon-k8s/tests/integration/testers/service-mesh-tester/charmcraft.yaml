@@ -60,12 +60,7 @@ resources:
 
 parts:
   charm:
+    source: .
+    plugin: uv
     build-packages: [git]
-    charm-binary-python-packages:
-      - ops
-      - requests
-      - pydantic-core
-      - pydantic
-      - maturin
-      - canonical-service-mesh
-      - charmlibs-interfaces-service-mesh
+    build-snaps: [astral-uv]
