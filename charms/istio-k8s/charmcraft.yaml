@@ -37,7 +37,7 @@ config:
         When set to true, no inbound traffic will be allowed to charms in the service mesh unless explicitly authorized by an ALLOW policy.
     platform:
       type: string
-      default: "microk8s"
+      default: ""
       description: >
         Some Kubernetes platforms require platform-specific configuration for Istio to function correctly.  This is 
         described in more detail upstream in [Platform Prerequisites](https://istio.io/latest/docs/ambient/install/platform-prerequisites/).

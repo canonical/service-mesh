@@ -2,7 +2,7 @@ set allow-duplicate-recipes
 set allow-duplicate-variables
 import? 'charms.just'
 
-[private]
+[no-cd, private]
 @default:
   just --list
   echo ""

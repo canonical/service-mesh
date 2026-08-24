@@ -1,23 +1,23 @@
-# Centralized justfile for the Canonical Observability charms
+# Centralized justfile for the service-mesh charms
 set shell := ["bash", "-uc"]
 
-charm_name := `echo ${PWD##*/} | sed 's/-operator$//'`  # Get the charm name from the folder name
+charm_name := file_name(invocation_directory())
 
 export UV_FROZEN := "true"  # Prevent `uv run` from updating the lockfile
 export PYTHONPATH := ".:./lib:./src"
 
 
-[private]
+[no-cd, private]
 @default:
     just --list
 
 # Print the charm name
-[group("info")]
+[no-cd, group("info")]
 @name:
   echo "{{charm_name}}"
 
 # List all track branches in chronological order (oldest first)
-[group("info")]
+[no-cd, group("info")]
 tracks:
     #!/usr/bin/env python3
     import subprocess
@@ -45,7 +45,7 @@ tracks:
         print(branch)
 
 # Get the previous track branch relative to the current branch
-[group("info")]
+[no-cd, group("info")]
 previous-track:
     #!/usr/bin/env python3
     import subprocess
@@ -79,32 +79,34 @@ previous-track:
         sys.exit(1)
 
 # Update uv.lock dependencies
-[group("maintenance")]
+[no-cd, group("maintenance")]
 lock:
     unset UV_FROZEN; uv lock --upgrade --no-cache
 
 # Scan for security vulnerabilities
-[group("maintenance")]
+[no-cd, group("maintenance")]
 scan:
     @echo "Scanning for security vulnerabilities..."
     uv audit
 
 # Fetch centralized files from canonical/observability
-[group("maintenance")]
+[no-cd, group("maintenance")]
 refresh:
     #!/usr/bin/env bash
     which -s gh || { echo "gh not found"; exit 1; }
     refresh_folder="blueprints/charms"
     api_path="repos/canonical/observability/contents/$refresh_folder"
-    for file in charms.just .tfdocs.yaml; do
+    blueprint_dir="{{ justfile_directory() }}"
+    # charms.just is adapted for shared, parent-directory discovery in this repository.
+    for file in .tfdocs.yaml; do
       echo "Fetching latest '$file' from canonical/observability ..."
-      gh api "$api_path/$file" --jq '.content' | base64 --decode > "$file"
+      gh api "$api_path/$file" --jq '.content' | base64 --decode > "$blueprint_dir/$file"
       echo "✓ $file updated"
     done
 
 
 # Format the codebase
-[group("dev")]
+[no-cd, group("dev")]
 format: sync
     # Fix generic linting issues
     uv run ruff check --fix-only
@@ -116,7 +118,7 @@ format: sync
 alias fmt := format
 
 # Lint the codebase
-[group("dev")]
+[no-cd, group("dev")]
 lint: sync
     # Lint the code
     uv run ruff check
@@ -132,17 +134,17 @@ lint: sync
 
 
 # Run all quality checks: formatting, linting and unit tests
-[group("dev")]
+[no-cd, group("dev")]
 check: sync format lint unit
     @echo; echo "✓ All checks passed!"
 
 # Sync the virtual environment (.venv)
-[group("dev")]
+[no-cd, group("dev")]
 sync:
     uv sync --all-groups --all-extras
 
 # Sync and activate the virtual environment (.venv)
-[group("dev")]
+[no-cd, group("dev")]
 venv:
     @echo "Activating virtual environment..."
     @uv sync --all-groups --all-extras
@@ -150,17 +152,17 @@ venv:
 
 
 # Run unit tests
-[group("test")]
+[no-cd, group("test")]
 unit *args: sync
     uv run coverage run --source=src -m pytest tests/unit {{ args }}
 
 # Run integration tests
-[group("test")]
+[no-cd, group("test")]
 integration *args: sync
     uv run pytest --exitfirst tests/integration {{ args }}
 
 # Pretty print all feature files
-[group("info")]
+[no-cd, group("info")]
 features:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -203,14 +205,14 @@ features:
 
 
 # Update the Terraform README with auto-generated content
-[group("terraform")]
+[no-cd, group("terraform")]
 terraform-docs:
     which terraform-docs > /dev/null 2>&1 || { echo "× terraform-docs not found; you can install it via:"; echo "   snap install terraform-docs"; exit 1; }
-    terraform-docs --config .tfdocs.yaml terraform
+    terraform-docs --config "{{ justfile_directory() }}/.tfdocs.yaml" terraform
     @echo "✓ Terraform docs updated"
 
 # Lint and validate the Terraform module
-[group("terraform")]
+[no-cd, group("terraform")]
 terraform-lint:
     which terraform > /dev/null 2>&1 || { echo "× terraform not found"; exit 1; }
     cd terraform && terraform init -backend=false && terraform validate
@@ -219,7 +221,7 @@ terraform-lint:
 
 
 # Release a .charm file to Charmhub
-[group("release")]
+[no-cd, group("release")]
 release charm_file channel:
     #!/usr/bin/env bash
     set -euo pipefail
@@ -252,7 +254,7 @@ release charm_file channel:
     echo "✓ Released {{ charm_name }} revision $charm_revision to {{ channel }}"
 
 # Print all commits between two refs (auto-deduces refs when on main or track branches)
-[group("release")]
+[no-cd, group("release")]
 [arg("from_ref", help="Branch (or generic ref) to compare from (defaults to previous track)")]
 [arg("to_ref", help="Branch (or generic ref) to compare to (defaults to current branch)")]
 changelog from_ref="" to_ref="":
@@ -343,6 +345,4 @@ changelog from_ref="" to_ref="":
             print(f"## {title}\n")
             print("\n".join(categories[key]))
             print()
-
-
 
