@@ -17,6 +17,8 @@ jobs:
             source-repo: istio/ztunnel
           - rock-path: rocks/istio-install-cni-rock
             source-repo: istio/istio
+          - rock-path: rocks/kiali-rock
+            source-repo: kiali/kiali
       fail-fast: false
     uses: canonical/observability/.github/workflows/rock-update.yaml@v2
     with:
