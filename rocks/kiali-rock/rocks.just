@@ -8,7 +8,7 @@ latest_version := `find . -maxdepth 1 -type d -regextype posix-extended -regex '
 
 # Upstream project repository in 'org/repo' form. Override this variable in the local 'justfile'.
 # Example: source_repo := 'prometheus/alertmanager'
-source_repo := ''
+source_repo := 'kiali/kiali'
 
 [private]
 @default:
