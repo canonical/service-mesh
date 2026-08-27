@@ -3,5 +3,81 @@ summary: Run goss tests
 environment:
   GOSS_FILE: "../../../goss.yaml"
 
+  # Pinned throwaway Kubernetes API (real kube-apiserver, tiny).
+  K3S_IMAGE: "rancher/k3s:v1.31.5-k3s1"
+  # Docker network shared between the k3s container and the Kiali test container.
+  K8S_NET: "kiali-test-net"
+  # Name/hostname of the k3s container. Must match the cert SAN below and the
+  # KUBERNETES_SERVICE_HOST we inject into the Kiali container.
+  K3S_NAME: "kiali-test-k3s"
+  # Host dir holding the emulated in-cluster service-account files (token + ca.crt).
+  SA_DIR: "$HOME/kiali-test-sa"
+
+prepare: |
+  set -eux
+
+  # Throwaway Kubernetes API on a shared docker network so the Kiali container
+  # can reach it. We emulate the "in-cluster" environment for Kiali at runtime
+  # only (env + mounted SA token/ca.crt) so the baked-in rock config is never
+  # touched. Kiali's getConfigForLocalCluster() finds no remote secret and falls
+  # back to rest.InClusterConfig(), which needs KUBERNETES_SERVICE_HOST/PORT plus
+  # /var/run/secrets/kubernetes.io/serviceaccount/{token,ca.crt}.
+
+  docker network create "$K8S_NET"
+
+  # --tls-san $K3S_NAME so the serving cert is valid for https://$K3S_NAME:6443,
+  # which is what InClusterConfig() builds from the env vars we inject.
+  #
+  # Regarding tmpfs:
+  # https://github.com/k3s-io/k3s/blob/main/docker-compose.yml
+  docker run -d --name "$K3S_NAME" --network "$K8S_NET" --privileged \
+    --tmpfs /run --tmpfs /var/run \
+    -e K3S_KUBECONFIG_MODE=644 \
+    "$K3S_IMAGE" server \
+      --disable traefik \
+      --disable servicelb \
+      --disable metrics-server \
+      --disable local-storage \
+      --tls-san "$K3S_NAME"
+
+  # Wait for the API server to be live.
+  for i in $(seq 1 60); do
+    if docker exec "$K3S_NAME" kubectl get --raw=/livez >/dev/null 2>&1; then
+      break
+    fi
+    sleep 2
+  done
+  docker exec "$K3S_NAME" kubectl get --raw=/livez
+
+  # Namespace matching istio_namespace in the baked-in config, plus a Kiali SA
+  # with broad (test-only) permissions so cache list/watch calls are authorized.
+  docker exec "$K3S_NAME" kubectl create namespace istio-system
+  docker exec "$K3S_NAME" kubectl create serviceaccount kiali -n istio-system
+  docker exec "$K3S_NAME" kubectl create clusterrolebinding kiali-test \
+    --clusterrole=cluster-admin --serviceaccount=istio-system:kiali
+
+  # Materialize the emulated in-cluster service-account files on the host.
+  mkdir -p "$SA_DIR"
+  docker exec "$K3S_NAME" kubectl -n istio-system create token kiali --duration=1h \
+    > "$SA_DIR/token"
+  # Use the CA that the kubeconfig trusts for the API endpoint. This is the
+  # correct client-trust CA regardless of k3s-internal file naming.
+  docker exec "$K3S_NAME" sh -c \
+    "kubectl config view --raw -o jsonpath='{.clusters[0].cluster.certificate-authority-data}' | base64 -d" \
+    > "$SA_DIR/ca.crt"
+
+restore: |
+  set -ux
+  docker rm -f "$K3S_NAME" || true
+  docker network rm "$K8S_NET" || true
+  rm -rf "$SA_DIR" || true
+
 execute: |
-  dgoss run rockcraft-test:latest
+  set -eux
+  dgoss run \
+    --network "$K8S_NET" \
+    -e KUBERNETES_SERVICE_HOST="$K3S_NAME" \
+    -e KUBERNETES_SERVICE_PORT=6443 \
+    -v "$SA_DIR/token":/var/run/secrets/kubernetes.io/serviceaccount/token:ro \
+    -v "$SA_DIR/ca.crt":/var/run/secrets/kubernetes.io/serviceaccount/ca.crt:ro \
+    rockcraft-test:latest
