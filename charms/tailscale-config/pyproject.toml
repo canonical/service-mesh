@@ -21,23 +21,16 @@ dependencies = [
 [tool.uv.sources]
 canonical-service-mesh = { git = "https://github.com/canonical/service-mesh.git", subdirectory = "canonical_service_mesh", branch = "feat/tailscale-config" }
 
-[dependency-groups]
-# Dependencies of linting and static type checks
-lint = [
+[project.optional-dependencies]
+# Dependencies for linting, static type checks, unit and integration tests
+dev = [
     "ruff",
     "codespell",
     "pyright",
-]
-# Dependencies of unit tests
-unit = [
     "coverage[toml]",
     "ops[testing]",
     "pytest",
-]
-# Dependencies of integration tests
-integration = [
     "jubilant>=1.8,<2",
-    "pytest",
     "pytest-jubilant>=2.0.1,<3",
     "PyYAML",
 ]
