@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-# Copyright 2026 Ubuntu
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Test-only requirer charm for the tailscale_credentials interface.

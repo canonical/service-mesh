@@ -1,10 +1,10 @@
 # Contributing
-![GitHub License](https://img.shields.io/github/license/canonical/tailscale-k8s-operator)
-![GitHub Commit Activity](https://img.shields.io/github/commit-activity/y/canonical/tailscale-k8s-operator)
-![GitHub Issues](https://img.shields.io/github/issues/canonical/tailscale-k8s-operator)
-![GitHub PRs](https://img.shields.io/github/issues-pr/canonical/tailscale-k8s-operator)
-![GitHub Contributors](https://img.shields.io/github/contributors/canonical/tailscale-k8s-operator)
-![GitHub Watchers](https://img.shields.io/github/watchers/canonical/tailscale-k8s-operator?style=social)
+![GitHub License](https://img.shields.io/github/license/canonical/service-mesh)
+![GitHub Commit Activity](https://img.shields.io/github/commit-activity/y/canonical/service-mesh)
+![GitHub Issues](https://img.shields.io/github/issues/canonical/service-mesh)
+![GitHub PRs](https://img.shields.io/github/issues-pr/canonical/service-mesh)
+![GitHub Contributors](https://img.shields.io/github/contributors/canonical/service-mesh)
+![GitHub Watchers](https://img.shields.io/github/watchers/canonical/service-mesh?style=social)
 
 ## Development environment
 

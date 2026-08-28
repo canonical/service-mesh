@@ -1,4 +1,4 @@
-# Copyright 2026 Ubuntu
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Direct unit tests for the charm-free ``get_charm_status`` orchestrator."""

@@ -1,4 +1,4 @@
-# Copyright 2025 Canonical Ltd.
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 name: tailscale-k8s
@@ -16,8 +16,8 @@ description: |
 links:
   documentation: https://canonical-service-mesh-documentation.readthedocs-hosted.com/en/latest/
   website: https://charmhub.io/tailscale-k8s
-  source: https://github.com/canonical/tailscale-k8s-operator
-  issues: https://github.com/canonical/tailscale-k8s-operator/issues
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
 
 assumes:
   - k8s-api

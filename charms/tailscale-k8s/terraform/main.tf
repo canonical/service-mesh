@@ -11,7 +11,7 @@
  *
  * ```hcl
  * module "tailscale" {
- *   source  = "git::https://github.com/canonical/tailscale-k8s-operator//terraform"
+ *   source  = "git::https://github.com/canonical/service-mesh//terraform"
  *   model   = juju_model.k8s.name
  *   channel = "latest/edge"
  * }
