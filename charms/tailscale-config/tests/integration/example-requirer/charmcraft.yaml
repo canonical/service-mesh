@@ -6,8 +6,8 @@
 # reads the minted credential, and reaches ActiveStatus only if that credential
 # successfully authenticates against the Tailscale API.
 type: charm
-name: dummy-requirer
-title: Dummy Tailscale Credentials Requirer
+name: example-requirer
+title: Example Tailscale Credentials Requirer
 summary: Test-only requirer for the tailscale_credentials interface.
 description: |
   A minimal, test-only charm that requires the tailscale_credentials relation.

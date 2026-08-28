@@ -5,7 +5,7 @@
 # See https://documentation.ubuntu.com/ops/latest/howto/write-integration-tests-for-a-charm/
 #
 # pytest-jubilant provides a module-scoped `juju` fixture that creates a temporary Juju model.
-# The `charm`, `dummy_charm`, and `tailscale_credentials` fixtures are defined in conftest.py.
+# The `charm`, `example_charm`, and `tailscale_credentials` fixtures are defined in conftest.py.
 
 import logging
 import pathlib
@@ -16,7 +16,7 @@ import pytest
 logger = logging.getLogger(__name__)
 
 APP = "tailscale-config"
-REQUIRER_APP = "dummy-requirer"
+REQUIRER_APP = "example-requirer"
 
 
 @pytest.mark.juju_setup
@@ -38,21 +38,21 @@ def test_deploy(charm: pathlib.Path, juju: jubilant.Juju):
 
 def test_credentials_flow(
     charm: pathlib.Path,
-    dummy_charm: pathlib.Path,
+    example_charm: pathlib.Path,
     tailscale_credentials: dict[str, str],
     juju: jubilant.Juju,
 ):
     """End-to-end: mint a real credential and prove the requirer can use it.
 
-    Deploys tailscale-config with real root OAuth client credentials, deploys a
-    dummy requirer, relates them, and waits for both to go active. The dummy
+    Deploys tailscale-config with real root OAuth client credentials, deploys an
+    example requirer, relates them, and waits for both to go active. The example
     requirer reaches ActiveStatus only if the minted credential authenticates
     against the live Tailscale API, so `all_active` verifies the full flow.
 
     Skipped unless TAILSCALE_CLIENT_ID / TAILSCALE_CLIENT_SECRET are set (see
     the `tailscale_credentials` fixture).
     """
-    juju.deploy(dummy_charm, app=REQUIRER_APP)
+    juju.deploy(example_charm, app=REQUIRER_APP)
 
     # Provide the real root OAuth client credentials as a granted user secret.
     secret_uri = juju.add_secret("valid-tailscale-config-root-credential", tailscale_credentials)

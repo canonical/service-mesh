@@ -40,7 +40,7 @@ class CredentialVerificationError(Exception):
     """Raised when the received credential cannot be verified against the API."""
 
 
-class DummyRequirerCharm(ops.CharmBase):
+class ExampleRequirerCharm(ops.CharmBase):
     """Minimal requirer that verifies the minted credential works.
 
     Verification is performed at most once. To avoid consuming Tailscale API
@@ -148,4 +148,4 @@ def _verify_credential(client_id: str, client_secret: str) -> None:
 
 
 if __name__ == "__main__":  # pragma: nocover
-    ops.main(DummyRequirerCharm)
+    ops.main(ExampleRequirerCharm)

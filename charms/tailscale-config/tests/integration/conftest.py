@@ -14,7 +14,7 @@ import pytest
 logger = logging.getLogger(__name__)
 
 CHARM_DIR = pathlib.Path(__file__).parents[2]  # The tailscale-config charm root.
-DUMMY_REQUIRER_DIR = pathlib.Path(__file__).parent / "dummy-requirer"
+EXAMPLE_REQUIRER_DIR = pathlib.Path(__file__).parent / "example-requirer"
 
 
 def _pack(charm_dir: pathlib.Path) -> pathlib.Path:
@@ -43,13 +43,13 @@ def charm():
 
 
 @pytest.fixture(scope="session")
-def dummy_charm():
-    """Pack and return the path of the dummy requirer charm.
+def example_charm():
+    """Pack and return the path of the example requirer charm.
 
-    Packs ``tests/integration/dummy-requirer`` with ``charmcraft pack``. The
+    Packs ``tests/integration/example-requirer`` with ``charmcraft pack``. The
     resulting ``.charm`` is reused across the session.
     """
-    return _pack(DUMMY_REQUIRER_DIR)
+    return _pack(EXAMPLE_REQUIRER_DIR)
 
 
 @pytest.fixture(scope="session")
