@@ -82,9 +82,20 @@ class TailscaleK8sCharm(ops.CharmBase):
         return self.unit.get_container(OPERATOR_CONTAINER)
 
     @property
+    def _peer_unit_count(self) -> int:
+        """Return the number of units observed via the peer relation."""
+        relation = self.model.get_relation("tailscale-peers")
+        if relation is None:
+            return 1
+        return len(relation.units) + 1
+
+    @property
     def _is_scaled_beyond_one(self) -> bool:
-        """Check if the application has been scaled beyond 1 replica."""
-        return self.app.planned_units() > 1
+        """Check if the application has been scaled beyond 1 replica.
+
+        Uses the greater of planned_units() and the peer-relation unit count.
+        """
+        return max(self.app.planned_units(), self._peer_unit_count) > 1
 
     @property
     def _operator_tags(self) -> str:

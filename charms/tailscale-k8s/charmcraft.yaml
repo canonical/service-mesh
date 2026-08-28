@@ -74,6 +74,12 @@ config:
         Mutually exclusive with the tailscale-credentials relation - if both
         are present, the charm blocks.
 
+peers:
+  tailscale-peers:
+    interface: tailscale_peers
+    description: |
+      Internal peer relation used to detect scaling.
+
 requires:
   tailscale-credentials:
     interface: tailscale_credentials

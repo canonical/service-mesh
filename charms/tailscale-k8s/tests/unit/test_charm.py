@@ -7,23 +7,57 @@
 
 import ops
 from ops.pebble import Layer
-from scenario import Container, Secret, State
+from scenario import Container, PeerRelation, Secret, State
+
+SCALE_BLOCK = "Tailscale operator does not support multiple replicas"
 
 
 class TestScalingEnforcement:
     """Test that the charm blocks when scaled beyond 1 replica."""
 
     def test_blocked_when_scaled_beyond_one(self, tailscale_context, operator_container):
-        """The charm should block when scaled beyond 1 unit."""
+        """The charm should block when planned_units reports more than 1 unit."""
         state = State(leader=True, containers=[operator_container], planned_units=2)
         out = tailscale_context.run(tailscale_context.on.collect_unit_status(), state)
-        assert out.unit_status == ops.BlockedStatus(
-            "Tailscale operator does not support multiple replicas"
+        assert out.unit_status == ops.BlockedStatus(SCALE_BLOCK)
+
+    def test_blocked_when_peer_relation_reports_extra_unit(
+        self, tailscale_context, operator_container
+    ):
+        """The block should trip on the peer-relation count even if planned_units lags."""
+        peers = PeerRelation("tailscale-peers", peers_data={1: {}})
+        state = State(
+            leader=True,
+            containers=[operator_container],
+            planned_units=1,
+            relations=[peers],
         )
+        out = tailscale_context.run(tailscale_context.on.collect_unit_status(), state)
+        assert out.unit_status == ops.BlockedStatus(SCALE_BLOCK)
+
+    def test_non_leader_reports_standby_even_when_scaled(
+        self, tailscale_context, operator_container
+    ):
+        """Only the leader surfaces the scaling block; non-leaders show standby."""
+        peers = PeerRelation("tailscale-peers", peers_data={1: {}})
+        state = State(
+            leader=False,
+            containers=[operator_container],
+            planned_units=2,
+            relations=[peers],
+        )
+        out = tailscale_context.run(tailscale_context.on.collect_unit_status(), state)
+        assert out.unit_status == ops.ActiveStatus("Standby (non-leader)")
 
     def test_not_blocked_at_single_replica(self, tailscale_context, operator_container):
         """The charm should not block for scaling at 1 unit."""
-        state = State(leader=True, containers=[operator_container], planned_units=1)
+        peers = PeerRelation("tailscale-peers")
+        state = State(
+            leader=True,
+            containers=[operator_container],
+            planned_units=1,
+            relations=[peers],
+        )
         out = tailscale_context.run(tailscale_context.on.collect_unit_status(), state)
         assert "multiple replicas" not in (out.unit_status.message or "")
 
@@ -32,8 +66,14 @@ class TestNonLeader:
     """Test non-leader unit behavior."""
 
     def test_non_leader_active_standby(self, tailscale_context, operator_container):
-        """Non-leader units should report active standby."""
-        state = State(leader=False, containers=[operator_container], planned_units=1)
+        """Non-leader units should report active standby when not scaled beyond one."""
+        peers = PeerRelation("tailscale-peers")
+        state = State(
+            leader=False,
+            containers=[operator_container],
+            planned_units=1,
+            relations=[peers],
+        )
         out = tailscale_context.run(tailscale_context.on.collect_unit_status(), state)
         assert out.unit_status == ops.ActiveStatus("Standby (non-leader)")
 
