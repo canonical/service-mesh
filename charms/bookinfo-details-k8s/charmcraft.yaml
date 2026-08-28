@@ -1,0 +1,87 @@
+# Copyright 2024 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: bookinfo-details-k8s
+type: charm
+summary: Details microservice for the Bookinfo application
+description: |
+  The Details microservice provides book details information
+  for the Bookinfo sample application.
+
+links:
+  documentation: https://github.com/canonical/service-mesh
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
+
+assumes:
+  - k8s-api
+  - juju >= 3.6
+
+platforms:
+  ubuntu@22.04:amd64:
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
+    override-build: |
+      craftctl default
+
+# FIXME: the current way to write the version into the version file doesnt work for the monorepo structure because of the missing .git. find a fix
+# git describe --always > $CRAFT_PART_INSTALL/version
+
+charm-libs:
+  - lib: istio_beacon_k8s.service_mesh
+    version: "0.5"
+
+containers:
+  bookinfo-details:
+    resource: bookinfo-details-image
+    mounts:
+      - storage: logs
+        location: /tmp/logs
+
+storage:
+  logs:
+    type: filesystem
+
+provides:
+  details:
+    interface: bookinfo-details
+  provide-cmr-mesh:
+    interface: cross_model_mesh
+    description: |
+      Allow cross-model applications to make HTTP requests to the workload of this charm via the service mesh.
+      This relation provides additional data required by the service mesh to create cross-model authorization policies
+
+peers:
+  peers:
+    interface: details-peers
+
+requires:
+  service-mesh:
+    limit: 1
+    interface: service_mesh
+    description: |
+      Subscribe this charm into a service mesh to create authorization policies.
+  require-cmr-mesh:
+    interface: cross_model_mesh
+    description: |
+      Allow this charms workload to make HTTP requests to cross-model applications via the service mesh.
+      This relation provides additional data required by the service mesh to create cross-model authorization policies.
+
+resources:
+  bookinfo-details-image:
+    type: oci-image
+    description: OCI image for the Details service
+    upstream-source: docker.io/istio/examples-bookinfo-details-v1:1.20.3
+
+config:
+  options:
+    log-level:
+      default: info
+      description: Application log level (debug, info, warning, error) - experimental, may not affect actual logging
+      type: string
+

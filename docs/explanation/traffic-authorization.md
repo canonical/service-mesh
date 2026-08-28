@@ -29,7 +29,7 @@ By default, charmed service meshes are [hardened](../explanation/hardened-mode.m
 
 The Beacon charm is then responsible for creating the service-mesh specific objects (such as Istio `AuthorizationPolicies`) to implement the policy management.
 
-Using the [Get started with the charmed Istio service mesh](../tutorial/get-started-with-the-charmed-istio-mesh.md) tutorial as an example, we see the `bookinfo-details-k8s` application provides a `details` integration that is required by the `bookinfo-productpage-k8s` to connect to the details page.  The `bookinfo-details-k8s` has also [added mesh support](../how-to/add-mesh-support-to-your-charm.md) in its [charm code](https://github.com/adhityaravi/bookinfo-operators/blob/14dd56ba0297d33f9accfa28b6615ffaaf8f4e8a/charms/bookinfo-details-k8s/src/charm.py#L38-L52) and defined a policy:
+Using the [Get started with the charmed Istio service mesh](../tutorial/get-started-with-the-charmed-istio-mesh.md) tutorial as an example, we see the `bookinfo-details-k8s` application provides a `details` integration that is required by the `bookinfo-productpage-k8s` to connect to the details page.  The `bookinfo-details-k8s` has also [added mesh support](../how-to/add-mesh-support-to-your-charm.md) in its [charm code](https://github.com/canonical/service-mesh/blob/main/charms/bookinfo-details-k8s/src/charm.py) and defined a policy:
 
 ```python
 class DetailsK8sCharm(CharmBase):

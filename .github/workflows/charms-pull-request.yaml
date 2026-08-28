@@ -1,0 +1,93 @@
+name: "Charms: Pull Request"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'track/**'
+    paths:
+      - 'charms/**'
+
+permissions:
+  security-events: write
+  actions: read
+  contents: read
+
+jobs:
+  discover-charms:
+    name: Discover changed charms
+    runs-on: ubuntu-latest
+    outputs:
+      charms: ${{ steps.matrix.outputs.charms }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v3
+        id: changes
+        with:
+          filters: |
+            bookinfo-details-k8s: charms/bookinfo-details-k8s/**
+            bookinfo-productpage-k8s: charms/bookinfo-productpage-k8s/**
+            envoy-ai-controller-k8s: charms/envoy-ai-controller-k8s/**
+            envoy-controller-k8s: charms/envoy-controller-k8s/**
+            envoy-ingress-k8s: charms/envoy-ingress-k8s/**
+            istio-beacon-k8s: charms/istio-beacon-k8s/**
+            istio-ingress-k8s: charms/istio-ingress-k8s/**
+            istio-k8s: charms/istio-k8s/**
+            kiali-k8s: charms/kiali-k8s/**
+            tailscale-beacon-k8s: charms/tailscale-beacon-k8s/**
+            tailscale-config: charms/tailscale-config/**
+            tailscale-k8s: charms/tailscale-k8s/**
+      - id: matrix
+        run: |
+          charms='[]'
+          if [ "${{ steps.changes.outputs.bookinfo-details-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/bookinfo-details-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.bookinfo-productpage-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/bookinfo-productpage-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.envoy-ai-controller-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/envoy-ai-controller-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.envoy-controller-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/envoy-controller-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.envoy-ingress-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/envoy-ingress-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.istio-beacon-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/istio-beacon-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.istio-ingress-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/istio-ingress-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.istio-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/istio-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.kiali-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/kiali-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.tailscale-beacon-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/tailscale-beacon-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.tailscale-config }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/tailscale-config"]')
+          fi
+          if [ "${{ steps.changes.outputs.tailscale-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/tailscale-k8s"]')
+          fi
+          echo "charms=$charms" >> "$GITHUB_OUTPUT"
+
+  pull-request:
+    name: PR (${{ matrix.charm-path }})
+    needs: discover-charms
+    if: ${{ needs.discover-charms.outputs.charms != '' && needs.discover-charms.outputs.charms != '[]' }}
+    strategy:
+      matrix:
+        charm-path: ${{ fromJSON(needs.discover-charms.outputs.charms) }}
+      fail-fast: false
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
+    with:
+      charm-path: ${{ matrix.charm-path }}
+      provider: k8s
+    secrets: inherit

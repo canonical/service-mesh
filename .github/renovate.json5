@@ -1,0 +1,49 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": [
+    "config:recommended"
+  ],
+  "timezone": "Etc/UTC",
+  "schedule": [
+    "before 6am on monday"
+  ],
+  "labels": [
+    "dependencies"
+  ],
+  "dependencyDashboard": true,
+  "dependencyDashboardOSVVulnerabilitySummary": "all",
+  "osvVulnerabilityAlerts": true,
+  "vulnerabilityAlerts": {
+    "enabled": true,
+    "schedule": [
+      "at any time"
+    ],
+    "labels": [
+      "security"
+    ]
+  },
+  "minimumReleaseAge": "3 days",
+  "prConcurrentLimit": 1,
+  "prHourlyLimit": 1,
+  "separateMajorMinor": false,
+  "separateMinorPatch": false,
+  "rebaseWhen": "behind-base-branch",
+  "ignorePaths": [
+    "**/.terraform/**",
+    "**/lib/charms/**"
+  ],
+  "packageRules": [
+    {
+      "description": "Group all routine dependency updates into one weekly pull request",
+      "matchUpdateTypes": [
+        "major",
+        "minor",
+        "patch",
+        "pin",
+        "digest"
+      ],
+      "groupName": "weekly dependency updates",
+      "groupSlug": "weekly-dependencies"
+    }
+  ]
+}

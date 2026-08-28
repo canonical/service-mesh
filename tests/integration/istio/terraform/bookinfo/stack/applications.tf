@@ -1,7 +1,7 @@
 # -------------- # Bookinfo Applications --------------
 
 module "productpage" {
-  source             = "git::https://github.com/adhityaravi/bookinfo-operators//charms/bookinfo-productpage-k8s/terraform"
+  source             = "git::https://github.com/canonical/service-mesh//charms/bookinfo-productpage-k8s/terraform"
   app_name           = var.productpage.app_name
   channel            = var.channel
   config             = var.productpage.config
@@ -13,7 +13,7 @@ module "productpage" {
 }
 
 module "details" {
-  source             = "git::https://github.com/adhityaravi/bookinfo-operators//charms/bookinfo-details-k8s/terraform"
+  source             = "git::https://github.com/canonical/service-mesh//charms/bookinfo-details-k8s/terraform"
   app_name           = var.details.app_name
   channel            = var.channel
   config             = var.details.config

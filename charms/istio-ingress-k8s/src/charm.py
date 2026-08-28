@@ -623,9 +623,7 @@ class IstioIngressCharm(CharmBase):
             Gateway lightkube resource
         """
         allowed_routes = AllowedRoutes(namespaces={"from": "All"})
-        # Use local gateway address for the K8s Gateway resource hostname,
-        # not the cascaded upstream address
-        hostname = self._local_gateway_address if self._is_valid_hostname(self._local_gateway_address) else None
+        hostname = self._listener_hostname
 
         listeners = []
         for norm_listener in normalized_listeners:
@@ -1079,6 +1077,7 @@ class IstioIngressCharm(CharmBase):
         self._collect_external_authorization_status(event)
         self._collect_readiness_status(event)
         self._collect_external_hostname_status(event)
+        self._collect_listener_hostname_status(event)
         event.add_status(ActiveStatus(f"Serving at {self._ingress_url}"))
 
     def _collect_leadership_status(self, event: CollectStatusEvent):
@@ -1144,6 +1143,22 @@ class IstioIngressCharm(CharmBase):
         """
         if not self._ingress_url:
             event.add_status(BlockedStatus("Invalid hostname provided, Please ensure this adheres to RFC 1123."))
+
+    def _collect_listener_hostname_status(self, event: CollectStatusEvent):
+        """Block on an invalid, explicitly-set listener-hostname config.
+
+        An unset or empty value is valid (default behavior and "accept all",
+        respectively). A non-empty value must be a valid RFC 1123 hostname.
+
+        (Should be called on the leader unit only.)
+        """
+        listener_hostname = cast(Optional[str], self.model.config.get("listener-hostname"))
+        if listener_hostname and not self._is_valid_hostname(listener_hostname):
+            event.add_status(
+                BlockedStatus(
+                    "Invalid listener-hostname provided, Please ensure this adheres to RFC 1123."
+                )
+            )
 
     def _get_oauth_decisions_address(self) -> Optional[str]:
         """Retrieve the auth configuration decisions_address if it exists.
@@ -1663,6 +1678,31 @@ class IstioIngressCharm(CharmBase):
                 return hostname
             return None
         return self._get_lb_external_address
+
+    @property
+    def _listener_hostname(self) -> Optional[str]:
+        """Return the hostname to set on the K8s Gateway listeners.
+
+        This controls host-based filtering of incoming traffic and is driven by the
+        ``listener-hostname`` config option:
+        - unset (None): default to the local gateway address (previous behavior),
+          used only if it is a valid hostname.
+        - empty string (""): no hostname, listeners accept traffic for any hostname.
+        - non-empty valid value: use that hostname.
+        - non-empty invalid value: revert to the default (local gateway address) while
+          the charm blocks on the invalid config.
+        """
+        listener_hostname = cast(Optional[str], self.model.config.get("listener-hostname"))
+        # Explicit empty string: do not set a hostname (accept all hostnames).
+        if listener_hostname == "":
+            return None
+        # Explicit valid value: use it.
+        if listener_hostname and self._is_valid_hostname(listener_hostname):
+            return listener_hostname
+        # Unset, or explicit but invalid (charm blocks in the latter case): fall back to
+        # the previous behavior of using the local gateway address (if it is valid).
+        local_address = self._local_gateway_address
+        return local_address if self._is_valid_hostname(local_address) else None
 
     @property
     def _ingressed_scheme(self) -> str:

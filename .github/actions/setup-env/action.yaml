@@ -69,6 +69,56 @@ runs:
         sudo snap install kubectl --classic
         juju model-defaults automatically-retry-hooks=${{ inputs.automatically-retry-hooks }}
 
+    - name: Grant MetalLB RBAC for status CRDs
+      # metallb v0.15.x ships the configurationstates/servicebgpstatuses/servicel2statuses
+      # CRDs, but the microk8s addon's bundled RBAC omits perms for them, crash-looping
+      # the controller/speaker so LoadBalancer Services never get an IP. Upstream fix
+      # (canonical/microk8s-core-addons#405) is unmerged; grant the perms additively so
+      # this is a no-op once the addon ships correct RBAC.
+      if: inputs.k8s-distribution == 'microk8s'
+      shell: bash
+      run: |
+        set -euo pipefail
+        if ! sudo microk8s kubectl get ns metallb-system >/dev/null 2>&1; then
+          echo "metallb-system namespace absent; skipping RBAC patch"
+          exit 0
+        fi
+        cat <<'EOF' | sudo microk8s kubectl apply -f -
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRole
+        metadata:
+          name: microk8s-metallb-status-crds
+        rules:
+          - apiGroups: ["metallb.io"]
+            resources:
+              - configurationstates
+              - configurationstates/status
+              - servicebgpstatuses
+              - servicebgpstatuses/status
+              - servicel2statuses
+              - servicel2statuses/status
+            verbs: ["get", "list", "watch", "create", "update", "patch", "delete"]
+        ---
+        apiVersion: rbac.authorization.k8s.io/v1
+        kind: ClusterRoleBinding
+        metadata:
+          name: microk8s-metallb-status-crds
+        roleRef:
+          apiGroup: rbac.authorization.k8s.io
+          kind: ClusterRole
+          name: microk8s-metallb-status-crds
+        subjects:
+          - kind: ServiceAccount
+            name: controller
+            namespace: metallb-system
+          - kind: ServiceAccount
+            name: speaker
+            namespace: metallb-system
+        EOF
+        sudo microk8s kubectl -n metallb-system rollout restart deploy/controller ds/speaker
+        sudo microk8s kubectl -n metallb-system rollout status deploy/controller --timeout=120s
+        sudo microk8s kubectl -n metallb-system rollout status ds/speaker --timeout=120s
+
     - name: Configure Cilium for Istio
       # See https://docs.cilium.io/en/stable/network/servicemesh/istio/
       if: inputs.configure-cni-for-istio == 'true' && inputs.k8s-distribution == 'canonical-k8s'

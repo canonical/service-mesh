@@ -40,6 +40,7 @@ from lightkube.models.admissionregistration_v1 import (
 )
 from lightkube.models.meta_v1 import LabelSelector, ObjectMeta
 from lightkube.resources.admissionregistration_v1 import MutatingWebhookConfiguration
+from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 from ops.pebble import Layer
 
@@ -53,6 +54,11 @@ WEBHOOK_SCOPE = "extproc-webhook"
 
 # CRD reconcile scope -> the crds/<dir> the bundle is loaded from.
 CRD_SCOPES = {AI_CRD_SCOPE: "ai-gateway"}
+
+# The GIE InferencePool CRD the controller scans for once at startup, permanently disabling
+# its InferencePool controller if absent. Owned by the separate envoy-controller-k8s charm,
+# so this charm only gates startup on it. Mirrors upstream controller.go (inferencePoolCRD).
+INFERENCE_POOL_CRD = "inferencepools.inference.networking.k8s.io"
 
 CONTAINER = "ai-gateway"
 
@@ -329,6 +335,8 @@ class EnvoyAiControllerCharm(ops.CharmBase):
              precondition halts reconciliation; status is set via _on_collect_status.
           2. Apply CRDs — the aigateway.envoyproxy.io schemas the controller indexes
              at startup. Halts until they reach Established.
+          2b. Wait for the externally-owned GIE InferencePool CRD to be Established, so
+             the controller starts after it and registers the InferencePool watch.
           3. Push the webhook serving cert into the container.
           4. Reconcile the ExtProc MutatingWebhookConfiguration (caBundle = issuing CA),
              or tear it down when the extension-server relation is absent.
@@ -359,6 +367,14 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             self._reconcile_crds()
         except _CrdsNotEstablishedError:
             logger.info("CRDs applied but not yet Established; deferring controller start")
+            return
+
+        # Step 2b: the controller scans for the externally-owned GIE InferencePool CRD once,
+        # at startup, and permanently disables its InferencePool controller if it is absent.
+        # The CRD is installed by the separate envoy-controller-k8s charm, so defer starting
+        # the controller until it is Established; a later event re-runs reconcile.
+        if not self._inference_pool_crd_established():
+            logger.info("InferencePool CRD not yet Established; deferring controller start")
             return
 
         if not self._tls_ready:
@@ -461,8 +477,16 @@ class EnvoyAiControllerCharm(ops.CharmBase):
             )
             return
         if CONTAINER not in container.get_plan().services:
-            # Reconciliation has not yet started the controller — most commonly it is
-            # still waiting for the CRDs to reach Established. Do not report Active.
+            # Reconciliation has not yet started the controller. The most actionable
+            # cause is a missing GIE InferencePool CRD (owned by envoy-controller-k8s);
+            # surface that specifically so operators know what to deploy/relate.
+            if not self._inference_pool_crd_established():
+                event.add_status(
+                    ops.WaitingStatus(
+                        "Waiting for InferencePool CRD (install envoy-controller-k8s)"
+                    )
+                )
+                return
             event.add_status(
                 ops.MaintenanceStatus("Setting up Envoy AI Gateway control plane")
             )
@@ -505,6 +529,32 @@ class EnvoyAiControllerCharm(ops.CharmBase):
         return all(
             self._crd_manager(scope).established(_load_crd_yaml(directory))
             for scope, directory in CRD_SCOPES.items()
+        )
+
+    def _inference_pool_crd_established(self) -> bool:
+        """Return True when the externally-owned GIE InferencePool CRD is Established.
+
+        The CRD is applied by the separate envoy-controller-k8s charm, so this only
+        checks presence (a missing or unqueryable CRD counts as not-Established) — the
+        controller must not start until it is served, or it permanently skips its
+        InferencePool controller.
+        """
+        try:
+            crd = self.lightkube_client.get(
+                CustomResourceDefinition, name=INFERENCE_POOL_CRD
+            )
+        except ApiError as e:
+            if e.status.code == 404:
+                return False
+            logger.error(
+                "Unexpected API error querying InferencePool CRD (HTTP %s): %s",
+                e.status.code,
+                e.status.message,
+            )
+            return False
+        conditions = (crd.status.conditions if crd.status else None) or []
+        return any(
+            c.type == "Established" and c.status == "True" for c in conditions
         )
 
     def _reconcile_pebble_services(self):

@@ -39,7 +39,11 @@ class CharmDeploymentConfiguration:
 
 
 istio_k8s = CharmDeploymentConfiguration(
-    entity_url="istio-k8s", application_name="istio-k8s", channel="dev/edge", trust=True
+    entity_url="istio-k8s",
+    application_name="istio-k8s",
+    channel="dev/edge",
+    trust=True,
+    config={"platform": ""},
 )
 
 

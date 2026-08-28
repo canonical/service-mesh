@@ -4,7 +4,6 @@
 # See LICENSE file for licensing details.
 
 import os
-import shutil
 from pathlib import Path
 
 import pytest
@@ -33,15 +32,6 @@ def istio_beacon_resources():
 def service_mesh_tester():
     """Build service-mesh-tester charm once per session."""
     charm_path = Path(__file__).parent / "testers" / "service-mesh-tester"
-
-    # Update libraries in the tester charm from root lib folder
-    root_lib_folder = Path(__file__).parent.parent.parent / "lib"
-    tester_lib_folder = charm_path / "lib"
-
-    if tester_lib_folder.exists():
-        shutil.rmtree(tester_lib_folder)
-    shutil.copytree(root_lib_folder, tester_lib_folder)
-
     charm = pack(str(charm_path))
     return charm
 

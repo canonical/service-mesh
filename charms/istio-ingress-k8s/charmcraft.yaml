@@ -60,6 +60,19 @@ config:
         Hostname can be "precise" which is a domain name without the terminating dot of a network host (e.g. "foo.example.com").
         It's also important to note that domain name prefixed with a single wildcard label (e.g. *.example.com) isn't supported for now.
       type: string
+    listener-hostname:
+      description: |
+        The hostname to set on the K8s Gateway listeners, which controls host-based
+        filtering of incoming traffic.
+        - If unset, defaults to the gateway's local address (external_hostname if set,
+          otherwise the LoadBalancer address), preserving host-based filtering.
+        - If set to an empty string, no hostname is set and the listeners accept
+          traffic for any hostname.
+        - If set to a value, that hostname is used. Must be a `bare` RFC 1123 hostname:
+          i.e. no schema prefix, no port, and no wildcard prefix. If the value is
+          invalid, the charm blocks and the hostname reverts to the default
+          (gateway's local address).
+      type: string
     external-traffic-policy-cidrs:
       description: |
         Comma-separated list of IPs or CIDR blocks from which external traffic is allowed.
