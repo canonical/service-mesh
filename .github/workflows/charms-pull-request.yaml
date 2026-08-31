@@ -33,6 +33,10 @@ jobs:
             istio-beacon-k8s: charms/istio-beacon-k8s/**
             istio-ingress-k8s: charms/istio-ingress-k8s/**
             istio-k8s: charms/istio-k8s/**
+            kiali-k8s: charms/kiali-k8s/**
+            tailscale-beacon-k8s: charms/tailscale-beacon-k8s/**
+            tailscale-config: charms/tailscale-config/**
+            tailscale-k8s: charms/tailscale-k8s/**
       - id: matrix
         run: |
           charms='[]'
@@ -59,6 +63,18 @@ jobs:
           fi
           if [ "${{ steps.changes.outputs.istio-k8s }}" = "true" ]; then
             charms=$(echo "$charms" | jq -c '. + ["charms/istio-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.kiali-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/kiali-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.tailscale-beacon-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/tailscale-beacon-k8s"]')
+          fi
+          if [ "${{ steps.changes.outputs.tailscale-config }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/tailscale-config"]')
+          fi
+          if [ "${{ steps.changes.outputs.tailscale-k8s }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/tailscale-k8s"]')
           fi
           echo "charms=$charms" >> "$GITHUB_OUTPUT"
 

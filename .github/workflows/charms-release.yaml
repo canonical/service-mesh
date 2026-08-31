@@ -16,6 +16,10 @@ on:
           - istio-beacon-k8s
           - istio-ingress-k8s
           - istio-k8s
+          - kiali-k8s
+          - tailscale-beacon-k8s
+          - tailscale-config
+          - tailscale-k8s
   push:
     branches:
       - main
@@ -47,6 +51,10 @@ jobs:
             istio-beacon-k8s: charms/istio-beacon-k8s/**
             istio-ingress-k8s: charms/istio-ingress-k8s/**
             istio-k8s: charms/istio-k8s/**
+            kiali-k8s: charms/kiali-k8s/**
+            tailscale-beacon-k8s: charms/tailscale-beacon-k8s/**
+            tailscale-config: charms/tailscale-config/**
+            tailscale-k8s: charms/tailscale-k8s/**
       - name: Set charms matrix
         id: set-charms
         run: |
