@@ -28,6 +28,7 @@ jobs:
             pilot: rocks/istio-pilot-rock/**
             ztunnel: rocks/istio-ztunnel-rock/**
             cni: rocks/istio-install-cni-rock/**
+            kiali: rocks/kiali-rock/**
       - id: matrix
         run: |
           rocks='[]'
@@ -39,6 +40,9 @@ jobs:
           fi
           if [ "${{ steps.changes.outputs.cni }}" = "true" ]; then
             rocks=$(echo "$rocks" | jq -c '. + ["rocks/istio-install-cni-rock"]')
+          fi
+          if [ "${{ steps.changes.outputs.kiali }}" = "true" ]; then
+            rocks=$(echo "$rocks" | jq -c '. + ["rocks/kiali-rock"]')
           fi
           echo "rocks=$rocks" >> "$GITHUB_OUTPUT"
 
