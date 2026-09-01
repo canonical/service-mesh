@@ -1,4 +1,4 @@
-# Copyright 2024 Canonical Ltd.
+# Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
 """Integration tests ensuring every provides/requires relation is exercised except for tracing.
@@ -57,7 +57,7 @@ def test_deploy_dependencies(juju: Juju, istio_core_juju: Juju, tester_http_char
         app=ROUTE_TESTER,
         resources={"echo-server-image": "jmalloc/echo-server:v0.3.7"},
     )
-    juju.deploy(PROMETHEUS, channel="latest/edge", trust=True)
+    juju.deploy(PROMETHEUS, channel="3.11/edge", trust=True)
     juju.wait(
         lambda s: all_active(s, IPA_TESTER_UNAUTH, ROUTE_TESTER, PROMETHEUS)
         and all_agents_idle(s, IPA_TESTER_UNAUTH, ROUTE_TESTER, PROMETHEUS),
