@@ -3,16 +3,15 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
-"""Integration tests verifying every istio-beacon-k8s endpoint settles when related to a real charm.
+"""Integration tests ensuring every provides/requires relation is exercised except for tracing.
 
-Endpoints covered here:
-    * service-mesh     (provides, service_mesh)       -> bookinfo-details-k8s (requirer, charmhub)
-    * metrics-endpoint (provides, prometheus_scrape)  -> prometheus-k8s (requirer, charmhub)
+Provides:
+  * provide-cmr-mesh  -> covered HERE (test_provide_cmr_mesh_relation_settles)
+  * service-mesh      -> covered HERE (test_service_mesh_relation_settles)
+  * metrics-endpoint  -> covered HERE (test_metrics_endpoint_relation_settles)
 
-Endpoints intentionally not covered here:
-    * charm-tracing    (requires, tracing)            -> (not a strict requirement)
-    * provide-cmr-mesh (provides, cross_model_mesh)   -> tests/integration/test_cross_model.py
-    * peers            (peer, istio_beacon_k8s_peers) -> tests/integration/test_charm_scaling.py
+Requires:
+  * charm-tracing     -> intentionally skipped
 """
 
 import logging
@@ -28,6 +27,7 @@ logger = logging.getLogger(__name__)
 
 BOOKINFO_DETAILS = "bookinfo-details-k8s"
 PROMETHEUS = "prometheus-k8s"
+CMR_MODEL_SUFFIX = "cmr"
 
 
 @pytest.mark.setup
@@ -82,13 +82,41 @@ def test_metrics_endpoint_relation_settles(juju: Juju):
     juju.deploy(
         PROMETHEUS,
         app=PROMETHEUS,
-        channel="1/stable",
+        channel="3.11/edge",
         trust=True,
     )
     juju.integrate(f"{PROMETHEUS}:metrics-endpoint", f"{APP_NAME}:metrics-endpoint")
     juju.wait(
         lambda s: all_agents_idle(s, APP_NAME, PROMETHEUS)
         and all_active(s, APP_NAME, PROMETHEUS),
+        timeout=1000,
+        delay=5,
+        successes=3,
+    )
+
+
+@pytest.mark.abort_on_fail
+def test_provide_cmr_mesh_relation_settles(juju: Juju, temp_model_factory):
+    """Relate beacon's provide-cmr-mesh (provides cross_model_mesh) cross-model to a real requirer and verify settle."""
+    cmr_model = temp_model_factory.get_juju(CMR_MODEL_SUFFIX)
+    cmr_model.deploy(
+        BOOKINFO_DETAILS,
+        app=BOOKINFO_DETAILS,
+        channel="latest/stable",
+        trust=True,
+    )
+    # Beacon (provider) offers its provide-cmr-mesh endpoint cross-model.
+    juju.cli("offer", f"{juju.model}.{APP_NAME}:provide-cmr-mesh", include_model=False)
+    cmr_model.cli("consume", f"admin/{juju.model}.{APP_NAME}")
+    cmr_model.integrate(f"{BOOKINFO_DETAILS}:require-cmr-mesh", APP_NAME)
+    juju.wait(
+        lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME),
+        timeout=1000,
+        delay=5,
+        successes=3,
+    )
+    cmr_model.wait(
+        lambda s: all_agents_idle(s, BOOKINFO_DETAILS) and all_active(s, BOOKINFO_DETAILS),
         timeout=1000,
         delay=5,
         successes=3,
