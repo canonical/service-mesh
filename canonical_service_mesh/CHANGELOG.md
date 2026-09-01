@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.2.0](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.1.0...canonical-service-mesh-v0.2.0) (2026-08-31)
+
+
+### Features
+
+* add tailscale charms (k8s) ([#514](https://github.com/canonical/service-mesh/issues/514)) ([34543e0](https://github.com/canonical/service-mesh/commit/34543e018944ef1f48312458050503b56d674e32))
+
 ## [0.1.0](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.0.2...canonical-service-mesh-v0.1.0) (2026-07-20)
 
 
