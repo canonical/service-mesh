@@ -54,7 +54,7 @@ async def test_build_and_deploy(ops_test: OpsTest, istio_core_charm):
 async def test_metrics_endpoint(ops_test: OpsTest):
     """Exercise the `metrics-endpoint` (prometheus_scrape) provides relation with prometheus-k8s."""
     assert ops_test.model
-    await ops_test.model.deploy(PROMETHEUS, channel="latest/edge", trust=True)
+    await ops_test.model.deploy(PROMETHEUS, channel="2/edge", trust=True)
     await ops_test.model.add_relation(f"{APP_NAME}:metrics-endpoint", PROMETHEUS)
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME, PROMETHEUS], status="active", timeout=1000
@@ -65,7 +65,7 @@ async def test_metrics_endpoint(ops_test: OpsTest):
 async def test_grafana_dashboard(ops_test: OpsTest):
     """Exercise the `grafana-dashboard` (grafana_dashboard) provides relation with grafana-k8s."""
     assert ops_test.model
-    await ops_test.model.deploy(GRAFANA, channel="latest/edge", trust=True)
+    await ops_test.model.deploy(GRAFANA, channel="2/edge", trust=True)
     await ops_test.model.add_relation(f"{APP_NAME}:grafana-dashboard", GRAFANA)
     await ops_test.model.wait_for_idle(
         apps=[APP_NAME, GRAFANA], status="active", timeout=1000
@@ -93,7 +93,7 @@ async def test_istio_metadata(ops_test: OpsTest):
     it to the already-deployed prometheus-k8s in addition to istio-k8s.
     """
     assert ops_test.model
-    await ops_test.model.deploy(KIALI, channel="dev/edge", trust=True)
+    await ops_test.model.deploy(KIALI, channel="2/edge", trust=True)
     await ops_test.model.add_relation(f"{KIALI}:prometheus-api", f"{PROMETHEUS}:prometheus-api")
     await ops_test.model.add_relation(f"{KIALI}:istio-metadata", f"{APP_NAME}:istio-metadata")
     await ops_test.model.wait_for_idle(
@@ -107,7 +107,7 @@ async def test_istio_ingress_config(ops_test: OpsTest):
     assert ops_test.model
     await ops_test.model.deploy(
         ISTIO_INGRESS,
-        channel="dev/edge",
+        channel="2/edge",
         resources=resources,
         trust=True,
     )
