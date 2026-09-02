@@ -108,7 +108,6 @@ async def test_istio_ingress_config(ops_test: OpsTest):
     await ops_test.model.deploy(
         ISTIO_INGRESS,
         channel="2/edge",
-        resources=resources,
         trust=True,
     )
     await ops_test.model.add_relation(
