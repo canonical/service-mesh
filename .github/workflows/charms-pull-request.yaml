@@ -34,6 +34,7 @@ jobs:
             istio-ingress-k8s: charms/istio-ingress-k8s/**
             istio-k8s: charms/istio-k8s/**
             kiali-k8s: charms/kiali-k8s/**
+            tailscale-beacon: charms/tailscale-beacon/**
             tailscale-beacon-k8s: charms/tailscale-beacon-k8s/**
             tailscale-config: charms/tailscale-config/**
             tailscale-k8s: charms/tailscale-k8s/**
@@ -67,6 +68,9 @@ jobs:
           if [ "${{ steps.changes.outputs.kiali-k8s }}" = "true" ]; then
             charms=$(echo "$charms" | jq -c '. + ["charms/kiali-k8s"]')
           fi
+          if [ "${{ steps.changes.outputs.tailscale-beacon }}" = "true" ]; then
+            charms=$(echo "$charms" | jq -c '. + ["charms/tailscale-beacon"]')
+          fi
           if [ "${{ steps.changes.outputs.tailscale-beacon-k8s }}" = "true" ]; then
             charms=$(echo "$charms" | jq -c '. + ["charms/tailscale-beacon-k8s"]')
           fi
@@ -89,5 +93,5 @@ jobs:
     uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
     with:
       charm-path: ${{ matrix.charm-path }}
-      provider: k8s
+      provider: ${{ matrix.charm-path == 'charms/tailscale-beacon' && 'machine' || 'k8s' }}
     secrets: inherit
