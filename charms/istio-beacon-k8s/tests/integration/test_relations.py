@@ -95,10 +95,15 @@ def test_metrics_endpoint_relation_settles(juju: Juju):
     )
 
 
+@pytest.fixture(scope="module")
+def cmr_model(temp_model_factory):
+    """Create and return a Juju instance for the cross-model-relation model."""
+    return temp_model_factory.get_juju(CMR_MODEL_SUFFIX)
+
+
 @pytest.mark.abort_on_fail
-def test_provide_cmr_mesh_relation_settles(juju: Juju, temp_model_factory):
+def test_provide_cmr_mesh_relation_settles(juju: Juju, cmr_model: Juju):
     """Relate beacon's provide-cmr-mesh (provides cross_model_mesh) cross-model to a real requirer and verify settle."""
-    cmr_model = temp_model_factory.get_juju(CMR_MODEL_SUFFIX)
     cmr_model.deploy(
         BOOKINFO_DETAILS,
         app=BOOKINFO_DETAILS,
@@ -109,6 +114,26 @@ def test_provide_cmr_mesh_relation_settles(juju: Juju, temp_model_factory):
     juju.cli("offer", f"{juju.model}.{APP_NAME}:provide-cmr-mesh", include_model=False)
     cmr_model.cli("consume", f"admin/{juju.model}.{APP_NAME}")
     cmr_model.integrate(f"{BOOKINFO_DETAILS}:require-cmr-mesh", APP_NAME)
+    juju.wait(
+        lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME),
+        timeout=1000,
+        delay=5,
+        successes=3,
+    )
+    cmr_model.wait(
+        lambda s: all_agents_idle(s, BOOKINFO_DETAILS) and all_active(s, BOOKINFO_DETAILS),
+        timeout=1000,
+        delay=5,
+        successes=3,
+    )
+
+
+@pytest.mark.teardown
+def test_teardown_provide_cmr_mesh(juju: Juju, cmr_model: Juju):
+    """Remove the cross-model provide-cmr-mesh relation, consumed SAAS, and offer."""
+    cmr_model.remove_relation(f"{BOOKINFO_DETAILS}:require-cmr-mesh", APP_NAME, force=True)
+    cmr_model.cli("remove-saas", APP_NAME)
+    juju.cli("remove-offer", "--force", "-y", f"{juju.model}.{APP_NAME}", include_model=False)
     juju.wait(
         lambda s: all_agents_idle(s, APP_NAME) and all_active(s, APP_NAME),
         timeout=1000,
