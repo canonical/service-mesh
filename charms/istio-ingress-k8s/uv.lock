@@ -49,17 +49,13 @@ wheels = [
 
 [[package]]
 name = "canonical-service-mesh"
-version = "0.0.2"
-source = { registry = "https://pypi.org/simple" }
+version = "0.1.0"
+source = { git = "https://github.com/canonical/service-mesh.git?subdirectory=canonical_service_mesh&branch=feat%2FSMS-830-grpc-auth-lib-update#d3492649d677ec4a29a8c7f305326fdc5fe40d8b" }
 dependencies = [
     { name = "httpx" },
     { name = "lightkube" },
     { name = "ops" },
     { name = "pydantic" },
-]
-sdist = { url = "https://files.pythonhosted.org/packages/b2/82/1eb5b4c6a129062ef2703b29f375cb56453bb02ce2a95e30ccb5259f015c/canonical_service_mesh-0.0.2.tar.gz", hash = "sha256:8d126ac1144ebd4d0220e3346e2c8e282235426cc0e42004b9fcaef1f4091981", size = 67801, upload-time = "2026-05-14T11:38:26.748Z" }
-wheels = [
-    { url = "https://files.pythonhosted.org/packages/6a/56/663969013533e866277a3dedb7320ebdfed966e4c7d6a175080a22aab042/canonical_service_mesh-0.0.2-py3-none-any.whl", hash = "sha256:7bf52dcd1d7f3ed32fdd7c1e8bfdead1c427356b43ac7532fa1daf70e2592d39", size = 28384, upload-time = "2026-05-14T11:38:25.46Z" },
 ]
 
 [[package]]
@@ -492,7 +488,7 @@ name = "exceptiongroup"
 version = "1.3.1"
 source = { registry = "https://pypi.org/simple" }
 dependencies = [
-    { name = "typing-extensions", marker = "python_full_version < '3.11'" },
+    { name = "typing-extensions" },
 ]
 sdist = { url = "https://files.pythonhosted.org/packages/50/79/66800aadf48771f6b62f7eb014e352e5d06856655206165d775e675a02c9/exceptiongroup-1.3.1.tar.gz", hash = "sha256:8b412432c6055b0b7d14c310000ae93352ed6754f70fa8f7c34141f91c4e3219", size = 30371, upload-time = "2025-11-21T23:01:54.787Z" }
 wheels = [
@@ -793,7 +789,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "canonical-service-mesh", specifier = ">=0.0.2" },
+    { name = "canonical-service-mesh", git = "https://github.com/canonical/service-mesh.git?subdirectory=canonical_service_mesh&branch=feat%2FSMS-830-grpc-auth-lib-update" },
     { name = "charmlibs-interfaces-gateway-metadata" },
     { name = "charmlibs-interfaces-istio-ingress-route" },
     { name = "charmlibs-interfaces-istio-request-auth" },
