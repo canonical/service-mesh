@@ -12,8 +12,8 @@ description: |
 links:
   documentation: https://discourse.charmhub.io/t/istio-k8s-docs-index/20487
   website: https://charmhub.io/istio-k8s
-  source: https://github.com/canonical/istio-k8s-operator
-  issues: https://github.com/canonical/istio-k8s-operator/issues
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
 
 config:
   options:
@@ -95,7 +95,7 @@ requires:
       Enables sending workload traces from on-mesh workloads to a distributed tracing backend, such as Tempo.
 
       In ambient mode, traces are generated at the L7 layer by a waypoint proxy. To enable this, you must deploy
-      the waypoint proxy charm (i.e https://github.com/canonical/istio-beacon-k8s-operator) with --model-on-mesh=true
+      the waypoint proxy charm (i.e https://github.com/canonical/service-mesh) with --model-on-mesh=true
       to collect traces for all workloads on the mesh. Alternatively, if you prefer to limit tracing to specific workloads, 
       you can relate the beacon charm to a particular charm instead of applying --model-on-mesh=true to the entire model.
   istio-ingress-config:
