@@ -17,9 +17,20 @@ import pytest
 import yaml
 from helpers import istio_k8s
 from jubilant import all_active
-from pytest_jubilant import get_resources, pack
 
 logger = logging.getLogger(__name__)
+
+CHARM_DIR = Path(__file__).parents[2]  # The istio-ingress-k8s charm root.
+
+
+def _pack(charm_dir: Path) -> Path:
+    """Pack the charm in ``charm_dir`` and return the resulting ``.charm`` path."""
+    logger.info("Packing charm in %s", charm_dir)
+    subprocess.run(["charmcraft", "pack"], cwd=charm_dir, check=True)
+    charms = list(charm_dir.glob("*.charm"))
+    assert charms, f"No charm was packed in {charm_dir}"
+    assert len(charms) == 1, f"Found more than one charm {charms}"
+    return charms[0].resolve()
 
 _JUJU_DATA_CACHE = {}
 _JUJU_KEYS = ("egress-subnets", "ingress-address", "private-address")
@@ -66,8 +77,10 @@ def timed_memoizer(func):
 def istio_ingress_charm():
     """Istio Ingress charm used for integration testing."""
     if charm_file := os.environ.get("CHARM_PATH"):
-        return Path(charm_file)
-    return pack()
+        path = Path(charm_file).resolve()
+        assert path.is_file(), f"{path} is not a file"
+        return path
+    return _pack(CHARM_DIR)
 
 
 @pytest.fixture(scope="session")
@@ -83,14 +96,14 @@ def tester_http_charm():
         shutil.rmtree(tester_lib_folder)
     shutil.copytree(root_lib_folder, tester_lib_folder)
 
-    return pack(charm_path)
+    return _pack(charm_path)
 
 
 @pytest.fixture(scope="session")
 def tester_mock_oauth2_charm():
     """Mock OAuth2 server charm used for integration testing."""
     charm_path = (Path(__file__).parent / "testers" / "tester-mock-oauth2").absolute()
-    return pack(charm_path)
+    return _pack(charm_path)
 
 
 @pytest.fixture(scope="session")
@@ -106,13 +119,17 @@ def tester_grpc_charm():
         shutil.rmtree(tester_lib_folder)
     shutil.copytree(root_lib_folder, tester_lib_folder)
 
-    return pack(charm_path)
+    return _pack(charm_path)
 
 
 # Add resources fixture for jubilant
 @pytest.fixture(scope="session")
 def resources():
-    return get_resources()
+    metadata = yaml.safe_load((CHARM_DIR / "charmcraft.yaml").read_text())
+    return {
+        name: res["upstream-source"]
+        for name, res in metadata.get("resources", {}).items()
+    }
 
 
 @pytest.fixture(scope="module")
