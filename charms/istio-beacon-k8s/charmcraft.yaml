@@ -10,8 +10,8 @@ description: |
 links:
   documentation: https://discourse.charmhub.io/t/istio-beacon-k8s-docs-index/20489
   website: https://charmhub.io/istio-beacon-k8s
-  source: https://github.com/canonical/istio-beacon-k8s-operator
-  issues: https://github.com/canonical/istio-beacon-k8s-operator/issues
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
 
 assumes:
   - k8s-api
