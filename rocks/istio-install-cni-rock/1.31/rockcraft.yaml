@@ -4,7 +4,7 @@
 name: istio-install-cni
 summary: Istio's install-cni in a rock
 description: "Installs Istio's cni plugin"
-version: "1.28.6"
+version: "1.31.0"
 base: ubuntu@24.04
 build-base: ubuntu@24.04
 services:
@@ -26,9 +26,9 @@ parts:
     plugin: go
     source: https://github.com/istio/istio
     source-type: git
-    source-tag: "1.28.6"
+    source-tag: "1.31.0"
     build-snaps:
-      - go/1.24/candidate
+      - go/1.26/candidate
     override-build: |
       GOOS=linux GOARCH=amd64 LDFLAGS='-extldflags -static -s -w' common/scripts/gobuild.sh ./out/linux_amd64/ -tags=agent,disable_pgv ./cni/cmd/istio-cni ./cni/cmd/install-cni
 

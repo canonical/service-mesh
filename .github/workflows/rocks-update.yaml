@@ -10,18 +10,15 @@ jobs:
     name: Update (${{ matrix.rock-path }})
     strategy:
       matrix:
-        include:
-          - rock-path: rocks/istio-pilot-rock
-            source-repo: istio/istio
-          - rock-path: rocks/istio-ztunnel-rock
-            source-repo: istio/ztunnel
-          - rock-path: rocks/istio-install-cni-rock
-            source-repo: istio/istio
-          - rock-path: rocks/kiali-rock
-            source-repo: kiali/kiali
+        # The upstream project for each rock is set via 'source_repo' in the rock's
+        # local justfile, so it is not passed to the reusable workflow.
+        rock-path:
+          - rocks/istio-pilot-rock
+          - rocks/istio-ztunnel-rock
+          - rocks/istio-install-cni-rock
+          - rocks/kiali-rock
       fail-fast: false
     uses: canonical/observability/.github/workflows/rock-update.yaml@v2
     with:
       rock-path: ${{ matrix.rock-path }}
-      source-repo: ${{ matrix.source-repo }}
     secrets: inherit

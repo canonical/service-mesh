@@ -1,0 +1,12 @@
+istio_namespace: "istio-system"
+
+auth:
+  strategy: "anonymous"
+
+external_services:
+  prometheus:
+    url: "http://127.0.0.1:9090"
+
+server:
+  port: 20001
+  web_root: /kiali

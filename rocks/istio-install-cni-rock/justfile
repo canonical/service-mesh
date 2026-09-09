@@ -2,6 +2,9 @@ set allow-duplicate-recipes
 set allow-duplicate-variables
 import? 'rocks.just'
 
+# Upstream project repository, used by 'update', 'add-version' and 'govulncheck'.
+source_repo := 'istio/istio'
+
 [private]
 @default:
   just --list
