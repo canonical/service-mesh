@@ -5,8 +5,8 @@ name: istio-install-cni
 summary: Istio's install-cni in a rock
 description: "Installs Istio's cni plugin"
 version: "1.30.3"
-base: ubuntu@24.04
-build-base: ubuntu@24.04
+base: ubuntu@26.04
+build-base: ubuntu@26.04
 services:
   install-cni:
     command: "/usr/local/bin/install-cni"
