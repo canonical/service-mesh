@@ -10,8 +10,6 @@ jobs:
     name: Update (${{ matrix.rock-path }})
     strategy:
       matrix:
-        # The upstream project for each rock is set via 'source_repo' in the rock's
-        # local justfile, so it is not passed to the reusable workflow.
         rock-path:
           - rocks/istio-pilot-rock
           - rocks/istio-ztunnel-rock
