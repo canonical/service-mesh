@@ -2,6 +2,23 @@ set allow-duplicate-recipes
 set allow-duplicate-variables
 import? 'rocks.just'
 
+# Upstream project repository, used by 'update', 'add-version' and 'govulncheck'.
+source_repo := 'istio/ztunnel'
+
+# Overrides the shared 'resolve-tag' from rocks.just. That version resolves versions
+# with 'gh release list', but istio/ztunnel publishes git tags and no GitHub releases,
+# so it always returns nothing and 'update'/'add-version' fail. Resolve from tags
+# instead, keeping the same "<version> <tag>" output contract. The bare X.Y.Z filter
+# also drops pre-releases (-alpha/-beta/-rc), matching --exclude-pre-releases.
+[private]
+@resolve-tag major_minor:
+  gh api repos/{{source_repo}}/tags --paginate -q '.[].name' \
+    | grep -E '^[0-9]+\.[0-9]+\.[0-9]+$' \
+    | while read -r t; do \
+        [[ "$(echo "$t" | grep -oP '^\d+\.\d+')" == "{{major_minor}}" ]] && echo "$t $t"; \
+      done \
+    | sort -V | tail -n1
+
 [private]
 @default:
   just --list

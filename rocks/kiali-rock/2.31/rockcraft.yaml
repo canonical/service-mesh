@@ -1,0 +1,73 @@
+name: kiali
+summary: Kiali for Istio Service Mesh Visualization
+description: |
+  Kiali is a management console for Istio service mesh. It provides observability,
+  monitoring, and troubleshooting capabilities for Istio-based microservices.
+license: Apache-2.0
+
+version: "2.31.0"
+base: "ubuntu@24.04"
+platforms:
+  amd64:
+
+services:
+  kiali:
+    override: replace
+    startup: enabled
+    command: /opt/kiali/kiali --config /etc/kiali/kiali-local-config.yaml
+    working-dir: /opt/kiali
+
+parts:
+  kiali:
+    plugin: nil
+    source: https://github.com/kiali/kiali
+    source-type: git
+    source-tag: "v2.31.0"
+    build-snaps:
+      - go/1.26/stable
+      - node/24/stable
+    override-build: |
+      mkdir -p ${CRAFT_PART_INSTALL}/opt/kiali/console
+
+      # Kiali's `make build-ui` now requires Yarn 4, which is provisioned via corepack
+      # (see `.ensure-yarn-version` in make/Makefile.build.mk). Two wrinkles with the node
+      # snap: corepack ships inside the snap but is not exposed on PATH, and the snap's
+      # own `yarn` is 1.22, which fails Kiali's v4 check. So call corepack by absolute
+      # path and install its shims into a writable dir placed ahead of /snap/bin.
+      export COREPACK_HOME="${CRAFT_PART_BUILD}/.corepack"
+      export COREPACK_ENABLE_DOWNLOAD_PROMPT=0
+      COREPACK_BIN="${CRAFT_PART_BUILD}/.corepack-bin"
+      mkdir -p "${COREPACK_HOME}" "${COREPACK_BIN}"
+      /snap/node/current/bin/corepack enable --install-directory "${COREPACK_BIN}"
+      export PATH="${COREPACK_BIN}:${PATH}"
+      yarn --version
+
+      # Building the kiali UI and placing it in /opt/kiali
+      make build-ui
+      cp -r ${CRAFT_PART_BUILD}/frontend/build/* ${CRAFT_PART_INSTALL}/opt/kiali/console
+
+      # Building the kiali controllers/backend. `make build` also depends on `check-ui`,
+      # which asserts frontend/build exists, so it must run after `make build-ui`.
+      make go-check
+      make build
+
+      install -D -m755 "$(go env GOPATH)/bin/kiali" ${CRAFT_PART_INSTALL}/opt/kiali/kiali
+  default-config:
+    plugin: dump
+    source: .
+    organize:
+      kiali-local-config.yaml: etc/kiali/kiali-local-config.yaml
+    stage:
+      - etc/kiali/kiali-local-config.yaml
+  ca-certs:
+    plugin: nil
+    overlay-packages: [ca-certificates]
+  deb-security-manifest:
+    plugin: nil
+    after:
+      - kiali
+      - ca-certs
+    override-prime: |
+      set -x
+      mkdir -p $CRAFT_PRIME/usr/share/rocks/
+      (echo "# os-release" && cat /etc/os-release && echo "# dpkg-query" && dpkg-query --admindir=$CRAFT_PRIME/var/lib/dpkg/ -f '${db:Status-Abbrev},${binary:Package},${Version},${source:Package},${Source:Version}\n' -W) > $CRAFT_PRIME/usr/share/rocks/dpkg.query
