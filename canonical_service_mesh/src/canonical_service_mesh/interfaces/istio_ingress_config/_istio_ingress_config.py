@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import json
 import logging
-from typing import TYPE_CHECKING, cast
+from typing import TYPE_CHECKING, Literal, cast
 
 from pydantic import BaseModel, Field, field_validator
 
@@ -95,6 +95,10 @@ class ProviderIngressConfigData(BaseModel):
         default=None,
         description="The port on which the external authorizer service is exposed.",
     )
+    ext_authz_protocol: Literal["http", "grpc"] = Field(
+        default="http",
+        description="The protocol used to communicate with the external authorizer.",
+    )
     include_headers_in_check: list[str] | None = Field(
         default=None,
         description="Headers to forward to the external authorizer for checking.",
@@ -171,6 +175,7 @@ class IngressConfigProvider:
         self,
         ext_authz_service_name: str | None = None,
         ext_authz_port: str | None = None,
+        ext_authz_protocol: Literal["http", "grpc"] = "http",
         include_headers_in_check: list[str] | None = None,
         headers_to_upstream_on_allow: list[str] | None = None,
         headers_to_downstream_on_allow: list[str] | None = None,
@@ -181,6 +186,7 @@ class IngressConfigProvider:
         Args:
             ext_authz_service_name: The external authorizer service name.
             ext_authz_port: The port number for the external authorizer service.
+            ext_authz_protocol: The protocol used to communicate with the external authorizer.
             include_headers_in_check: Headers to forward to the external authorizer for checking.
             headers_to_upstream_on_allow: Headers to pass to upstream on successful auth.
             headers_to_downstream_on_allow: Headers to send to client on successful auth.
@@ -189,11 +195,14 @@ class IngressConfigProvider:
         data = ProviderIngressConfigData(
             ext_authz_service_name=ext_authz_service_name,
             ext_authz_port=ext_authz_port,
+            ext_authz_protocol=ext_authz_protocol,
             include_headers_in_check=include_headers_in_check,
             headers_to_upstream_on_allow=headers_to_upstream_on_allow,
             headers_to_downstream_on_allow=headers_to_downstream_on_allow,
             headers_to_downstream_on_deny=headers_to_downstream_on_deny,
         ).model_dump(mode="json", by_alias=True, exclude_defaults=True, round_trip=True)
+        # Always overwrite the protocol when a relation transitions between transports.
+        data["ext_authz_protocol"] = ext_authz_protocol
         serialized = _dump_data(data)
 
         for relation in self.relations:

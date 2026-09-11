@@ -50,6 +50,7 @@ def test_provider_publish(mock_relation_mapping, mock_app, mock_relation):
     databag = mock_relation.data[mock_app]
     assert databag["ext_authz_service_name"] == "my-service"
     assert databag["ext_authz_port"] == "8080"
+    assert databag["ext_authz_protocol"] == "http"
 
 
 def test_provider_publish_with_headers(mock_relation_mapping, mock_app, mock_relation):
@@ -63,6 +64,29 @@ def test_provider_publish_with_headers(mock_relation_mapping, mock_app, mock_rel
 
     databag = mock_relation.data[mock_app]
     assert json.loads(databag["include_headers_in_check"]) == ["authorization", "cookie"]
+
+
+def test_provider_publish_with_grpc_protocol(mock_relation_mapping, mock_app, mock_relation):
+    """Provider publishes a non-default gRPC external authorization protocol."""
+    provider = IngressConfigProvider(mock_relation_mapping, mock_app)
+    provider.publish(
+        ext_authz_service_name="authz-service",
+        ext_authz_port="9091",
+        ext_authz_protocol="grpc",
+    )
+
+    assert mock_relation.data[mock_app]["ext_authz_protocol"] == "grpc"
+
+
+def test_provider_publish_overwrites_grpc_protocol_with_http(
+    mock_relation_mapping, mock_app, mock_relation
+):
+    """Provider overwrites the protocol when an existing relation changes transport."""
+    provider = IngressConfigProvider(mock_relation_mapping, mock_app)
+    provider.publish(ext_authz_protocol="grpc")
+    provider.publish(ext_authz_protocol="http")
+
+    assert mock_relation.data[mock_app]["ext_authz_protocol"] == "http"
 
 
 def test_provider_clear_publishes_fake_config(mock_relation_mapping, mock_app, mock_relation):
@@ -107,7 +131,23 @@ def test_requirer_get_provider_ext_authz_info(mock_relation_mapping, mock_app, m
     assert info is not None
     assert info.ext_authz_service_name == "authz-svc"
     assert info.ext_authz_port == "8080"
+    assert info.ext_authz_protocol == "http"
     assert info.include_headers_in_check == ["authorization"]
+
+
+def test_requirer_gets_grpc_protocol(mock_relation_mapping, mock_app, mock_relation):
+    """Requirer reads a gRPC external authorization protocol."""
+    mock_relation.data[mock_relation.app] = {
+        "ext_authz_service_name": "authz-service",
+        "ext_authz_port": "9091",
+        "ext_authz_protocol": "grpc",
+    }
+    requirer = IngressConfigRequirer(mock_relation_mapping, mock_app)
+
+    info = requirer.get_provider_ext_authz_info(mock_relation)
+
+    assert info is not None
+    assert info.ext_authz_protocol == "grpc"
 
 
 def test_requirer_detects_fake_authz_config(mock_relation_mapping, mock_app, mock_relation):
@@ -125,3 +165,9 @@ def test_port_validation():
     """Port field rejects non-integer strings."""
     with pytest.raises(ValueError, match="convertible to an integer"):
         ProviderIngressConfigData(ext_authz_port="not-a-number")
+
+
+def test_protocol_validation():
+    """Protocol field rejects unsupported external authorization protocols."""
+    with pytest.raises(ValueError, match="Input should be 'http' or 'grpc'"):
+        ProviderIngressConfigData(ext_authz_protocol="tcp")
