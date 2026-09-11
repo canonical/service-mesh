@@ -12,13 +12,10 @@ dependencies = [
     "charmlibs-interfaces-istio-ingress-route",
     "charmlibs-interfaces-istio-request-auth",
     "charmlibs-interfaces-service-mesh",
-    "canonical-service-mesh>=0.0.2",
+    "canonical-service-mesh>=0.3.0",
     "cryptography~=42.0.0", # Deps: tls_certificates_interface libs
     "jsonschema>=4.22.0", # Deps: traefik_k8s libs, tls_certificates_interface libs
 ]
-
-[tool.uv.sources]
-canonical-service-mesh = { git = "https://github.com/canonical/service-mesh.git", branch = "feat/SMS-830-grpc-auth-lib-update", subdirectory = "canonical_service_mesh" }
 
 [project.optional-dependencies]
 dev = [

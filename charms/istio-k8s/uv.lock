@@ -153,13 +153,17 @@ wheels = [
 
 [[package]]
 name = "canonical-service-mesh"
-version = "0.1.0"
-source = { git = "https://github.com/canonical/service-mesh.git?subdirectory=canonical_service_mesh&branch=feat%2FSMS-830-grpc-auth-lib-update#d3492649d677ec4a29a8c7f305326fdc5fe40d8b" }
+version = "0.3.0"
+source = { registry = "https://pypi.org/simple" }
 dependencies = [
     { name = "httpx" },
     { name = "lightkube" },
     { name = "ops" },
     { name = "pydantic" },
+]
+sdist = { url = "https://files.pythonhosted.org/packages/f4/8a/d1aa66c19b9e88ee8cd03f3636dc2913080a64499ab82089e737e2189b47/canonical_service_mesh-0.3.0.tar.gz", hash = "sha256:d0f3dcd0b584f217b229f0805547b2db3843de4c2dce831a6192903612cd51ee", size = 80985, upload-time = "2026-09-11T09:46:46.784Z" }
+wheels = [
+    { url = "https://files.pythonhosted.org/packages/94/1a/d4552b27882a13b29f02e1cb75ec07f24008e36bd0f03ee7f545c687fb73/canonical_service_mesh-0.3.0-py3-none-any.whl", hash = "sha256:fe6cd6bdd839db0917c3fd586568311c25a36bfa692be9c7d7c02a716a4a2672", size = 43450, upload-time = "2026-09-11T09:46:45.227Z" },
 ]
 
 [[package]]
@@ -872,7 +876,7 @@ dev = [
 
 [package.metadata]
 requires-dist = [
-    { name = "canonical-service-mesh", git = "https://github.com/canonical/service-mesh.git?subdirectory=canonical_service_mesh&branch=feat%2FSMS-830-grpc-auth-lib-update" },
+    { name = "canonical-service-mesh", specifier = ">=0.3.0" },
     { name = "charmlibs-interfaces-certificate-transfer" },
     { name = "codespell", marker = "extra == 'dev'" },
     { name = "cosl" },
