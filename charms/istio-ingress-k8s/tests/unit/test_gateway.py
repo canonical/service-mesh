@@ -12,6 +12,8 @@ from charms.tls_certificates_interface.v3.tls_certificates import (
     generate_csr,
     generate_private_key,
 )
+from cryptography import x509
+from cryptography.hazmat.primitives import hashes, serialization
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Secret
@@ -259,7 +261,7 @@ def test_sync_gateway_resources_with_tls_with_loadbalancer_address(
 
         # Assert that we have created a certificate secret as expected
         secret = charm._get_gateway_resource_manager().reconcile.call_args[0][0][0]
-        assert secret.stringData["tls.crt"] == certificate_info["certificate_string"]
+        assert secret.stringData["tls.crt"].strip() == certificate_info["certificate_string"].strip()
 
         # Assert that the Gateway was created and has http and https listeners with the correct configurations.
         gateway = charm._get_gateway_resource_manager().reconcile.call_args[0][0][1]
@@ -367,23 +369,74 @@ def test_construct_gateway_tls_secret_with_certificates(
     ) as manager:
         charm = manager.charm
         secret = charm._construct_gateway_tls_secret()
-        assert secret.stringData["tls.crt"] == certificate_string
+        assert secret.stringData["tls.crt"].strip() == certificate_string.strip()
 
 
+@pytest.mark.parametrize("intermediate_count", [0, 1, 2], ids=["root", "one-intermediate", "two-intermediates"])
+@pytest.mark.parametrize("chain_order", ["leaf-first", "root-first", "leaf-omitted"])
+def test_construct_gateway_tls_secret_with_certificate_chain(
+    istio_ingress_context, intermediate_count, chain_order
+):
+    """Preserve the full, leaf-first certificate chain and the existing private key."""
+    certificate_info = generate_certificates_relation(
+        intermediate_count=intermediate_count, chain_order=chain_order
+    )
+    expected_chain = [
+        x509.load_pem_x509_certificate(cert.encode()) for cert in certificate_info["chain"]
+    ]
+    for certificate, issuer in zip(expected_chain, expected_chain[1:]):
+        certificate.verify_directly_issued_by(issuer)
+
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(relations=[certificate_info["relation"]]),
+    ) as manager:
+        charm = manager.charm
+        private_key = certificate_info["private_key"]
+        charm._cert_handler.vault.store({"private-key": private_key})
+
+        secret = charm._construct_gateway_tls_secret()
+
+        assert secret.metadata.name == charm._certificate_secret_name
+        assert secret.stringData["tls.key"] == private_key
+        assert x509.load_pem_x509_certificates(secret.stringData["tls.crt"].encode()) == expected_chain
+
+
+@pytest.mark.parametrize("has_relation", [False, True], ids=["no-relation", "no-certificate"])
 def test_construct_gateway_tls_secret_without_certificates(
-    istio_ingress_charm, istio_ingress_context
+    istio_ingress_charm, istio_ingress_context, has_relation
 ):
     """Assert that when no certificates are provided, the construct_gateway_tls_secret returns None."""
     with istio_ingress_context(
         istio_ingress_context.on.update_status(),
-        state=scenario.State(relations=[]),
+        state=scenario.State(
+            relations=[scenario.Relation(endpoint="certificates")] if has_relation else []
+        ),
     ) as manager:
         charm = manager.charm
         secret = charm._construct_gateway_tls_secret()
         assert secret is None
 
 
-def generate_certificates_relation(subject="example.com"):
+@patch(
+    "charm.IstioIngressCharm._get_lb_external_address",
+    new_callable=PropertyMock,
+    return_value=None,
+)
+def test_construct_gateway_tls_secret_with_disabled_cert_handler(
+    mock_get_lb_external_address, istio_ingress_context
+):
+    """Do not create a TLS secret before the gateway has an external address."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(relations=[generate_certificates_relation()["relation"]]),
+    ) as manager:
+        assert manager.charm._construct_gateway_tls_secret() is None
+
+
+def generate_certificates_relation(
+    subject="example.com", *, intermediate_count=0, chain_order=None
+):
     requirer_private_key = generate_private_key()
 
     csr = generate_csr(
@@ -395,17 +448,55 @@ def generate_certificates_relation(subject="example.com"):
         private_key=provider_private_key,
         subject=subject,
     )
+    issuer_key = provider_private_key
+    issuer_certificate = provider_ca_certificate
+    ca_chain = [provider_ca_certificate.decode()]
+    for _ in range(intermediate_count):
+        intermediate_key = generate_private_key()
+        # The helper takes the issuer name from ca.issuer, so CAs share a subject, not keys.
+        intermediate_csr = (
+            x509.CertificateSigningRequestBuilder()
+            .subject_name(x509.load_pem_x509_certificate(provider_ca_certificate).subject)
+            .sign(
+                serialization.load_pem_private_key(intermediate_key, password=None),
+                hashes.SHA256(),
+            )
+            .public_bytes(serialization.Encoding.PEM)
+        )
+        issuer_certificate = generate_certificate(
+            ca_key=issuer_key,
+            csr=intermediate_csr,
+            ca=issuer_certificate,
+            is_ca=True,
+        )
+        issuer_key = intermediate_key
+        ca_chain.insert(0, issuer_certificate.decode())
     certificate = generate_certificate(
-        ca_key=provider_private_key,
+        ca_key=issuer_key,
         csr=csr,
-        ca=provider_ca_certificate,
+        ca=issuer_certificate,
     )
 
     to_return = {
         "csr_string": csr.decode(),
         "provider_ca_certificate_string": provider_ca_certificate.decode(),
         "certificate_string": certificate.decode(),
+        "private_key": requirer_private_key.decode(),
+        "chain": [certificate.decode(), *ca_chain],
     }
+
+    provider_certificate = {
+        "certificate": to_return["certificate_string"],
+        "certificate_signing_request": to_return["csr_string"],
+        "ca": to_return["provider_ca_certificate_string"],
+    }
+    if chain_order is not None:
+        provider_certificate["chain"] = {
+            "leaf-first": to_return["chain"],
+            "root-first": list(reversed(to_return["chain"])),
+            # With the leaf omitted, CertHandler supports issuer-first provider chains.
+            "leaf-omitted": ca_chain,
+        }[chain_order]
 
     to_return["relation"] = scenario.Relation(
         endpoint="certificates",
@@ -422,15 +513,7 @@ def generate_certificates_relation(subject="example.com"):
             )
         },
         remote_app_data={
-            "certificates": json.dumps(
-                [
-                    {
-                        "certificate": to_return["certificate_string"],
-                        "certificate_signing_request": to_return["csr_string"],
-                        "ca": to_return["provider_ca_certificate_string"],
-                    }
-                ]
-            ),
+            "certificates": json.dumps([provider_certificate]),
         },
     )
     return to_return
