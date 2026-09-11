@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.0](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.2.0...canonical-service-mesh-v0.3.0) (2026-09-11)
+
+
+### Features
+
+* **canonical-service-mesh:** update istio-ingress-config to handle grpc based auth services ([#555](https://github.com/canonical/service-mesh/issues/555)) ([649cf21](https://github.com/canonical/service-mesh/commit/649cf21b8f9f7c8cd3ddb9eda2f39f66c1ae98dd))
+
 ## [0.2.0](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.1.0...canonical-service-mesh-v0.2.0) (2026-08-31)
 
 
