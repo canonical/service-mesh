@@ -128,6 +128,63 @@ def test_auth_and_ingress_incomplete(
 
 
 @pytest.mark.parametrize(
+    ("decisions_address", "expected_protocol"),
+    [
+        ("http://auth-service:8080", "http"),
+        ("https://auth-service:8443", "http"),
+        ("grpc://authorization-service:9091", "grpc"),
+    ],
+)
+def test_publish_external_authorizer_protocol(
+    decisions_address,
+    expected_protocol,
+    istio_ingress_context,
+):
+    """The decisions-address scheme selects the Istio external authorization protocol."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(leader=True),
+    ) as manager:
+        charm: IstioIngressCharm = manager.charm
+        with patch.object(charm.ingress_config, "publish") as publish:
+            charm._publish_to_istio_ingress_config_relation(decisions_address, None)
+
+    assert publish.call_args.kwargs["ext_authz_protocol"] == expected_protocol
+
+
+def test_rejects_unsupported_external_authorizer_protocol(istio_ingress_context):
+    """Unsupported decisions-address schemes are rejected."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(leader=True),
+    ) as manager:
+        with pytest.raises(ValueError, match="Unsupported external authorization protocol"):
+            manager.charm._publish_to_istio_ingress_config_relation(
+                "tcp://auth-service:9000", None
+            )
+
+
+@pytest.mark.parametrize(
+    "decisions_address",
+    [
+        "grpc://auth-service",
+        "grpc://:9091",
+    ],
+)
+def test_rejects_incomplete_external_authorizer_address(
+    decisions_address,
+    istio_ingress_context,
+):
+    """External authorization addresses require both a hostname and port."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(leader=True),
+    ) as manager:
+        with pytest.raises(ValueError, match="hostname and port are required"):
+            manager.charm._publish_to_istio_ingress_config_relation(decisions_address, None)
+
+
+@pytest.mark.parametrize(
     "external_authorizer, unauthenticated_paths",
     [
         # No paths unauthenticated

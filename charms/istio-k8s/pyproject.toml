@@ -7,7 +7,7 @@ version = "0.0"
 requires-python = ">=3.10"
 
 dependencies = [
-    "canonical-service-mesh>=0.0.2",
+    "canonical-service-mesh>=0.3.0",
     "charmlibs-interfaces-certificate_transfer",
     "ops[tracing]~=2.5",
     "pydantic>=2",

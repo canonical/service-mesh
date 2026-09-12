@@ -491,19 +491,25 @@ class IstioCoreCharm(ops.CharmBase):
                     return providers
 
                 ext_authz_info = self.ingress_config.get_provider_ext_authz_info(relation)
-                providers.append(
-                    {
-                        "name": f"ext_authz-{relation.app.name}",
-                        "envoyExtAuthzHttp": {
-                            "service": ext_authz_info.ext_authz_service_name,  # type: ignore
-                            "port": ext_authz_info.ext_authz_port,  # type: ignore
-                            "includeRequestHeadersInCheck": ext_authz_info.include_headers_in_check,  # type: ignore
-                            "headersToUpstreamOnAllow": ext_authz_info.headers_to_upstream_on_allow,  # type: ignore
-                            "headersToDownstreamOnAllow": ext_authz_info.headers_to_downstream_on_allow,  # type: ignore
-                            "headersToDownstreamOnDeny": ext_authz_info.headers_to_downstream_on_deny,  # type: ignore
-                        },
+                if ext_authz_info is None:
+                    continue
+
+                provider: Dict[str, Any] = {"name": f"ext_authz-{relation.app.name}"}
+                if ext_authz_info.ext_authz_protocol == "grpc":
+                    provider["envoyExtAuthzGrpc"] = {
+                        "service": ext_authz_info.ext_authz_service_name,
+                        "port": ext_authz_info.ext_authz_port,
                     }
-                )
+                else:
+                    provider["envoyExtAuthzHttp"] = {
+                        "service": ext_authz_info.ext_authz_service_name,
+                        "port": ext_authz_info.ext_authz_port,
+                        "includeRequestHeadersInCheck": ext_authz_info.include_headers_in_check,
+                        "headersToUpstreamOnAllow": ext_authz_info.headers_to_upstream_on_allow,
+                        "headersToDownstreamOnAllow": ext_authz_info.headers_to_downstream_on_allow,
+                        "headersToDownstreamOnDeny": ext_authz_info.headers_to_downstream_on_deny,
+                    }
+                providers.append(provider)
         return providers
 
     def _build_extension_providers_config(self, providers: List[Dict[str, Any]]) -> Dict[str, Any]:

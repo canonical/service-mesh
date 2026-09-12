@@ -65,3 +65,16 @@ def ingress_config():
         },
         local_app_data={},
     )
+
+
+@pytest.fixture(scope="function")
+def grpc_ingress_config():
+    return Relation(
+        "istio-ingress-config",
+        remote_app_data={
+            "ext_authz_service_name": "authorization-service.iam.svc.cluster.local",
+            "ext_authz_port": "9091",
+            "ext_authz_protocol": "grpc",
+        },
+        local_app_data={},
+    )
