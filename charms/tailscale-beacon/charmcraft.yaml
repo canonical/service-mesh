@@ -1,0 +1,83 @@
+# Copyright 2026 Canonical Ltd.
+# See LICENSE file for licensing details.
+
+name: tailscale-beacon
+type: charm
+title: Tailscale Beacon
+summary: Join a Juju machine and its workloads to a tailnet.
+description: |
+  tailscale-beacon is a subordinate machine charm that installs the Tailscale
+  snap and joins its host to a tailnet coordinated by Tailscale or Headscale.
+  Every service on the machine can then be reached according to the tailnet ACL
+  policy.
+
+  Credentials can be supplied by tailscale-config over a relation or manually
+  as a Juju secret.
+
+links:
+  source: https://github.com/canonical/service-mesh
+  issues: https://github.com/canonical/service-mesh/issues
+
+assumes:
+  - juju >= 3.6
+
+subordinate: true
+
+platforms:
+  ubuntu@24.04:amd64:
+  ubuntu@26.04:amd64:
+
+config:
+  options:
+    credentials:
+      type: secret
+      description: |
+        Juju secret containing an `auth-key` for manual mode. Mutually exclusive
+        with the tailscale-credentials relation.
+    login-server:
+      type: string
+      default: https://controlplane.tailscale.com
+      description: |
+        Control-plane URL used with manually configured credentials. Set this
+        to the Headscale URL for a Headscale-coordinated tailnet.
+    advertise-tags:
+      type: string
+      default: ""
+      description: |
+        Comma-separated tags advertised in manual mode. Relation mode uses the
+        tags supplied by tailscale-config.
+    ephemeral:
+      type: boolean
+      default: true
+      description: |
+        Register devices created from OAuth client secrets as ephemeral. This
+        does not alter the behavior of pre-generated auth keys.
+    snap-channel:
+      type: string
+      default: 1/stable
+      description: |
+        Snap Store channel in `[track/]risk[/branch]` form. The default follows
+        stable Tailscale 1.x releases.
+    remove-snap:
+      type: boolean
+      default: false
+      description: Remove the Tailscale snap when the last beacon leaves a machine.
+
+requires:
+  juju-info:
+    interface: juju-info
+    scope: container
+  tailscale-credentials:
+    interface: tailscale_credentials
+    limit: 1
+    optional: true
+    description: |
+      Receive a scoped auth key, control-plane URL, and tags from
+      tailscale-config.
+
+parts:
+  charm:
+    source: .
+    plugin: uv
+    build-snaps: [astral-uv]
+    build-packages: [git]
