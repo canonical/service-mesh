@@ -1322,8 +1322,18 @@ class IstioIngressCharm(CharmBase):
             return
 
         parsed_url = urlparse(decisions_address)
+        if parsed_url.scheme not in {"http", "https", "grpc"}:
+            raise ValueError(
+                f"Unsupported external authorization protocol: {parsed_url.scheme!r}"
+            )
         service_name = parsed_url.hostname
         port = parsed_url.port
+        if service_name is None or port is None:
+            raise ValueError(
+                f"Invalid external authorization address {decisions_address!r}: "
+                "hostname and port are required"
+            )
+        ext_authz_protocol = "grpc" if parsed_url.scheme == "grpc" else "http"
         # TODO: Below probably needs to be leader guarded
         # we should think about this as part of working on #issues/16
         # The forward-auth lib currently only provides upstream-facing headers (headersToUpstreamOnAllow).
@@ -1331,6 +1341,7 @@ class IstioIngressCharm(CharmBase):
         self.ingress_config.publish(
             ext_authz_service_name=service_name,
             ext_authz_port=str(port),
+            ext_authz_protocol=ext_authz_protocol,
             include_headers_in_check=DEFAULT_INCLUDE_HEADERS_IN_CHECK,
             headers_to_upstream_on_allow=forward_auth_headers or DEFAULT_HEADERS_TO_UPSTREAM_ON_ALLOW,
             headers_to_downstream_on_allow=DEFAULT_HEADERS_TO_DOWNSTREAM_ON_ALLOW,

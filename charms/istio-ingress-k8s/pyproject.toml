@@ -12,7 +12,7 @@ dependencies = [
     "charmlibs-interfaces-istio-ingress-route",
     "charmlibs-interfaces-istio-request-auth",
     "charmlibs-interfaces-service-mesh",
-    "canonical-service-mesh>=0.0.2",
+    "canonical-service-mesh>=0.3.0",
     "cryptography~=42.0.0", # Deps: tls_certificates_interface libs
     "jsonschema>=4.22.0", # Deps: traefik_k8s libs, tls_certificates_interface libs
 ]

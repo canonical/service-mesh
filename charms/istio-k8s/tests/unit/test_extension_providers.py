@@ -100,6 +100,24 @@ def test_external_authorizer_config(istio_core_context, ingress_config):
         assert flattened == expected
 
 
+def test_grpc_external_authorizer_config(istio_core_context, grpc_ingress_config):
+    """Test that a gRPC external authorizer generates an envoyExtAuthzGrpc provider."""
+    state = State(relations=[grpc_ingress_config], leader=True)
+    with istio_core_context(istio_core_context.on.update_status(), state) as mgr:
+        charm: IstioCoreCharm = mgr.charm
+
+        external_providers = charm._external_authorizer_providers()
+        flattened = charm._build_extension_providers_config(external_providers)
+
+        assert flattened == {
+            "meshConfig.extensionProviders[0].name": "ext_authz-remote",
+            "meshConfig.extensionProviders[0].envoyExtAuthzGrpc.service": (
+                "authorization-service.iam.svc.cluster.local"
+            ),
+            "meshConfig.extensionProviders[0].envoyExtAuthzGrpc.port": "9091",
+        }
+
+
 def test_combined_extension_providers_config(istio_core_context, workload_tracing, ingress_config):
     """Test that the combined configuration includes both tracing and external authorizer providers."""
     state = State(relations=[workload_tracing, ingress_config], leader=True)
