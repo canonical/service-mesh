@@ -127,13 +127,14 @@ Package Contents
 
 
 
-   .. py:method:: publish(ext_authz_service_name: str | None = None, ext_authz_port: str | None = None, include_headers_in_check: list[str] | None = None, headers_to_upstream_on_allow: list[str] | None = None, headers_to_downstream_on_allow: list[str] | None = None, headers_to_downstream_on_deny: list[str] | None = None) -> None
+   .. py:method:: publish(ext_authz_service_name: str | None = None, ext_authz_port: str | None = None, ext_authz_protocol: Literal['http', 'grpc'] = 'http', include_headers_in_check: list[str] | None = None, headers_to_upstream_on_allow: list[str] | None = None, headers_to_downstream_on_allow: list[str] | None = None, headers_to_downstream_on_deny: list[str] | None = None) -> None
 
       Publish external authorizer configuration data to all related applications.
 
       Args:
           ext_authz_service_name: The external authorizer service name.
           ext_authz_port: The port number for the external authorizer service.
+          ext_authz_protocol: The protocol used to communicate with the external authorizer.
           include_headers_in_check: Headers to forward to the external authorizer for checking.
           headers_to_upstream_on_allow: Headers to pass to upstream on successful auth.
           headers_to_downstream_on_allow: Headers to send to client on successful auth.
@@ -254,6 +255,10 @@ Package Contents
 
    .. py:attribute:: ext_authz_port
       :type:  str | None
+
+
+   .. py:attribute:: ext_authz_protocol
+      :type:  Literal['http', 'grpc']
 
 
    .. py:attribute:: ext_authz_service_name

@@ -159,8 +159,7 @@ class TailscaleCredentialsProvider:
 
         Args:
             relation: A specific relation instance.
-            data: The provider app data to publish. ``login_server`` must be
-                non-empty (enforced by :class:`ProviderAppData`).
+            data: The provider app data to publish. ``login_server`` must be non-empty.
         """
         serialized = data.to_databag()
         relation.data[self._app].update(serialized)

@@ -15,6 +15,7 @@ Submodules
 .. toctree::
    :maxdepth: 1
 
+   /reference/canonical_service_mesh/canonical_service_mesh/models/envoy/index
    /reference/canonical_service_mesh/canonical_service_mesh/models/istio/index
 
 
@@ -30,6 +31,8 @@ Classes
    canonical_service_mesh.models.GRPCRouteResource
    canonical_service_mesh.models.GRPCRouteResourceSpec
    canonical_service_mesh.models.GRPCRouteRule
+   canonical_service_mesh.models.GatewayClassSpec
+   canonical_service_mesh.models.GatewaySpec
    canonical_service_mesh.models.GatewayTLSConfig
    canonical_service_mesh.models.HTTPPathMatch
    canonical_service_mesh.models.HTTPRouteMatch
@@ -40,6 +43,7 @@ Classes
    canonical_service_mesh.models.IstioGatewaySpec
    canonical_service_mesh.models.Listener
    canonical_service_mesh.models.Metadata
+   canonical_service_mesh.models.ParametersRef
    canonical_service_mesh.models.ParentRef
    canonical_service_mesh.models.SecretObjectReference
 
@@ -167,6 +171,46 @@ Package Contents
 
    .. py:attribute:: matches
       :type:  Optional[List[GRPCRouteMatch]]
+      :value: None
+
+
+
+.. py:class:: GatewayClassSpec
+
+   Bases: :py:obj:`pydantic.BaseModel`
+
+
+   GatewayClassSpec defines the specification of a GatewayClass resource.
+
+
+   .. py:attribute:: controllerName
+      :type:  str
+
+
+   .. py:attribute:: parametersRef
+      :type:  Optional[ParametersRef]
+      :value: None
+
+
+
+.. py:class:: GatewaySpec
+
+   Bases: :py:obj:`pydantic.BaseModel`
+
+
+   Generic GatewaySpec for any Gateway API implementation.
+
+
+   .. py:attribute:: gatewayClassName
+      :type:  str
+
+
+   .. py:attribute:: listeners
+      :type:  List[Listener]
+
+
+   .. py:attribute:: parametersRef
+      :type:  Optional[ParametersRef]
       :value: None
 
 
@@ -365,6 +409,32 @@ Package Contents
 
    .. py:attribute:: namespace
       :type:  str
+
+
+.. py:class:: ParametersRef
+
+   Bases: :py:obj:`pydantic.BaseModel`
+
+
+   ParametersRef references an implementation-specific resource for GatewayClass config.
+
+
+   .. py:attribute:: group
+      :type:  str
+
+
+   .. py:attribute:: kind
+      :type:  str
+
+
+   .. py:attribute:: name
+      :type:  str
+
+
+   .. py:attribute:: namespace
+      :type:  Optional[str]
+      :value: None
+
 
 
 .. py:class:: ParentRef

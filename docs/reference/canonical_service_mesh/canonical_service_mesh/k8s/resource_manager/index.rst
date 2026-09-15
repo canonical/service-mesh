@@ -22,6 +22,7 @@ Classes
 
 .. autoapisummary::
 
+   canonical_service_mesh.k8s.resource_manager.CustomResourceDefinitionManager
    canonical_service_mesh.k8s.resource_manager.FakeApiError
    canonical_service_mesh.k8s.resource_manager.KubernetesResourceManager
    canonical_service_mesh.k8s.resource_manager.PolicyResourceManager
@@ -49,6 +50,57 @@ Package Contents
    Raised when a Kubernetes API call fails due to a transport-level error.
 
    Initialize self.  See help(type(self)) for accurate signature.
+
+
+.. py:class:: CustomResourceDefinitionManager(charm: ops.CharmBase, lightkube_client: lightkube.Client, scope: str, logger: Optional[logging.Logger] = None)
+
+   Manage a manifest of CustomResourceDefinitions and report when they are Established.
+
+   Composes a KubernetesResourceManager scoped to CustomResourceDefinition. Charms apply their
+   own CRD manifests through reconcile() and gate controller startup on established(); a charm
+   that does not need the readiness gate can simply skip the established() call.
+
+   Args:
+       charm: The charm instantiating this manager.
+       lightkube_client: Lightkube Client for all k8s operations.
+       scope: Label scope distinguishing this CRD set from others managed by the same charm.
+       logger: Logger for log output.
+
+
+   .. py:method:: delete(ignore_missing: bool = True) -> None
+
+      Delete all CustomResourceDefinitions managed by this manager.
+
+      Args:
+          ignore_missing: Avoid raising 404 errors on deletion.
+
+
+
+   .. py:method:: established(resources: canonical_service_mesh.k8s.types.LightkubeResourcesList) -> bool
+
+      Return True when every given CustomResourceDefinition reports Established.
+
+      A CRD is Established once the API server has accepted it and begun serving its resources;
+      creating custom resources before then races the API server and fails. A CRD that is
+      missing or briefly unqueryable (the API server returns 404/429 while freshly applied
+      CRDs initialise their storage) counts as not-yet-Established rather than an error, so a
+      caller can defer cleanly instead of flipping to error state.
+
+      Args:
+          resources: The CustomResourceDefinition resources to check.
+
+
+
+   .. py:method:: reconcile(resources: canonical_service_mesh.k8s.types.LightkubeResourcesList) -> None
+
+      Reconcile the given CustomResourceDefinitions.
+
+      Args:
+          resources: The CustomResourceDefinition resources to apply.
+
+
+
+   .. py:attribute:: log
 
 
 .. py:class:: FakeApiError(code=400)
