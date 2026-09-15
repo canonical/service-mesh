@@ -646,6 +646,20 @@ class IstioIngressCharm(CharmBase):
 
             listeners.append(listener)
 
+        # Security guard: if a hostname was explicitly requested (via external_hostname or a
+        # non-empty listener-hostname) but could not be resolved to a valid hostname, do NOT
+        # fall back to open (hostname-less) listeners that accept all hostnames. Emit no
+        # listeners instead, which (via PatchType.MERGE reconciliation) removes all listeners
+        # from the Gateway and blocks all traffic until the config is corrected.
+        # Note: listener-hostname == "" is the intentional "accept all" case and always wins,
+        # even if external_hostname is set but invalid.
+        accept_all_requested = self.model.config.get("listener-hostname") == ""
+        hostname_requested = bool(self.model.config.get("external_hostname")) or bool(
+            self.model.config.get("listener-hostname")
+        )
+        if hostname_requested and hostname is None and not accept_all_requested:
+            listeners = []
+
         gateway = IstioGatewayResource(
             metadata=Metadata(
                 name=self.app.name,

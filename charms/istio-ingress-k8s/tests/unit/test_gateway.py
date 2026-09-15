@@ -173,6 +173,89 @@ def test_valid_listener_hostname_does_not_block(istio_ingress_charm, istio_ingre
             event.add_status.assert_not_called()
 
 
+@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
+def test_invalid_external_hostname_emits_no_listeners(
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
+):
+    """An invalid external_hostname must not fall back to open (hostname-less) listeners."""
+    # LB address must not rescue us: a hostname was requested via external_hostname.
+    mock_get_lb_external_address.return_value = None
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(config={"external_hostname": "not a valid host"}),
+    ) as manager:
+        charm = manager.charm
+        gateway = charm._construct_gateway(create_test_listeners())
+        assert gateway.spec["listeners"] == []
+
+
+@patch(
+    "charm.IstioIngressCharm._get_lb_external_address",
+    new_callable=PropertyMock,
+    return_value=None,
+)
+def test_invalid_listener_hostname_no_lb_emits_no_listeners(
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
+):
+    """An invalid listener-hostname with no LB address must not fall back to open listeners."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(config={"listener-hostname": "not a valid host"}),
+    ) as manager:
+        charm = manager.charm
+        gateway = charm._construct_gateway(create_test_listeners())
+        assert gateway.spec["listeners"] == []
+
+
+def test_empty_listener_hostname_still_accepts_all(
+    istio_ingress_charm, istio_ingress_context
+):
+    """listener-hostname == "" is the intentional accept-all case; listeners must remain."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(config={"listener-hostname": ""}),
+    ) as manager:
+        charm = manager.charm
+        gateway = charm._construct_gateway(create_test_listeners())
+        assert gateway.spec["listeners"] != []
+        assert gateway.spec["listeners"][0].get("hostname", None) is None
+
+
+@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
+def test_empty_listener_hostname_wins_over_invalid_external_hostname(
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
+):
+    """listener-hostname == "" must keep accept-all even if external_hostname is invalid."""
+    mock_get_lb_external_address.return_value = None
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(
+            config={"external_hostname": "not a valid host", "listener-hostname": ""}
+        ),
+    ) as manager:
+        charm = manager.charm
+        gateway = charm._construct_gateway(create_test_listeners())
+        assert gateway.spec["listeners"] != []
+        assert gateway.spec["listeners"][0].get("hostname", None) is None
+
+
+@patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
+def test_requested_and_valid_hostname_builds_listeners(
+    mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
+):
+    """A valid requested hostname must still build listeners (guard must not fire)."""
+    mock_get_lb_external_address.return_value = "lb.example.com"
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(config={"listener-hostname": "custom.example.com"}),
+    ) as manager:
+        charm = manager.charm
+        gateway = charm._construct_gateway(create_test_listeners())
+        _validate_gateway_listener(
+            gateway, "http-80", "custom.example.com", tls_secret_name=None
+        )
+
+
 def test_sync_gateway_resources_without_tls(istio_ingress_charm, istio_ingress_context):
     """Test that when we have no TLS relation, the Gateway has only an http listener."""
     mock_krm = MagicMock()
