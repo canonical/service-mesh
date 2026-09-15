@@ -595,13 +595,13 @@ class IstioIngressCharm(CharmBase):
 
     def _construct_gateway_tls_secret(self):
         """Return the TLS secret resource for the gateway if TLS is configured, otherwise None."""
-        if not self._cert_handler.available:
+        if isinstance(self._cert_handler, DisabledCertHandler) or not self._cert_handler.available:
             return None
 
         return Secret(
             metadata=ObjectMeta(name=self._certificate_secret_name),
             stringData={
-                "tls.crt": self._cert_handler.server_cert,
+                "tls.crt": self._cert_handler.chain,
                 "tls.key": self._cert_handler.private_key,
             },
         )
