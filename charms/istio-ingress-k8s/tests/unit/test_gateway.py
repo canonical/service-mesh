@@ -17,7 +17,7 @@ from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Secret
 from ops import ActiveStatus, BlockedStatus
 
-from charm import IstioIngressCharm
+from charm import BLOCKED_LISTENER_HOSTNAME, IstioIngressCharm
 from utils import GatewayListener
 
 
@@ -174,10 +174,14 @@ def test_valid_listener_hostname_does_not_block(istio_ingress_charm, istio_ingre
 
 
 @patch("charm.IstioIngressCharm._get_lb_external_address", new_callable=PropertyMock)
-def test_invalid_external_hostname_emits_no_listeners(
+def test_invalid_external_hostname_uses_unroutable_hostname(
     mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
 ):
-    """An invalid external_hostname must not fall back to open (hostname-less) listeners."""
+    """An invalid external_hostname must not fall back to open (hostname-less) listeners.
+
+    Instead, listeners are pinned to a reserved, unroutable RFC 2606 ".invalid" hostname
+    so the Gateway stays structurally valid but matches no real traffic.
+    """
     # LB address must not rescue us: a hostname was requested via external_hostname.
     mock_get_lb_external_address.return_value = None
     with istio_ingress_context(
@@ -186,7 +190,10 @@ def test_invalid_external_hostname_emits_no_listeners(
     ) as manager:
         charm = manager.charm
         gateway = charm._construct_gateway(create_test_listeners())
-        assert gateway.spec["listeners"] == []
+        assert gateway.spec["listeners"] != []
+        assert (
+            gateway.spec["listeners"][0]["hostname"] == BLOCKED_LISTENER_HOSTNAME
+        )
 
 
 @patch(
@@ -194,17 +201,23 @@ def test_invalid_external_hostname_emits_no_listeners(
     new_callable=PropertyMock,
     return_value=None,
 )
-def test_invalid_listener_hostname_no_lb_emits_no_listeners(
+def test_invalid_listener_hostname_no_lb_uses_unroutable_hostname(
     mock_get_lb_external_address, istio_ingress_charm, istio_ingress_context
 ):
-    """An invalid listener-hostname with no LB address must not fall back to open listeners."""
+    """An invalid listener-hostname with no LB address must not fall back to open listeners.
+
+    Instead, listeners are pinned to a reserved, unroutable RFC 2606 ".invalid" hostname.
+    """
     with istio_ingress_context(
         istio_ingress_context.on.update_status(),
         state=scenario.State(config={"listener-hostname": "not a valid host"}),
     ) as manager:
         charm = manager.charm
         gateway = charm._construct_gateway(create_test_listeners())
-        assert gateway.spec["listeners"] == []
+        assert gateway.spec["listeners"] != []
+        assert (
+            gateway.spec["listeners"][0]["hostname"] == BLOCKED_LISTENER_HOSTNAME
+        )
 
 
 def test_empty_listener_hostname_still_accepts_all(
