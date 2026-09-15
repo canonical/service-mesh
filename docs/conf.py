@@ -248,6 +248,7 @@ extensions = [
     "sphinx.ext.intersphinx",
     "sphinx_sitemap",
     "sphinxcontrib.mermaid",
+    "sphinx.ext.napoleon",
     "autoapi.extension",
 ]
 
