@@ -149,18 +149,16 @@ Package Contents
 
    Initialize the ExtensionServerProvider.
 
-   Args:
-       charm: The charm that owns this provider.
-       relation_name: Name of the relation (default: "envoy-extension-server").
+   :param charm: The charm that owns this provider.
+   :param relation_name: Name of the relation (default: "envoy-extension-server").
 
 
    .. py:method:: get_controller_identity() -> ControllerIdentityData | None
 
       Read the Envoy Gateway control plane's identity from the requirer.
 
-      Returns:
-          The requirer's ControllerIdentityData if a single relation has
-          published valid data, else None.
+      :returns: The requirer's ControllerIdentityData if a single relation has
+                published valid data, else None.
 
 
 
@@ -168,9 +166,8 @@ Package Contents
 
       Publish the extension-server address to all related applications.
 
-      Args:
-          extension_server_fqdn: Cluster-internal FQDN of the extension-server gRPC service.
-          extension_server_port: Port of the extension-server gRPC service.
+      :param extension_server_fqdn: Cluster-internal FQDN of the extension-server gRPC service.
+      :param extension_server_port: Port of the extension-server gRPC service.
 
 
 
@@ -187,9 +184,8 @@ Package Contents
 
    Initialize the ExtensionServerRequirer.
 
-   Args:
-       charm: The charm that owns this requirer.
-       relation_name: Name of the relation (default: "envoy-extension-server").
+   :param charm: The charm that owns this requirer.
+   :param relation_name: Name of the relation (default: "envoy-extension-server").
 
 
    .. py:method:: get_extension_server_data() -> ExtensionServerData | None
@@ -199,8 +195,7 @@ Package Contents
       Only data with both ``extension_server_fqdn`` and
       ``extension_server_port`` present is treated as ready.
 
-      Returns:
-          The provider's ExtensionServerData if available and complete, else None.
+      :returns: The provider's ExtensionServerData if available and complete, else None.
 
 
 
@@ -208,9 +203,8 @@ Package Contents
 
       Publish this control plane's identity to all related applications.
 
-      Args:
-          controller_name: The EG controllerName / GatewayClass the extension targets.
-          namespace: The namespace the EG control plane runs in.
+      :param controller_name: The EG controllerName / GatewayClass the extension targets.
+      :param namespace: The namespace the EG control plane runs in.
 
 
 
@@ -220,10 +214,8 @@ Package Contents
 
       Whether the provider has published a usable extension-server address.
 
-      Returns:
-          True if the related provider has published both
-          extension_server_fqdn and extension_server_port.
-
+      :returns: True if the related provider has published both
+                extension_server_fqdn and extension_server_port.
 
 
 .. py:data:: DEFAULT_EXTENSION_SERVER_PORT

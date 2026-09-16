@@ -42,12 +42,11 @@ Package Contents
    Manages labels on the charm's Pods (via StatefulSet) and Service. Uses a ConfigMap
    to track previously set labels so removed labels can be cleaned up.
 
-   Args:
-       client: The lightkube Client to use for Kubernetes API calls.
-       app_name: The name of the application to reconcile labels for.
-       namespace: The namespace in which the application is running.
-       label_configmap_name: The name of the ConfigMap that stores the labels.
-       labels: Labels to set. Previously set labels omitted here will be removed.
+   :param client: The lightkube Client to use for Kubernetes API calls.
+   :param app_name: The name of the application to reconcile labels for.
+   :param namespace: The namespace in which the application is running.
+   :param label_configmap_name: The name of the ConfigMap that stores the labels.
+   :param labels: Labels to set. Previously set labels omitted here will be removed.
 
 
 .. py:data:: POLICY_RESOURCE_TYPES

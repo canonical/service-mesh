@@ -42,19 +42,16 @@ Package Contents
 
    See https://kubernetes.io/docs/concepts/overview/working-with-objects/labels/#syntax-and-character-set
 
-   Args:
-       model_name: The name of the model (must be at least 1 character).
-       app_name: The name of the application (must be at least 1 character).
-       prefix: An optional prefix to prepend.
-       suffix: An optional suffix to append.
-       max_length: The maximum length of the label string.
-       separator: The separator between model_name and app_name.
+   :param model_name: The name of the model (must be at least 1 character).
+   :param app_name: The name of the application (must be at least 1 character).
+   :param prefix: An optional prefix to prepend.
+   :param suffix: An optional suffix to append.
+   :param max_length: The maximum length of the label string.
+   :param separator: The separator between model_name and app_name.
 
-   Returns:
-       The generated label string, at most ``max_length`` characters long.
+   :returns: The generated label string, at most ``max_length`` characters long.
 
-   Raises:
-       ValueError: If model_name or app_name is empty, or if the fixed portion is too long.
+   :raises ValueError: If model_name or app_name is empty, or if the fixed portion is too long.
 
 
 .. py:function:: generate_telemetry_labels(app_name: str, model_name: str) -> dict[str, str]
@@ -64,12 +61,10 @@ Package Contents
    The label key includes model_name and app_name, truncated to fit within
    Kubernetes' 63-character limit while maintaining uniqueness via a hash.
 
-   Args:
-       app_name: The application name.
-       model_name: The model (namespace) name.
+   :param app_name: The application name.
+   :param model_name: The model (namespace) name.
 
-   Returns:
-       A dictionary with a single telemetry label.
+   :returns: A dictionary with a single telemetry label.
 
 
 .. py:function:: get_peer_identity_for_juju_application(app_name: str, namespace: str) -> str
@@ -79,12 +74,10 @@ Package Contents
    Format is defined by ``principals`` in the Istio AuthorizationPolicy Source reference.
    Relies on the Juju convention that each application gets a ServiceAccount of the same name.
 
-   Args:
-       app_name: The name of the Juju application.
-       namespace: The Kubernetes namespace of the application.
+   :param app_name: The name of the Juju application.
+   :param namespace: The Kubernetes namespace of the application.
 
-   Returns:
-       The SPIFFE identity string for the application.
+   :returns: The SPIFFE identity string for the application.
 
 
 .. py:function:: get_peer_identity_for_service_account(service_account: str, namespace: str) -> str
@@ -93,11 +86,9 @@ Package Contents
 
    Format: ``cluster.local/ns/{namespace}/sa/{service_account}``
 
-   Args:
-       service_account: The Kubernetes ServiceAccount name.
-       namespace: The Kubernetes namespace.
+   :param service_account: The Kubernetes ServiceAccount name.
+   :param namespace: The Kubernetes namespace.
 
-   Returns:
-       The SPIFFE identity string for the service account.
+   :returns: The SPIFFE identity string for the service account.
 
 

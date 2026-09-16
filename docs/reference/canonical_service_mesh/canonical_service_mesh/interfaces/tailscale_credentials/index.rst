@@ -118,8 +118,7 @@ Package Contents
 
       Check whether this data represents a usable credential.
 
-      Returns:
-          True if both ``secret_id`` and ``login_server`` are set.
+      :returns: True if both ``secret_id`` and ``login_server`` are set.
 
 
 
@@ -127,9 +126,8 @@ Package Contents
 
       Serialize to a flat ``dict[str, str]`` for the relation databag.
 
-      Returns:
-          A flat ``dict[str, str]`` with wire-encoded values, ready to write
-          to the provider app databag.
+      :returns: A flat ``dict[str, str]`` with wire-encoded values, ready to write
+                to the provider app databag.
 
 
 
@@ -157,8 +155,7 @@ Package Contents
 
       Serialize to a flat ``dict[str, str]`` for a Juju secret's content.
 
-      Returns:
-          A flat ``dict[str, str]`` suitable for the charm's ``add_secret``.
+      :returns: A flat ``dict[str, str]`` suitable for the charm's ``add_secret``.
 
 
 
@@ -184,19 +181,17 @@ Package Contents
 
    Initialize the TailscaleCredentialsProvider.
 
-   Args:
-       relation_mapping: The charm's RelationMapping (typically self.model.relations).
-       app: This application (the tailscale-config charm).
-       relation_name: The name of the relation.
+   :param relation_mapping: The charm's RelationMapping (typically self.model.relations).
+   :param app: This application (the tailscale-config charm).
+   :param relation_name: The name of the relation.
 
 
    .. py:method:: publish(relation: ops.Relation, data: ProviderAppData) -> None
 
       Publish the provider app data to a specific relation.
 
-      Args:
-          relation: A specific relation instance.
-          data: The provider app data to publish. ``login_server`` must be non-empty.
+      :param relation: A specific relation instance.
+      :param data: The provider app data to publish. ``login_server`` must be non-empty.
 
 
 
@@ -205,7 +200,6 @@ Package Contents
 
 
       Return the relation instances for the monitored relation.
-
 
 
 .. py:class:: TailscaleCredentialsRequirer(relation_mapping: ops.RelationMapping, app: ops.Application, relation_name: str = DEFAULT_RELATION_NAME)
@@ -220,22 +214,19 @@ Package Contents
 
    Initialize the TailscaleCredentialsRequirer.
 
-   Args:
-       relation_mapping: The charm's RelationMapping (typically self.model.relations).
-       app: This application.
-       relation_name: The name of the relation.
+   :param relation_mapping: The charm's RelationMapping (typically self.model.relations).
+   :param app: This application.
+   :param relation_name: The name of the relation.
 
 
    .. py:method:: get_provider_data(relation: ops.Relation) -> ProviderAppData | None
 
       Read and validate the provider's non-secret app data for the relation.
 
-      Args:
-          relation: A specific relation instance.
+      :param relation: A specific relation instance.
 
-      Returns:
-          A :class:`ProviderAppData` (secret URI + login-server + tags) if
-          available and valid, else ``None``.
+      :returns: A :class:`ProviderAppData` (secret URI + login-server + tags) if
+                available and valid, else ``None``.
 
 
 
@@ -243,12 +234,10 @@ Package Contents
 
       Check whether the provider has published a usable credential.
 
-      Args:
-          relation: A specific relation instance.
+      :param relation: A specific relation instance.
 
-      Returns:
-          True if provider data is present with both ``secret_id`` and
-          ``login_server`` set.
+      :returns: True if provider data is present with both ``secret_id`` and
+                ``login_server`` set.
 
 
 
@@ -257,7 +246,6 @@ Package Contents
 
 
       Return the relation instances for the monitored relation.
-
 
 
 .. py:data:: DEFAULT_RELATION_NAME
