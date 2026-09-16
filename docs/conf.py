@@ -246,11 +246,21 @@ extensions = [
     "sphinxcontrib.cairosvgconverter",
     "sphinx_last_updated_by_git",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
     "sphinx_sitemap",
     "sphinxcontrib.mermaid",
     "sphinx.ext.napoleon",
     "autoapi.extension",
 ]
+
+# The canonical_service_mesh docstrings are Google-style ("Args:", "Returns:",
+# "Raises:"). Without napoleon these are emitted into the generated API
+# reference as raw text, which renders them as blockquotes and makes any
+# wrapped argument description an "Unexpected indentation" error.
+# sphinx-autoapi emits the 'autodoc-process-docstring' event that napoleon
+# hooks into, so enabling it converts them into real field lists.
+napoleon_google_docstring = True
+napoleon_numpy_docstring = False
 
 # sphinx-autoapi configuration for canonical_service_mesh API reference
 autoapi_dirs = ["../canonical_service_mesh/src/canonical_service_mesh"]

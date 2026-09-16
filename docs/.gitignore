@@ -17,6 +17,10 @@
 # Build outputs
 _build
 
+# sphinx-autoapi output, regenerated from canonical_service_mesh on every build
+# (see autoapi_root / autoapi_keep_files in conf.py). Never read as input.
+istio/reference/canonical_service_mesh/
+
 # Node.js
 package*.json
 
