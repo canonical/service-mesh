@@ -15,6 +15,8 @@ Submodules
 .. toctree::
    :maxdepth: 1
 
+   /reference/canonical_service_mesh/canonical_service_mesh/interfaces/envoy_extension_server/index
    /reference/canonical_service_mesh/canonical_service_mesh/interfaces/istio_ingress_config/index
+   /reference/canonical_service_mesh/canonical_service_mesh/interfaces/tailscale_credentials/index
 
 

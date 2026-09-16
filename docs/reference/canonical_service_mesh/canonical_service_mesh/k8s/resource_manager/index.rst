@@ -22,6 +22,7 @@ Classes
 
 .. autoapisummary::
 
+   canonical_service_mesh.k8s.resource_manager.CustomResourceDefinitionManager
    canonical_service_mesh.k8s.resource_manager.FakeApiError
    canonical_service_mesh.k8s.resource_manager.KubernetesResourceManager
    canonical_service_mesh.k8s.resource_manager.PolicyResourceManager
@@ -51,6 +52,53 @@ Package Contents
    Initialize self.  See help(type(self)) for accurate signature.
 
 
+.. py:class:: CustomResourceDefinitionManager(charm: ops.CharmBase, lightkube_client: lightkube.Client, scope: str, logger: Optional[logging.Logger] = None)
+
+   Manage a manifest of CustomResourceDefinitions and report when they are Established.
+
+   Composes a KubernetesResourceManager scoped to CustomResourceDefinition. Charms apply their
+   own CRD manifests through reconcile() and gate controller startup on established(); a charm
+   that does not need the readiness gate can simply skip the established() call.
+
+   :param charm: The charm instantiating this manager.
+   :param lightkube_client: Lightkube Client for all k8s operations.
+   :param scope: Label scope distinguishing this CRD set from others managed by the same charm.
+   :param logger: Logger for log output.
+
+
+   .. py:method:: delete(ignore_missing: bool = True) -> None
+
+      Delete all CustomResourceDefinitions managed by this manager.
+
+      :param ignore_missing: Avoid raising 404 errors on deletion.
+
+
+
+   .. py:method:: established(resources: canonical_service_mesh.k8s.types.LightkubeResourcesList) -> bool
+
+      Return True when every given CustomResourceDefinition reports Established.
+
+      A CRD is Established once the API server has accepted it and begun serving its resources;
+      creating custom resources before then races the API server and fails. A CRD that is
+      missing or briefly unqueryable (the API server returns 404/429 while freshly applied
+      CRDs initialise their storage) counts as not-yet-Established rather than an error, so a
+      caller can defer cleanly instead of flipping to error state.
+
+      :param resources: The CustomResourceDefinition resources to check.
+
+
+
+   .. py:method:: reconcile(resources: canonical_service_mesh.k8s.types.LightkubeResourcesList) -> None
+
+      Reconcile the given CustomResourceDefinitions.
+
+      :param resources: The CustomResourceDefinition resources to apply.
+
+
+
+   .. py:attribute:: log
+
+
 .. py:class:: FakeApiError(code=400)
 
    Bases: :py:obj:`lightkube.core.exceptions.ApiError`
@@ -65,20 +113,18 @@ Package Contents
 
    Initialise a KubernetesResourceManager.
 
-   Args:
-       labels: Label selector for all resources managed by this KRM.
-       resource_types: Set of Lightkube Resource classes managed by this KRM.
-       lightkube_client: Lightkube Client for all k8s operations.
-       logger: Logger for log output.
+   :param labels: Label selector for all resources managed by this KRM.
+   :param resource_types: Set of Lightkube Resource classes managed by this KRM.
+   :param lightkube_client: Lightkube Client for all k8s operations.
+   :param logger: Logger for log output.
 
 
    .. py:method:: apply(resources: canonical_service_mesh.k8s.types.LightkubeResourcesList, force: bool = True)
 
       Apply the provided Kubernetes resources using server-side apply.
 
-      Args:
-          resources: A list of Lightkube Resource objects to apply.
-          force: Force apply requests.
+      :param resources: A list of Lightkube Resource objects to apply.
+      :param force: Force apply requests.
 
 
 
@@ -86,8 +132,7 @@ Package Contents
 
       Delete all resources managed by this KubernetesResourceManager.
 
-      Args:
-          ignore_missing: Avoid raising 404 errors on deletion.
+      :param ignore_missing: Avoid raising 404 errors on deletion.
 
 
 
@@ -95,8 +140,7 @@ Package Contents
 
       Return a list of all deployed resources matching the label selector.
 
-      Returns:
-          A list of Lightkube Resource objects.
+      :returns: A list of Lightkube Resource objects.
 
 
 
@@ -104,10 +148,9 @@ Package Contents
 
       Patch the provided Kubernetes resources.
 
-      Args:
-          resources: A list of Lightkube Resource objects to patch.
-          force: Force patch requests.
-          patch_type: Type of patch to use.
+      :param resources: A list of Lightkube Resource objects to patch.
+      :param force: Force patch requests.
+      :param patch_type: Type of patch to use.
 
 
 
@@ -115,11 +158,10 @@ Package Contents
 
       Reconcile the given resources, removing, updating, or creating objects as required.
 
-      Args:
-          resources: A list of Lightkube Resource objects to apply.
-          force: Force patch over managed resources.
-          ignore_missing: Avoid raising 404 errors on deletion.
-          patch_type: Type of patch to use.
+      :param resources: A list of Lightkube Resource objects to apply.
+      :param force: Force patch over managed resources.
+      :param ignore_missing: Avoid raising 404 errors on deletion.
+      :param patch_type: Type of patch to use.
 
 
 
@@ -140,19 +182,17 @@ Package Contents
    using Canonical Service Mesh in a non-managed model, managing custom policies, or managing
    authorization policies between charms not related to the service mesh beacon.
 
-   Args:
-       charm: The charm instantiating this object.
-       lightkube_client: Lightkube Client for all k8s operations.
-       labels: Label selector for managed resources.
-       logger: Logger for log output.
+   :param charm: The charm instantiating this object.
+   :param lightkube_client: Lightkube Client for all k8s operations.
+   :param labels: Label selector for managed resources.
+   :param logger: Logger for log output.
 
 
    .. py:method:: delete(ignore_missing=True)
 
       Delete all the policy resources handled by this manager.
 
-      Args:
-          ignore_missing: Avoid raising 404 errors on deletion.
+      :param ignore_missing: Avoid raising 404 errors on deletion.
 
 
 
@@ -160,15 +200,13 @@ Package Contents
 
       Reconcile the given policies, removing, updating, or creating objects as required.
 
-      Args:
-          policies: A list of MeshPolicy objects defining the required policy behaviour.
-          mesh_type: The type of service mesh.
-          raw_policies: Pre-built policy resources to merge with the built policies.
-          force: Force apply over managed resources.
-          ignore_missing: Avoid raising 404 errors on deletion.
+      :param policies: A list of MeshPolicy objects defining the required policy behaviour.
+      :param mesh_type: The type of service mesh.
+      :param raw_policies: Pre-built policy resources to merge with the built policies.
+      :param force: Force apply over managed resources.
+      :param ignore_missing: Avoid raising 404 errors on deletion.
 
-      Raises:
-          TypeError: If raw_policies contains resources of unsupported types.
+      :raises TypeError: If raw_policies contains resources of unsupported types.
 
 
 
@@ -178,15 +216,13 @@ Package Contents
 
    Resources are sorted before applying to avoid referencing objects before they are created.
 
-   Args:
-       client: Lightkube client to use for applying resources.
-       objs: Iterable of objects to create.
-       field_manager: Name associated with the actor making these changes.
-       force: Force apply requests, re-acquiring conflicting fields.
-       logger: Logger to use for applying resources.
+   :param client: Lightkube client to use for applying resources.
+   :param objs: Iterable of objects to create.
+   :param field_manager: Name associated with the actor making these changes.
+   :param force: Force apply requests, re-acquiring conflicting fields.
+   :param logger: Logger to use for applying resources.
 
-   Returns:
-       A list of Resource objects returned from client.apply().
+   :returns: A list of Resource objects returned from client.apply().
 
 
 .. py:function:: create_charm_default_labels(application_name: str, model_name: str, scope: str) -> Dict[str, str]
@@ -200,11 +236,10 @@ Package Contents
 
    Resources are deleted in reverse order to avoid deleting objects that are being used.
 
-   Args:
-       client: Lightkube Client to use for deletions.
-       objs: Iterable of objects to delete.
-       ignore_missing: Avoid raising 404 errors on deletion.
-       logger: Logger to use for deleting resources.
+   :param client: Lightkube Client to use for deletions.
+   :param objs: Iterable of objects to delete.
+   :param ignore_missing: Avoid raising 404 errors on deletion.
+   :param logger: Logger to use for deleting resources.
 
 
 .. py:function:: patch_many(client: lightkube.Client, objs: Iterable[Union[GlobalResourceTypeVar, NamespacedResourceTypeVar]], patch_type: lightkube.types.PatchType = PatchType.APPLY, field_manager: str = None, force: bool = False, logger: logging.Logger = None) -> Iterable[Union[GlobalResourceTypeVar, NamespacedResourceTypeVar]]
@@ -213,15 +248,13 @@ Package Contents
 
    Similar to apply_many() but uses client.patch() with configurable patch_type.
 
-   Args:
-       client: Lightkube client to use for patching resources.
-       objs: Iterable of objects to create.
-       patch_type: Type of patch to use. Defaults to PatchType.APPLY.
-       field_manager: Name associated with the actor making these changes.
-       force: Force patch requests, re-acquiring conflicting fields.
-       logger: Logger to use for patching resources.
+   :param client: Lightkube client to use for patching resources.
+   :param objs: Iterable of objects to create.
+   :param patch_type: Type of patch to use. Defaults to PatchType.APPLY.
+   :param field_manager: Name associated with the actor making these changes.
+   :param force: Force patch requests, re-acquiring conflicting fields.
+   :param logger: Logger to use for patching resources.
 
-   Returns:
-       A list of Resource objects returned from client.patch().
+   :returns: A list of Resource objects returned from client.patch().
 
 

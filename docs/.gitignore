@@ -1,5 +1,6 @@
 # Environment
 *env*/
+!envoy*/
 .sphinx/venv/
 
 # Sphinx

@@ -15,6 +15,8 @@ Submodules
 .. toctree::
    :maxdepth: 1
 
+   /reference/canonical_service_mesh/canonical_service_mesh/k8s/types/envoy/index
+   /reference/canonical_service_mesh/canonical_service_mesh/k8s/types/gateway_api/index
    /reference/canonical_service_mesh/canonical_service_mesh/k8s/types/istio/index
 
 
