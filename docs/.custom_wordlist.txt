@@ -19,6 +19,7 @@ freefont
 github
 GPG
 gyre
+hostname
 http
 https
 html
