@@ -1,6 +1,7 @@
 # Environment
-*env*/
-!envoy*/
+# NOTE: Do not use a glob such as '*env*/' here. It matches any directory whose
+# name merely contains "env" -- including doc directories like 'envoy/'. Virtual
+# environments are already ignored repo-wide by the root .gitignore.
 .sphinx/venv/
 
 # Sphinx
