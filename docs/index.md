@@ -13,46 +13,33 @@ For Platform Engineers and DevOps teams, Charmed Service Mesh provides a turn-ke
 :hidden:
 :maxdepth: 2
 
-Tutorial </tutorial/index>
-How-to guides </how-to/index>
-Explanation </explanation/index>
-Reference </reference/index>
+Istio </istio/index>
+Envoy </envoy/index>
+Tailscale </tailscale/index>
 ```
 
 ## In this documentation
 
-````{grid} 1 1 2 2
+````{grid} 1 1 3 3
 
-  ```{grid-item-card} Tutorial
-      :link: /tutorial/index
+  ```{grid-item-card} Istio
+      :link: /istio/index
       :link-type: doc
-  **Get started** - a hands-on introduction the Charmed Service Mesh.
+  **Charmed Istio ambient** - mutual TLS, authorization, and observability for your microservices.
   ```
 
-  ```{grid-item-card} How-to guides
-      :link: /how-to/index
+  ```{grid-item-card} Envoy
+      :link: /envoy/index
       :link-type: doc
-  **Step-by-step guides** - learn key operations and customization.
+  **Charmed Envoy** - documentation under development.
   ```
 
-````
-
-````{grid} 1 1 2 2
-
-
-   ```{grid-item-card} Explanation
-      :link: /explanation/index
+  ```{grid-item-card} Tailscale
+      :link: /tailscale/index
       :link-type: doc
+  **Charmed Tailscale** - documentation under development.
+  ```
 
-   **Discussion and clarification** of key topics and concepts
-   ```
-
-   ```{grid-item-card} Reference
-      :link: /reference/index
-      :link-type: doc
-
-      **Technical information** - specifications, APIs, architecture
-   ```
 ````
 
 

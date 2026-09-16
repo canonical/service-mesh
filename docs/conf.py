@@ -254,7 +254,7 @@ extensions = [
 
 # sphinx-autoapi configuration for canonical_service_mesh API reference
 autoapi_dirs = ["../canonical_service_mesh/src/canonical_service_mesh"]
-autoapi_root = "reference/canonical_service_mesh"
+autoapi_root = "istio/reference/canonical_service_mesh"
 autoapi_type = "python"
 autoapi_options = [
     "members",
