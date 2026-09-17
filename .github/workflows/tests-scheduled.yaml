@@ -13,6 +13,7 @@ on:
         options:
           - all
           - istio
+          - tailscale
       k8s-distribution:
         description: "K8s distribution(s) to test on"
         type: choice
@@ -41,7 +42,7 @@ jobs:
           K8S_DISTRIBUTION_INPUT: ${{ inputs.k8s-distribution || 'all' }}
         run: |
           case "$SOLUTION_INPUT" in
-            all) solutions='["istio"]' ;;
+            all) solutions='["istio","tailscale"]' ;;
             *)   solutions="[\"$SOLUTION_INPUT\"]" ;;
           esac
           case "$K8S_DISTRIBUTION_INPUT" in
@@ -58,4 +59,15 @@ jobs:
     uses: ./.github/workflows/tests-istio.yaml
     with:
       istio-channel: "dev/edge"
+      k8s-distributions: ${{ needs.dispatch-inputs.outputs.k8s-distributions }}
+
+  tailscale:
+    name: Tailscale
+    needs: dispatch-inputs
+    if: >-
+      contains(fromJSON(needs.dispatch-inputs.outputs.solutions), 'tailscale') &&
+      (inputs.solution == 'tailscale' || vars.RUN_TAILSCALE_SOLUTION_TESTS == 'true')
+    uses: ./.github/workflows/tests-tailscale.yaml
+    with:
+      tailscale-channel: "dev/edge"
       k8s-distributions: ${{ needs.dispatch-inputs.outputs.k8s-distributions }}
