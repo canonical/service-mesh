@@ -1,0 +1,117 @@
+name: "Tests: Tailscale Solution"
+
+on:
+  workflow_call:
+    inputs:
+      juju-channel:
+        type: string
+        default: "3.6/stable"
+      microk8s-channel:
+        type: string
+        default: "1.32-strict/stable"
+      canonical-k8s-channel:
+        type: string
+        default: "1.32-classic/stable"
+      tailscale-channel:
+        type: string
+        default: "dev/edge"
+      k8s-distributions:
+        type: string
+        default: '["canonical-k8s"]'
+  workflow_dispatch:
+    inputs:
+      tailscale-channel:
+        description: Charmhub channel for the three Tailscale charms
+        type: string
+        default: "dev/edge"
+      k8s-distributions:
+        description: JSON array of Kubernetes distributions
+        type: string
+        default: '["canonical-k8s"]'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: tailscale-solution-${{ github.repository }}
+  cancel-in-progress: false
+
+jobs:
+  integration-matrix:
+    name: Define solution suites
+    runs-on: ubuntu-latest
+    outputs:
+      suites: ${{ steps.suites.outputs.suites }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Generate matrix
+        id: suites
+        run: |
+          suites="$(find tests/integration/tailscale/tests -name 'test_*.py' -printf '%f\n' | sort | jq -Rsc 'split("\n") | map(select(length > 0))')"
+          echo "suites=$suites" >> "$GITHUB_OUTPUT"
+
+  integration-test:
+    name: ${{ matrix.suite }} (${{ matrix.k8s_distribution }})
+    needs: integration-matrix
+    if: >-
+      github.event_name != 'pull_request_target' &&
+      (github.event_name != 'pull_request' ||
+       github.event.pull_request.head.repo.full_name == github.repository)
+    runs-on: ubuntu-latest
+    environment: tailscale-solution-tests
+    strategy:
+      fail-fast: false
+      max-parallel: 1
+      matrix:
+        suite: ${{ fromJSON(needs.integration-matrix.outputs.suites) }}
+        k8s_distribution: ${{ fromJSON(inputs.k8s-distributions || '["canonical-k8s"]') }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Check test-tailnet credentials
+        env:
+          TAILSCALE_CLIENT_ID: ${{ secrets.TAILSCALE_CLIENT_ID }}
+          TAILSCALE_CLIENT_SECRET: ${{ secrets.TAILSCALE_CLIENT_SECRET }}
+          TAILSCALE_TEST_AUTH_KEY: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
+        run: |
+          if [[ -z "$TAILSCALE_CLIENT_ID" || -z "$TAILSCALE_CLIENT_SECRET" || -z "$TAILSCALE_TEST_AUTH_KEY" ]]; then
+            echo "::error::Configure root OAuth credentials and the ephemeral client auth key in the tailscale-solution-tests environment."
+            exit 1
+          fi
+      - name: Setup env
+        uses: ./.github/actions/setup-env
+        with:
+          k8s-distribution: ${{ matrix.k8s_distribution }}
+          juju-channel: ${{ inputs.juju-channel || '3.6/stable' }}
+          k8s-channel: ${{ matrix.k8s_distribution == 'microk8s' && (inputs.microk8s-channel || '1.32-strict/stable') || (inputs.canonical-k8s-channel || '1.32-classic/stable') }}
+      - name: Install Tailscale client
+        id: tailscale-client
+        run: sudo snap install tailscale
+      - name: Join the test tailnet
+        env:
+          TAILSCALE_TEST_AUTH_KEY: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
+          CLIENT_HOSTNAME: sm-client-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+        run: |
+          sudo tailscale up --auth-key="$TAILSCALE_TEST_AUTH_KEY" \
+            --hostname="$CLIENT_HOSTNAME" \
+            --accept-dns=true --accept-routes=false --timeout=120s
+          tailscale status --json | jq -e '.BackendState == "Running"' >/dev/null
+      - name: Run solution tests
+        working-directory: tests
+        env:
+          TAILSCALE_CHANNEL: ${{ inputs.tailscale-channel || 'dev/edge' }}
+          TAILSCALE_CLIENT_ID: ${{ secrets.TAILSCALE_CLIENT_ID }}
+          TAILSCALE_CLIENT_SECRET: ${{ secrets.TAILSCALE_CLIENT_SECRET }}
+          TAILSCALE_OPERATOR_TAGS: ${{ vars.TAILSCALE_OPERATOR_TAGS }}
+          TAILSCALE_PROXY_TAGS: ${{ vars.TAILSCALE_PROXY_TAGS }}
+          K8S_DISTRIBUTION: ${{ matrix.k8s_distribution }}
+          SUITE: ${{ matrix.suite }}
+        run: uvx tox -e tailscale -- --gherkin-terminal-reporter -k "$SUITE"
+        timeout-minutes: 120
+      - name: Remove the ephemeral test client
+        if: ${{ always() && steps.tailscale-client.outcome == 'success' }}
+        run: sudo tailscale logout
+      - name: Show resource status on failure
+        if: failure()
+        run: |
+          juju models --all || true
+          kubectl get pods,services,statefulsets --all-namespaces || true

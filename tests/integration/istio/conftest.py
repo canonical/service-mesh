@@ -33,9 +33,9 @@ pytest_plugins = [
 
 
 @pytest.fixture(scope="module")
-def istio_system_juju(temp_model_factory):
+def istio_system_juju(juju_factory):
     """Create a temporary Juju model for istio-system deployment."""
-    yield temp_model_factory.get_juju(suffix="istio-system")
+    yield juju_factory.get_juju(suffix="istio-system")
 
 
 @pytest.fixture
@@ -57,9 +57,9 @@ def ingress_info() -> Dict:
 
 
 @pytest.fixture(scope="module")
-def iam_juju(temp_model_factory):
+def iam_juju(juju_factory):
     """Create a temporary Juju model for IAM deployment."""
-    yield temp_model_factory.get_juju(suffix="iam")
+    yield juju_factory.get_juju(suffix="iam")
 
 
 @pytest.fixture(scope="module")

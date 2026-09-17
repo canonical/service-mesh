@@ -108,13 +108,16 @@ def wait_for_active_idle_without_error(jujus: List[jubilant.Juju], timeout: int 
 
 
 # TODO: Implement a retry logic to prevent possible flaky tests.
-def curl_from_host(url: str, method: str = "GET", timeout: int = 30) -> Dict[str, Any]:
+def curl_from_host(
+    url: str, method: str = "GET", timeout: int = 30, *, no_proxy: bool = False
+) -> Dict[str, Any]:
     """Execute a curl command from the test runner host.
 
     Args:
         url: The URL to curl
         method: HTTP method to use (default: "GET")
         timeout: Command timeout in seconds (default: 30)
+        no_proxy: Bypass HTTP proxies to exercise a direct network path.
 
     Returns:
         Dictionary with stdout, stderr, and returncode
@@ -126,8 +129,10 @@ def curl_from_host(url: str, method: str = "GET", timeout: int = 30) -> Dict[str
         "-s",
         "-w",
         "\nHTTP_CODE:%{http_code}",
-        url,
     ]
+    if no_proxy:
+        cmd.extend(["--noproxy", "*"])
+    cmd.append(url)
     result = subprocess.run(cmd, capture_output=True, text=True, timeout=timeout)
     return {"stdout": result.stdout, "stderr": result.stderr, "returncode": result.returncode}
 
