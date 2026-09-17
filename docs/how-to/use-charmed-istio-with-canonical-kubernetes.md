@@ -22,6 +22,8 @@ To set this with Canonical k8s run
 
 ```sh
 sudo k8s kubectl patch configmap -n kube-system cilium-config --type merge --patch '{"data":{"bpf-lb-sock-hostns-only": "true"}}'
+sudo k8s kubectl rollout restart daemonset -n kube-system cilium
+sudo k8s kubectl rollout status daemonset -n kube-system cilium
 ```
 
 ## Configuring charmed Istio
