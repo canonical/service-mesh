@@ -10,7 +10,11 @@ on:
       - 'uv.lock'
       - '.github/workflows/tests-pull-request.yaml'
       - '.github/workflows/tests-istio.yaml'
+      - '.github/workflows/tests-tailscale.yaml'
       - '.github/actions/setup-env/**'
+      - 'charms/tailscale-*/**'
+      - 'charms/bookinfo-*/terraform/**'
+      - 'canonical_service_mesh/src/canonical_service_mesh/interfaces/tailscale_credentials/**'
 
 concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
@@ -22,6 +26,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       istio: ${{ steps.filter.outputs.istio }}
+      tailscale: ${{ steps.filter.outputs.tailscale }}
     steps:
       - uses: actions/checkout@v4
       - uses: dorny/paths-filter@v3
@@ -40,6 +45,18 @@ jobs:
               - 'tests/uv.lock'
               - '.github/actions/setup-env/**'
               - '.github/workflows/tests-istio.yaml'
+              - '.github/workflows/tests-pull-request.yaml'
+            tailscale:
+              - 'tests/integration/tailscale/**'
+              - 'tests/integration/helpers.py'
+              - 'tests/pyproject.toml'
+              - 'tests/tox.ini'
+              - 'tests/uv.lock'
+              - 'charms/tailscale-*/**'
+              - 'charms/bookinfo-*/terraform/**'
+              - 'canonical_service_mesh/src/canonical_service_mesh/interfaces/tailscale_credentials/**'
+              - '.github/actions/setup-env/**'
+              - '.github/workflows/tests-tailscale.yaml'
               - '.github/workflows/tests-pull-request.yaml'
 
   linting:
@@ -73,4 +90,31 @@ jobs:
     uses: ./.github/workflows/tests-istio.yaml
     with:
       istio-channel: "dev/edge"
+      k8s-distributions: '["canonical-k8s"]'
+
+  tailscale-offline:
+    name: Tailscale offline checks
+    needs: changes
+    if: needs.changes.outputs.tailscale == 'true'
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Install tools
+        run: |
+          sudo snap install astral-uv --classic
+          sudo snap install opentofu --classic
+      - name: Check scenarios and Terraform
+        working-directory: tests
+        run: uvx tox -e tailscale-collect,tailscale-terraform
+
+  tailscale:
+    name: Tailscale
+    needs: [linting, static-analysis, tailscale-offline, changes]
+    if: >-
+      needs.changes.outputs.tailscale == 'true' &&
+      vars.RUN_TAILSCALE_SOLUTION_TESTS == 'true' &&
+      github.event.pull_request.head.repo.full_name == github.repository
+    uses: ./.github/workflows/tests-tailscale.yaml
+    with:
+      tailscale-channel: "dev/edge"
       k8s-distributions: '["canonical-k8s"]'
