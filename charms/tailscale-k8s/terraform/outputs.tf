@@ -8,7 +8,7 @@ output "provides" {
 }
 
 output "requires" {
-  # The tailscale-k8s charm does not currently expose any requirer endpoints.
-  # A `tailscale-credentials` requirer relation is planned; see charmcraft.yaml.
-  value = {}
+  value = {
+    tailscale_credentials = "tailscale-credentials"
+  }
 }
