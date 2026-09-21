@@ -175,7 +175,69 @@ templates_path = [
 # NOTE: If undefined, set to None, or empty,
 #       the sphinx_reredirects extension will be disabled.
 
-redirects = {}
+# Pages that used to live at the top level and were moved verbatim underneath
+# 'istio/' when the docs were reorganized into one tree per product.
+# Sources are listed explicitly rather than via a wildcard, because
+# sphinx-reredirects only expands wildcards against documents that still exist.
+_MOVED_UNDER_ISTIO = [
+    "explanation",
+    "explanation/cilium-cni-compatibility",
+    "explanation/cross-model-mesh",
+    "explanation/hardened-mode",
+    "explanation/istio",
+    "explanation/managed-mode",
+    "explanation/service-mesh",
+    "explanation/service-mesh-in-coordinated-worker-charms",
+    "explanation/traffic-authorization",
+    "how-to",
+    "how-to/add-juju-applications-and-models-to-the-service-mesh",
+    "how-to/add-jwt-request-authentication",
+    "how-to/add-mesh-support-to-your-charm",
+    "how-to/add-service-mesh-support-to-coordinated-worker-charms",
+    "how-to/authenticated-ingress-with-the-canonical-identity-platform",
+    "how-to/manage-custom-policies-with-policyresourcemanager",
+    "how-to/monitor-the-istio-mesh-using-kiali",
+    "how-to/use-charmed-istio-with-canonical-kubernetes",
+    "reference",
+    "reference/canonical_service_mesh/canonical_service_mesh",
+    "reference/canonical_service_mesh/canonical_service_mesh/enums",
+    "reference/canonical_service_mesh/canonical_service_mesh/interfaces",
+    "reference/canonical_service_mesh/canonical_service_mesh/interfaces/envoy_extension_server",
+    "reference/canonical_service_mesh/canonical_service_mesh/interfaces/istio_ingress_config",
+    "reference/canonical_service_mesh/canonical_service_mesh/interfaces/tailscale_credentials",
+    "reference/canonical_service_mesh/canonical_service_mesh/k8s",
+    "reference/canonical_service_mesh/canonical_service_mesh/k8s/resource_manager",
+    "reference/canonical_service_mesh/canonical_service_mesh/k8s/types",
+    "reference/canonical_service_mesh/canonical_service_mesh/k8s/types/envoy",
+    "reference/canonical_service_mesh/canonical_service_mesh/k8s/types/gateway_api",
+    "reference/canonical_service_mesh/canonical_service_mesh/k8s/types/istio",
+    "reference/canonical_service_mesh/canonical_service_mesh/models",
+    "reference/canonical_service_mesh/canonical_service_mesh/models/envoy",
+    "reference/canonical_service_mesh/canonical_service_mesh/models/istio",
+    "reference/canonical_service_mesh/canonical_service_mesh/utils",
+    "reference/canonical_service_mesh/canonical_service_mesh/utils/istio",
+    "tutorial",
+    "tutorial/get-started-with-the-charmed-istio-mesh",
+    "tutorial/use-the-istio-mesh-across-different-juju-models",
+]
+
+
+def _up_to_root(source: str) -> str:
+    """Return the '../' prefix needed to reach the site root from 'source'.
+
+    The docs are built with the 'dirhtml' builder, so the redirect stub for
+    document 'a/b' is written to 'a/b/index.html' -- one directory deeper than
+    sphinx-reredirects assumes when it relativizes an absolute target. Targets
+    are therefore given as explicit relative paths computed here.
+    """
+    return "../" * (source.count("/") + 1)
+
+
+redirects = {source: f"{_up_to_root(source)}istio/{source}/" for source in _MOVED_UNDER_ISTIO}
+
+# 'how-to/charmed-istio-ambient' was a grouping page whose children were moved
+# directly into the Istio how-to guides, so it has no one-to-one replacement.
+redirects["how-to/charmed-istio-ambient"] = "../../istio/how-to/"
 
 
 ###########################
@@ -246,15 +308,24 @@ extensions = [
     "sphinxcontrib.cairosvgconverter",
     "sphinx_last_updated_by_git",
     "sphinx.ext.intersphinx",
+    "sphinx.ext.napoleon",
     "sphinx_sitemap",
     "sphinxcontrib.mermaid",
-    "sphinx.ext.napoleon",
     "autoapi.extension",
 ]
 
+# The canonical_service_mesh docstrings are Google-style ("Args:", "Returns:",
+# "Raises:"). Without napoleon these are emitted into the generated API
+# reference as raw text, which renders them as blockquotes and makes any
+# wrapped argument description an "Unexpected indentation" error.
+# sphinx-autoapi emits the 'autodoc-process-docstring' event that napoleon
+# hooks into, so enabling it converts them into real field lists.
+napoleon_google_docstring = True
+napoleon_numpy_docstring = False
+
 # sphinx-autoapi configuration for canonical_service_mesh API reference
 autoapi_dirs = ["../canonical_service_mesh/src/canonical_service_mesh"]
-autoapi_root = "reference/canonical_service_mesh"
+autoapi_root = "istio/reference/canonical_service_mesh"
 autoapi_type = "python"
 autoapi_options = [
     "members",
