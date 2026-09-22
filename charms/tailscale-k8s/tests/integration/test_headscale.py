@@ -701,7 +701,7 @@ metadata:
 spec:
   containers:
   - name: tailscale
-    image: docker.io/tailscale/tailscale:v1.98
+    image: docker.io/tailscale/tailscale:v1.102
     command: ["tailscaled", "--tun=userspace-networking"]
     securityContext:
       capabilities:

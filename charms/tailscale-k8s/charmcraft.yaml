@@ -41,7 +41,7 @@ resources:
   tailscale-operator-image:
     type: oci-image
     description: Tailscale Kubernetes Operator OCI image
-    upstream-source: docker.io/tailscale/k8s-operator:v1.98
+    upstream-source: docker.io/tailscale/k8s-operator:v1.102
 
 config:
   options:
