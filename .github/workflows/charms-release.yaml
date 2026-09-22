@@ -17,6 +17,7 @@ on:
           - istio-ingress-k8s
           - istio-k8s
           - kiali-k8s
+          - tailscale-beacon
           - tailscale-beacon-k8s
           - tailscale-config
           - tailscale-k8s
@@ -52,6 +53,7 @@ jobs:
             istio-ingress-k8s: charms/istio-ingress-k8s/**
             istio-k8s: charms/istio-k8s/**
             kiali-k8s: charms/kiali-k8s/**
+            tailscale-beacon: charms/tailscale-beacon/**
             tailscale-beacon-k8s: charms/tailscale-beacon-k8s/**
             tailscale-config: charms/tailscale-config/**
             tailscale-k8s: charms/tailscale-k8s/**
@@ -87,4 +89,4 @@ jobs:
       charm-path: ${{ matrix.charm-path }}
       git-tag-prefix: ${{ matrix.charm-name }}
       default-track: dev
-      provider: k8s
+      provider: ${{ matrix.charm-path == 'charms/tailscale-beacon' && 'machine' || 'k8s' }}
