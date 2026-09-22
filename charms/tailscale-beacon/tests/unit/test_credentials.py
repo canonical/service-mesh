@@ -53,6 +53,33 @@ def test_relation_credentials(ctx):
     assert credentials.ephemeral is False
 
 
+def test_relation_credentials_merge_configured_tags(ctx):
+    """Config tags are advertised in addition to the relation-supplied ones."""
+    secret = scenario.Secret(
+        tracked_content={"auth-key": "tskey-client-test", "client-id": "client-id"}
+    )
+    relation = scenario.Relation(
+        "tailscale-credentials",
+        remote_app_name="tailscale-config",
+        remote_app_data={
+            "secret_id": secret.id,
+            "login_server": "https://controlplane.tailscale.com",
+            "tags": "tag:server,tag:juju",
+        },
+    )
+    state = scenario.State(
+        # 'tag:juju' is a duplicate and must not be advertised twice.
+        config={"advertise-tags": "tag:extra, tag:juju"},
+        secrets=[secret],
+        relations=[scenario.SubordinateRelation("juju-info"), relation],
+    )
+    with ctx(ctx.on.relation_changed(relation), state) as manager:
+        credentials, error = resolve_credentials(manager.charm)
+    assert error is None
+    assert credentials is not None
+    assert credentials.tags == ("tag:server", "tag:juju", "tag:extra")
+
+
 def test_both_sources_conflict(ctx, manual_secret):
     relation = scenario.Relation("tailscale-credentials")
     state = scenario.State(

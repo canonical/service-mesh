@@ -1,6 +1,11 @@
 # Copyright 2026 Canonical Ltd.
 # See LICENSE file for licensing details.
 
+import logging
+import subprocess
+
+import pytest
+
 from credentials import ResolvedCredentials
 from tailscale import Tailscale
 
@@ -54,6 +59,30 @@ def test_up_configures_oauth_key_ephemerality(command, tmp_path, monkeypatch):
         == "tskey-client-test?preauthorized=true&ephemeral=false"
     )
     assert "--force-reauth" in command.call_args.args[0]
+
+
+def test_up_reraises_and_logs_rejected_tags(command, tmp_path, monkeypatch, caplog):
+    """A rejected tag set must surface as an error, not a silent no-op."""
+    monkeypatch.setattr("tailscale.STATE_DIRECTORY", tmp_path)
+    monkeypatch.setattr("tailscale.CONNECTED_MARKER", tmp_path / "connected")
+    command.side_effect = subprocess.CalledProcessError(
+        returncode=1,
+        cmd=["tailscale", "up"],
+        stderr="requested tags [tag:extra] are invalid or not permitted",
+    )
+    with caplog.at_level(logging.ERROR, logger="tailscale"):
+        with pytest.raises(subprocess.CalledProcessError):
+            Tailscale("beacon/0").up(
+                ResolvedCredentials(
+                    auth_key="tskey-auth-test",
+                    login_server="https://controlplane.tailscale.com",
+                    tags=("tag:server", "tag:extra"),
+                    ephemeral=False,
+                )
+            )
+    assert "tag:server,tag:extra" in caplog.text
+    assert "not permitted" in caplog.text
+    assert not (tmp_path / "connected").exists()
 
 
 def test_status_parses_client_json(command):

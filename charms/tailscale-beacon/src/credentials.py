@@ -5,6 +5,7 @@
 
 import logging
 from dataclasses import dataclass
+from typing import Iterable
 
 import ops
 from canonical_service_mesh.interfaces.tailscale_credentials import (
@@ -75,7 +76,7 @@ def _resolve_from_config(
         ResolvedCredentials(
             auth_key=auth_key,
             login_server=str(charm.config["login-server"]),
-            tags=_parse_tags(str(charm.config["advertise-tags"])),
+            tags=_configured_tags(charm),
             ephemeral=bool(charm.config["ephemeral"]),
         ),
         None,
@@ -111,11 +112,30 @@ def _resolve_from_relation(
         ResolvedCredentials(
             auth_key=credentials.auth_key,
             login_server=provider_data.login_server,
-            tags=tuple(provider_data.tags or ()),
+            tags=_merge_tags(provider_data.tags or (), _configured_tags(charm)),
             ephemeral=bool(charm.config["ephemeral"]),
         ),
         None,
     )
+
+
+def _configured_tags(charm: ops.CharmBase) -> tuple[str, ...]:
+    """Return the tags from the 'advertise-tags' config option."""
+    return _parse_tags(str(charm.config["advertise-tags"]))
+
+
+def _merge_tags(*sources: Iterable[str]) -> tuple[str, ...]:
+    """Combine tag sources, preserving order and dropping duplicates.
+
+    Tags advertised on top of the ones carried by a relation-supplied credential
+    must still be permitted by that credential, otherwise the control plane
+    rejects ``tailscale up``.
+    """
+    merged: dict[str, None] = {}
+    for source in sources:
+        for tag in source:
+            merged[tag] = None
+    return tuple(merged)
 
 
 def _parse_tags(value: str) -> tuple[str, ...]:

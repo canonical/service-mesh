@@ -48,7 +48,7 @@ def test_last_unit_disconnects(ctx, manual_state, tailscale):
     ctx.run(ctx.on.stop(), manual_state)
     tailscale.disconnect.assert_called_once()
     tailscale.unregister_unit.assert_called_once()
-    tailscale.remove_snap.assert_not_called()
+    tailscale.remove_snap.assert_called_once()
 
 
 def test_non_final_unit_leaves_daemon_running(ctx, manual_state, tailscale):
@@ -58,15 +58,15 @@ def test_non_final_unit_leaves_daemon_running(ctx, manual_state, tailscale):
     tailscale.unregister_unit.assert_called_once()
 
 
-def test_last_unit_can_remove_snap(ctx, manual_state, tailscale):
+def test_last_unit_can_keep_snap(ctx, manual_state, tailscale):
     state = scenario.State(
-        config={**manual_state.config, "remove-snap": True},
+        config={**manual_state.config, "remove-snap": False},
         secrets=manual_state.secrets,
         relations=manual_state.relations,
     )
     ctx.run(ctx.on.stop(), state)
     tailscale.disconnect.assert_called_once()
-    tailscale.remove_snap.assert_called_once()
+    tailscale.remove_snap.assert_not_called()
 
 
 def test_removing_credentials_disconnects_managed_session(ctx, tailscale):

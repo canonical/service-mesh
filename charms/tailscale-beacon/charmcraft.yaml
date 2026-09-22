@@ -44,8 +44,9 @@ config:
       type: string
       default: ""
       description: |
-        Comma-separated tags advertised in manual mode. Relation mode uses the
-        tags supplied by tailscale-config.
+        Comma-separated tags advertised by this machine, in addition to any
+        tags supplied by tailscale-config over the relation. Tags must be
+        permitted by the auth key in use.
     ephemeral:
       type: boolean
       default: true
@@ -60,7 +61,7 @@ config:
         stable Tailscale 1.x releases.
     remove-snap:
       type: boolean
-      default: false
+      default: true
       description: Remove the Tailscale snap when the last beacon leaves a machine.
 
 requires:

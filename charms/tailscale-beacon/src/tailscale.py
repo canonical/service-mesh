@@ -6,6 +6,7 @@
 import fcntl
 import hashlib
 import json
+import logging
 import subprocess
 from contextlib import contextmanager
 from dataclasses import dataclass
@@ -16,6 +17,8 @@ from urllib.parse import parse_qsl, urlencode
 from charmlibs import snap
 
 from credentials import ResolvedCredentials
+
+LOGGER = logging.getLogger(__name__)
 
 SNAP_NAME = "tailscale"
 CONFIGURATION_VERSION = "2"
@@ -92,12 +95,23 @@ class Tailscale:
             command.append("--force-reauth")
         if credentials.tags:
             command.append(f"--advertise-tags={','.join(credentials.tags)}")
-        self._run(
-            command,
-            input_text=self._oauth_key_with_ephemeral_setting(
-                credentials.auth_key, credentials.ephemeral
-            ),
-        )
+        try:
+            self._run(
+                command,
+                input_text=self._oauth_key_with_ephemeral_setting(
+                    credentials.auth_key, credentials.ephemeral
+                ),
+            )
+        except subprocess.CalledProcessError as error:
+            # Most commonly the advertised tags are not permitted by the auth key.
+            LOGGER.error(
+                "'tailscale up' failed (exit %s) with tags %s against %s: %s",
+                error.returncode,
+                ",".join(credentials.tags) or "<none>",
+                credentials.login_server,
+                (error.stderr or "").strip(),
+            )
+            raise
         STATE_DIRECTORY.mkdir(parents=True, exist_ok=True)
         CONNECTED_MARKER.touch(exist_ok=True)
 
