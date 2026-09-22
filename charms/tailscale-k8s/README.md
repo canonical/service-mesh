@@ -31,7 +31,7 @@ The charm will enter `blocked` status until credentials are provided.
 
 ### Provide credentials (manual mode)
 
-Create an OAuth client in the Tailscale admin console at **Settings > OAuth clients > Generate OAuth client**. The client requires:
+Create an OAuth client in the Tailscale admin console at **Settings > Trust credentials > New credential > OAuth**. The client requires:
 
 - **Tags:** Must carry `tag:k8s-operator` (or whatever you set `operator-tags` to)
 - **Scopes:**
