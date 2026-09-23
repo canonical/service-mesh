@@ -1,4 +1,5 @@
 <!-- vale off -->
+
 # Charmed service mesh
 
 <!-- vale on -->
@@ -41,7 +42,6 @@ Tailscale </tailscale/index>
   ```
 
 ````
-
 
 ## Project and community
 

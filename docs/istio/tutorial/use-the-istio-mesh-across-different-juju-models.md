@@ -48,6 +48,7 @@ Let's create a separate model for the `bookinfo-reviews-k8s` charm and deploy it
 juju add-model bookinfo-2
 juju deploy bookinfo-reviews-k8s --trust
 ```
+
 <!-- vale off -->
 
 ### Step 3: deploy Istio Beacon in the new model
@@ -190,6 +191,7 @@ juju destroy-model bookinfo-2
 ```
 
 If you also want to clean up the resources from the previous tutorial, you can run:
+
 ```bash
 juju destroy-model bookinfo
 juju destroy-model istio-system

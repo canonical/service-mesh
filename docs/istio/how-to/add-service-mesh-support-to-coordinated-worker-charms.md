@@ -9,6 +9,7 @@ Service mesh support in the `coordinated-workers` package is available from vers
 ## Prerequisites
 
 This guide assumes you have:
+
 - A charm already using the [`coordinated-workers`](https://github.com/canonical/cos-coordinated-workers) package (v2.1.0 or later) with a coordinator and worker charm
 - Basic knowledge of [service mesh concepts](../explanation/service-mesh.md)
 - Familiarity with [adding mesh support to charms](./add-mesh-support-to-your-charm.md)

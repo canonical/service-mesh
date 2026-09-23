@@ -5,6 +5,7 @@ This document explains how service mesh integration works in charms that use the
 ## Overview
 
 Coordinated-worker charms (like Tempo, Loki, and Mimir) deploy a cluster of applications working together, consisting of:
+
 - A **coordinator** charm that orchestrates the cluster and handles external communication
 - One or more **worker** charms that perform distributed workload processing
 
@@ -214,12 +215,14 @@ A critical aspect of service mesh integration in coordinated-worker charms is th
 Worker telemetry routing means that workers send their observability data (metrics, logs, traces, and remote-write data) to the coordinator, which then forwards it to the actual telemetry backends (Prometheus, Loki, Tempo, etc.).
 
 Without telemetry routing:
+
 ```
 Worker → Prometheus (direct)
 Worker → Loki (direct)
 ```
 
 With telemetry routing:
+
 ```
 Worker → Coordinator (proxy) → Prometheus
 Worker → Coordinator (proxy) → Loki

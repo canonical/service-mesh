@@ -3,11 +3,13 @@
 ## Introduction
 
 This tutorial demonstrates how to:
+
 * deploy [Istio ambient](https://istio.io) using Charmed Istio
 * put a microservice application on the mesh
 * secure that application by:
   * establishing mTLS between all components
   * creating authorization policies that allow only the required communication, blocking any other entity from even reaching your components
+
 To demonstrate this, we'll use the Istio [`Bookinfo`](https://istio.io/latest/docs/examples/bookinfo/) example application.
 
 ## Prerequisites
@@ -30,6 +32,7 @@ For this tutorial to go smoothly, make sure the following MicroK8s [addons](http
 You can check this with `microk8s status` and enable any missing addons.
 
 <!-- vale off -->
+
 ## Deploy charmed Istio
 
 <!-- vale on -->
@@ -61,6 +64,7 @@ juju offer istio-ingress-k8s:ingress,ingress-unauthenticated
 ```
 
 <!-- vale off -->
+
 ## Deploy charmed bookinfo application
 
 <!-- vale on -->
@@ -144,6 +148,7 @@ Your application now works, but it:
 * can be accessed by anything in your Kubernetes cluster
 
 For example, if we `curl` from the productpage charm Pod we see it succeeds in many situations, even ones that are not necessary for our application:
+
 ```bash
 # All endpoints are accessible with any HTTP method
 juju exec -m bookinfo -u bookinfo-productpage-k8s/0 -- curl -s http://bookinfo-details-k8s.bookinfo.svc.cluster.local:9080/
