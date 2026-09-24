@@ -5,6 +5,7 @@ This guide explains how to use the `PolicyResourceManager` class to create and m
 ## Prerequisites
 
 This guide assumes you have:
+
 - Basic knowledge of Juju charms and charm development
 - Understanding of [service mesh concepts](../explanation/service-mesh.md)
 - Familiarity with [adding mesh support to charms](./add-mesh-support-to-your-charm.md)

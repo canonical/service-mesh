@@ -30,6 +30,10 @@ jobs:
       working-directory: docs
       fetch-depth: 0
 
+  markdown:
+    name: Markdown lint
+    uses: canonical/sphinx-stack/.github/workflows/markdown-style-checks.yml@2.0
+
   build:
     name: Build
     runs-on: ubuntu-24.04
@@ -40,19 +44,6 @@ jobs:
           fetch-depth: 0
       - name: Build HTML documentation
         run: make -C docs html
-
-  markdown:
-    name: Markdown lint
-    runs-on: ubuntu-24.04
-    steps:
-      - name: Checkout
-        uses: actions/checkout@v6
-      - name: Lint Markdown
-        continue-on-error: true
-        uses: DavidAnson/markdownlint-cli2-action@v22
-        with:
-          config: docs/.sphinx/.markdownlint.json
-          globs: "docs/**/*.md"
 
   style:
     name: Style

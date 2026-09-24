@@ -1,4 +1,5 @@
 <!-- vale off -->
+
 # Monitor istio ambient using Kiali
 
 <!-- vale on -->
@@ -30,11 +31,13 @@ Before starting, ensure you have:
 - **Juju Knowledge**: Basic familiarity with [Juju cross-model relations](https://canonical.com/juju/docs/juju-cli/latest/reference/relation/#cross-model-relation)
 
 <!-- vale off -->
+
 ## Prepare the Istio system
 
 <!-- vale on -->
 
 <!-- vale off -->
+
 ### Step 1: collect metrics from Istio
 
 <!-- vale on -->
@@ -53,6 +56,7 @@ This metrics store doesn't need to be dedicated to Istio - it could also be the 
 ```
 
 <!-- vale off -->
+
 ### Step 2: offer Istio metadata and metrics
 
 <!-- vale on -->
@@ -65,11 +69,13 @@ juju offer prometheus-k8s:prometheus-api
 ```
 
 <!-- vale off -->
+
 ## Deploy charmed Kiali
 
 <!-- vale on -->
 
 <!-- vale off -->
+
 ### Step 3: create a model for Kiali
 
 <!-- vale on -->
@@ -82,6 +88,7 @@ juju deploy kiali-k8s --trust --channel=2/edge
 ```
 
 <!-- vale off -->
+
 ### Step 4: connect Kiali to Istio
 
 <!-- vale on -->
@@ -97,6 +104,7 @@ juju integrate kiali-k8s:prometheus-api prometheus-k8s
 ```
 
 <!-- vale off -->
+
 ### Step 5: expose Kiali via ingress
 
 <!-- vale on -->
@@ -115,6 +123,7 @@ juju status --integrations --watch=5s
 ```
 
 <!-- vale off -->
+
 ## Access the Kiali dashboard
 
 <!-- vale on -->
@@ -178,6 +187,7 @@ juju destroy-model kiali
 ```
 
 To clean up all resources from the entire series, you can also run:
+
 ```bash
 juju destroy-model bookinfo
 juju destroy-model bookinfo-2

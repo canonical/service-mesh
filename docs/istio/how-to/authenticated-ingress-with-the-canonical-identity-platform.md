@@ -76,6 +76,7 @@ Any release track newer than 2 should work just fine.
   juju integrate bookinfo:ingress ingress:ingress
   juju integrate oauth2:ingress ingress:ingress-unauthenticated
   ```
+
 At this point, after waiting for everything to settle, you should be able to run `juju run bookinfo/leader get-url` and it should return an https url. If you navigate to the returned url in your browser, you should reach the bookinfo app.
 
 * Enable authentication
@@ -84,6 +85,7 @@ At this point, after waiting for everything to settle, you should be able to run
   juju consume istio-system.ingress-config
   juju integrate ingress ingress-config
   ```
+
 Wait for all charms to reach active/idle then run `juju run bookinfo/leader get-url` and navigate to the returned URL in your browser. You should be prompted to log in. Log in and access the bookinfo page!
 
 ````{note}
