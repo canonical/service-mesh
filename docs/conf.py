@@ -72,7 +72,7 @@ html_context = {
     "mattermost": "",
     # Your Matrix channel URL
     # TODO: Change to your Matrix channel URL or leave empty.
-    "matrix": "",
+    "matrix": "https://app.element.io/#/room/#servicemesh:ubuntu.com",
     # Your documentation GitHub repository URL If set, links for viewing the
     # documentation source files and creating GitHub issues are added at the bottom of
     # each page.
