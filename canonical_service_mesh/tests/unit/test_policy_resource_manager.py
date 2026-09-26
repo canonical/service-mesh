@@ -5,11 +5,12 @@
 
 from unittest.mock import MagicMock, patch
 
-import httpx
 import pytest
+from lightkube.core.exceptions import ApiError
 from lightkube.models.meta_v1 import ObjectMeta
 
 from canonical_service_mesh.enums import MeshType
+from canonical_service_mesh.k8s.resource_manager import FakeApiError
 from canonical_service_mesh.k8s.resource_manager._resource_manager import (
     PolicyResourceManager,
 )
@@ -76,22 +77,14 @@ def test_prm_validate_rejects_unsupported_type():
 
 def test_prm_delete_ignores_404():
     prm = PolicyResourceManager(charm=_make_charm(), lightkube_client=MagicMock())
-    response = MagicMock(spec=httpx.Response)
-    response.status_code = 404
     prm._krm = MagicMock()
-    prm._krm.delete.side_effect = httpx.HTTPStatusError(
-        message="Not Found", request=MagicMock(), response=response
-    )
+    prm._krm.delete.side_effect = FakeApiError(404)
     prm.delete(ignore_missing=True)  # should not raise
 
 
 def test_prm_delete_reraises_non_404():
     prm = PolicyResourceManager(charm=_make_charm(), lightkube_client=MagicMock())
-    response = MagicMock(spec=httpx.Response)
-    response.status_code = 500
     prm._krm = MagicMock()
-    prm._krm.delete.side_effect = httpx.HTTPStatusError(
-        message="Server Error", request=MagicMock(), response=response
-    )
-    with pytest.raises(httpx.HTTPStatusError):
+    prm._krm.delete.side_effect = FakeApiError(500)
+    with pytest.raises(ApiError):
         prm.delete(ignore_missing=True)

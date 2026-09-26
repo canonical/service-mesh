@@ -6,24 +6,16 @@
 import json
 from unittest.mock import MagicMock
 
-import httpx
 import pytest
+from lightkube.core.exceptions import ApiError
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import ConfigMap, Service
 
+from canonical_service_mesh.k8s.resource_manager import FakeApiError
 from canonical_service_mesh.utils.istio._labels import (
     _init_label_configmap,
     reconcile_charm_labels,
 )
-
-
-def _make_http_status_error(status_code):
-    """Create an httpx.HTTPStatusError with the given status code."""
-    response = MagicMock(spec=httpx.Response)
-    response.status_code = status_code
-    return httpx.HTTPStatusError(
-        message=f"Error {status_code}", request=MagicMock(), response=response
-    )
 
 
 def test_init_label_configmap_creates_with_empty_labels():
@@ -84,7 +76,7 @@ def test_reconcile_removes_previously_set_labels():
 def test_reconcile_creates_configmap_on_404():
     """If the configmap doesn't exist, it's created automatically."""
     client = MagicMock()
-    client.get.side_effect = _make_http_status_error(404)
+    client.get.side_effect = FakeApiError(404)
 
     reconcile_charm_labels(
         client=client,
@@ -100,9 +92,9 @@ def test_reconcile_creates_configmap_on_404():
 
 def test_reconcile_reraises_non_404_http_errors():
     client = MagicMock()
-    client.get.side_effect = _make_http_status_error(500)
+    client.get.side_effect = FakeApiError(500)
 
-    with pytest.raises(httpx.HTTPStatusError):
+    with pytest.raises(ApiError):
         reconcile_charm_labels(
             client=client,
             app_name="myapp",

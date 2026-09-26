@@ -33,6 +33,15 @@ from ..types import (
 from ..types.istio import AuthorizationPolicy
 from ._batch_operations import apply_many, delete_many, patch_many
 
+try:
+    # lightkube >= 1.0 bundles its HTTP stack as the separate ``httpx2`` package, so the
+    # transport errors it raises are not instances of the top-level ``httpx`` exceptions.
+    import httpx2  # pyright: ignore[reportMissingImports]  # only present with lightkube >= 1.0
+
+    _TRANSPORT_ERRORS: tuple = (httpx.TransportError, httpx2.TransportError)
+except ImportError:
+    _TRANSPORT_ERRORS = (httpx.TransportError,)
+
 
 def _k8s_api_call(func):
     """Catch transport-level errors from the Kubernetes API and wrap them in K8sApiError."""
@@ -41,7 +50,7 @@ def _k8s_api_call(func):
     def wrapper(*args, **kwargs):
         try:
             return func(*args, **kwargs)
-        except httpx.TransportError as e:
+        except _TRANSPORT_ERRORS as e:
             raise K8sApiError(
                 f"Failed to {func.__name__} Kubernetes resources: "
                 f"the Kubernetes API may be unreachable. Cause: {e}"
@@ -429,8 +438,8 @@ class PolicyResourceManager:
         """
         try:
             self._krm.delete(ignore_missing=ignore_missing)
-        except httpx.HTTPStatusError as e:
-            if e.response.status_code == 404 and ignore_missing:
+        except ApiError as e:
+            if e.status.code == 404 and ignore_missing:
                 self.log.info("CRD not found, skipping deletion")
                 return
             raise
