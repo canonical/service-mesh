@@ -36,7 +36,7 @@ from ._batch_operations import apply_many, delete_many, patch_many
 try:
     # lightkube >= 1.0 bundles its HTTP stack as the separate ``httpx2`` package, so the
     # transport errors it raises are not instances of the top-level ``httpx`` exceptions.
-    import httpx2
+    import httpx2  # pyright: ignore[reportMissingImports]  # only present with lightkube >= 1.0
 
     _TRANSPORT_ERRORS: tuple = (httpx.TransportError, httpx2.TransportError)
 except ImportError:
