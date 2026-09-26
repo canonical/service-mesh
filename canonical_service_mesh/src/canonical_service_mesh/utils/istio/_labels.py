@@ -7,8 +7,8 @@ import json
 import logging
 from typing import Dict, Optional
 
-import httpx
 from lightkube import Client
+from lightkube.core.exceptions import ApiError
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import ConfigMap, Service
@@ -40,8 +40,8 @@ def reconcile_charm_labels(
     patch_labels: Dict[str, Optional[str]] = dict(labels)
     try:
         config_map = client.get(ConfigMap, label_configmap_name)
-    except httpx.HTTPStatusError as e:
-        if e.response.status_code == 404:
+    except ApiError as e:
+        if e.status.code == 404:
             config_map = _init_label_configmap(client, label_configmap_name, namespace)
         else:
             raise
