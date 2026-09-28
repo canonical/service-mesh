@@ -345,6 +345,6 @@ if os.path.exists('./reuse/substitutions.yaml'):
 
 # Configuration for Intersphinx projects
 #
-intersphinx_mapping = {
-    'starter-pack': ('https://canonical-example-product-documentation.readthedocs-hosted.com/en/latest', None)
-}
+# intersphinx_mapping = {
+#     'starter-pack': ('https://canonical-example-product-documentation.readthedocs-hosted.com/en/latest', None)
+# }
