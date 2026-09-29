@@ -59,6 +59,9 @@ config:
         no schema prefix and no port.
         Hostname can be "precise" which is a domain name without the terminating dot of a network host (e.g. "foo.example.com").
         It's also important to note that domain name prefixed with a single wildcard label (e.g. *.example.com) isn't supported for now.
+        Security: In production deployments, set either this option or `listener-hostname`
+        to a valid RFC 1123 hostname. This enables host-based filtering on the gateway
+        listeners so that the gateway only accepts traffic destined for that hostname.
       type: string
     listener-hostname:
       description: |
@@ -72,6 +75,9 @@ config:
           i.e. no schema prefix, no port, and no wildcard prefix. If the value is
           invalid, the charm blocks and the hostname reverts to the default
           (gateway's local address).
+        Security: In production deployments, set either this option or `external_hostname`
+        to a valid RFC 1123 hostname. This enables host-based filtering on the gateway
+        listeners so that the gateway only accepts traffic destined for that hostname.
       type: string
     external-traffic-policy-cidrs:
       description: |

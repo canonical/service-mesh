@@ -161,6 +161,12 @@ REQUEST_AUTH_RELATION = "istio-request-auth"
 UPSTREAM_INGRESS_RELATION = "upstream-ingress"
 PEERS_RELATION = "peers"
 
+# RFC 2606 reserved ".invalid" TLD: a well-formed but guaranteed-unroutable hostname.
+# Used to block all traffic when a hostname is requested but resolves invalid, without
+# producing an empty listeners list (which the K8s Gateway API webhook rejects).
+# See https://datatracker.ietf.org/doc/html/rfc2606
+BLOCKED_LISTENER_HOSTNAME = "never-use-this-domain.invalid"
+
 
 class IstioIngressCharm(CharmBase):
     """Charm the service."""
@@ -624,6 +630,19 @@ class IstioIngressCharm(CharmBase):
         """
         allowed_routes = AllowedRoutes(namespaces={"from": "All"})
         hostname = self._listener_hostname
+
+        # Security guard: if a hostname was explicitly requested (via external_hostname or a
+        # non-empty listener-hostname) but could not be resolved to a valid hostname, do NOT
+        # fall back to an open (hostname-less) listener that accepts all hostnames. Instead
+        # pin the listeners to a reserved, unroutable hostname (RFC 2606 ".invalid") so the
+        # Gateway remains structurally valid but matches no real traffic until the config is
+        # corrected.
+        accept_all_requested = self.model.config.get("listener-hostname") == ""
+        hostname_requested = bool(self.model.config.get("external_hostname")) or bool(
+            self.model.config.get("listener-hostname")
+        )
+        if hostname_requested and hostname is None and not accept_all_requested:
+            hostname = BLOCKED_LISTENER_HOSTNAME
 
         listeners = []
         for norm_listener in normalized_listeners:

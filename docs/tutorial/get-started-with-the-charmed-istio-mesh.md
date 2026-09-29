@@ -118,6 +118,10 @@ juju integrate bookinfo-productpage-k8s istio-ingress-k8s:ingress
 
 This ingress relation would allow the `bookinfo-productpage-k8s` charm to be accessed from outside the cluster, for example, your browser.
 
+```{note}
+**Production security:** In production deployments, set either the `external_hostname` or `listener-hostname` configuration option on `istio-ingress-k8s` to a valid RFC 1123 hostname. This enables host-based filtering on the gateway listeners so that the gateway only accepts traffic destined for that hostname.
+```
+
 ### Step 5: access the application
 
 Get the application URL and verify it's working:
