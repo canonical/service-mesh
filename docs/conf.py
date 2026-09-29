@@ -123,14 +123,10 @@ html_context = {
 #######################
 
 # Use RTD canonical URL to ensure duplicate pages have a specific canonical URL
-html_baseurl = 'https://canonical-starter-pack.readthedocs-hosted.com/'
+html_baseurl = os.environ.get("READTHEDOCS_CANONICAL_URL", "/")
 
 # sphinx-sitemap uses html_baseurl to generate the full URL for each page:
-if 'READTHEDOCS_VERSION' in os.environ:
-    version = os.environ["READTHEDOCS_VERSION"]
-    sitemap_url_scheme = '{version}{link}'
-else:
-    sitemap_url_scheme = 'MANUAL/{link}'
+sitemap_url_scheme = "{link}"
 
 # Include `lastmod` dates in the sitemap:
 sitemap_show_lastmod = True
@@ -292,12 +288,12 @@ exclude_patterns = [
 
 # Adds custom CSS files, located remotely or in 'html_static_path'.
 html_css_files = [
-    "cookie-banner.css",
+    "https://assets.ubuntu.com/v1/d86746ef-cookie_banner.css",
 ]
 
 # Adds custom JavaScript files, located remotely or in 'html_static_path'.
 html_js_files = [
-    "bundle.js",
+    "https://assets.ubuntu.com/v1/287a5e8f-bundle.js",
 ]
 
 # Appends extra markup to the end of every document written in reST
@@ -349,6 +345,6 @@ if os.path.exists('./reuse/substitutions.yaml'):
 
 # Configuration for Intersphinx projects
 #
-intersphinx_mapping = {
-    'starter-pack': ('https://canonical-example-product-documentation.readthedocs-hosted.com/en/latest', None)
-}
+# intersphinx_mapping = {
+#     'starter-pack': ('https://canonical-example-product-documentation.readthedocs-hosted.com/en/latest', None)
+# }
