@@ -1,5 +1,5 @@
 # Rock for [pilot](https://github.com/istio/istio/blob/master/pilot/docker/Dockerfile.pilot).
-# This rock is based on the `ubuntu@26.04` rock and includes the `ca-certificates` package for secure communication. The `pilot-discovery` service is configured to run the Pilot component of Istio's service mesh, which is responsible for managing and configuring the Envoy proxies that handle traffic within the mesh. The rock also includes a `deb-security-manifest` part that generates a manifest of installed packages and their versions for security auditing purposes.
+#  This rock is based on the `ubuntu@26.04` rock and includes the `ca-certificates` package for secure communication. The `pilot-discovery` service is configured to run the Pilot component of Istio's service mesh, which is responsible for managing and configuring the Envoy proxies that handle traffic within the mesh. The rock also includes a `deb-security-manifest` part that generates a manifest of installed packages and their versions for security auditing purposes.
 
 name: istio-pilot
 summary: Istio's pilot in a rock

@@ -1,5 +1,5 @@
 # Rock for [install-cni](https://github.com/istio/istio/blob/master/cni/deployments/kubernetes/Dockerfile.install-cni).
-# The purpose of this image is described [here](https://github.com/istio/istio/tree/master/cni#overview)
+#  The purpose of this image is described [here](https://github.com/istio/istio/tree/master/cni#overview)
 
 name: istio-install-cni
 summary: Istio's install-cni in a rock
