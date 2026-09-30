@@ -4,6 +4,12 @@ variable "app_name" {
   default     = "istio-beacon"
 }
 
+variable "base" {
+  description = "The operating system on which to deploy. E.g. ubuntu@26.04. Check Charmhub for per-charm base support."
+  default     = "ubuntu@22.04"
+  type        = string
+}
+
 variable "channel" {
   description = "Channel that the charm is deployed from"
   type        = string
@@ -29,6 +35,12 @@ variable "constraints" {
 variable "model_uuid" {
   description = "Reference to an existing model resource or data source for the model to deploy to"
   type        = string
+}
+
+variable "resources" {
+  description = "The charm's resources i.e., a resource revision number from CharmHub or a custom OCI image resource"
+  type        = map(string)
+  default     = {}
 }
 
 variable "revision" {
