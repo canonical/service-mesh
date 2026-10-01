@@ -5,7 +5,6 @@
 
 ### Bug Fixes
 
-* block listeners when an invalid hostname is requested ([#583](https://github.com/canonical/service-mesh/issues/583)) ([6ef62f2](https://github.com/canonical/service-mesh/commit/6ef62f20dbe920d51b5172f69c448bb911b35a72))
 * make service_mesh lib compatible with lightkube&gt;1.0 ([#826](https://github.com/canonical/service-mesh/issues/826)) ([4e3bd2b](https://github.com/canonical/service-mesh/commit/4e3bd2b1c8378c09bf58fc00fcdf356138d729b4))
 
 ## [0.3.0](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.2.0...canonical-service-mesh-v0.3.0) (2026-09-11)
