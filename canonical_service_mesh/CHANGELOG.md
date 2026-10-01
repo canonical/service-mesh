@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.3.1](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.3.0...canonical-service-mesh-v0.3.1) (2026-10-01)
+
+
+### Bug Fixes
+
+* make service_mesh lib compatible with lightkube&gt;1.0 ([#826](https://github.com/canonical/service-mesh/issues/826)) ([4e3bd2b](https://github.com/canonical/service-mesh/commit/4e3bd2b1c8378c09bf58fc00fcdf356138d729b4))
+
 ## [0.3.0](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.2.0...canonical-service-mesh-v0.3.0) (2026-09-11)
 
 
