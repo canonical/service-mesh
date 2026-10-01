@@ -89,6 +89,19 @@ def test_krm_wraps_transport_error(method, kwargs):
         getattr(krm, method)(**kwargs)
 
 
+def test_krm_wraps_bundled_httpx_transport_error():
+    """Transport errors from lightkube's bundled httpx (httpx2 in >=1.0) are also wrapped."""
+    httpx2 = pytest.importorskip("httpx2")
+    client = MagicMock()
+    client.list.side_effect = httpx2.ConnectTimeout("timeout")
+
+    krm = KubernetesResourceManager(
+        labels=DEFAULT_LABELS, resource_types={Pod}, lightkube_client=client
+    )
+    with pytest.raises(K8sApiError, match="Kubernetes API may be unreachable"):
+        krm.get_deployed_resources()
+
+
 @patch("canonical_service_mesh.k8s.resource_manager._resource_manager.patch_many")
 def test_krm_patch_adds_labels(mocked_patch):
     resources = [Pod(metadata=ObjectMeta(name="p1", namespace="ns"))]
