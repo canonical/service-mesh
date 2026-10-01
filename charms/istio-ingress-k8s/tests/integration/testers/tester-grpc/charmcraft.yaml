@@ -8,11 +8,10 @@ platforms:
   ubuntu@26.04:amd64:
 parts:
   charm:
-    charm-binary-python-packages:
-      - cryptography
-      - jsonschema
-      - pydantic>=2
-      - charmlibs-interfaces-istio-ingress-route
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
 
 
 requires:
