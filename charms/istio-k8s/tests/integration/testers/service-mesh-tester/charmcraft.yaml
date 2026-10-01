@@ -34,9 +34,7 @@ resources:
 
 parts:
   charm:
-    charm-binary-python-packages:
-      - ops
-      - requests
-      - pydantic-core
-      - pydantic
-      - maturin
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
