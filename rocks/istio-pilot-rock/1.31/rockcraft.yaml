@@ -27,6 +27,7 @@ parts:
       - go/1.26/candidate
     override-build: |
       # Hotfix for vulnerability, remove when updating
+      [ "$(date -u +%Y%m%d)" -ge 20261015 ] && exit 1
       go get google.golang.org/grpc@v1.83.2
       go mod tidy
 
