@@ -30,6 +30,11 @@ parts:
     build-snaps:
       - go/1.26/candidate
     override-build: |
+      # Hotfix for vulnerability, remove when updating
+      [ "$(date -u +%Y%m%d)" -ge 20261015 ] && exit 1
+      go get google.golang.org/grpc@v1.83.2
+      go mod tidy
+
       GOOS=linux GOARCH=amd64 LDFLAGS='-extldflags -static -s -w' common/scripts/gobuild.sh ./out/linux_amd64/ -tags=agent,disable_pgv ./cni/cmd/istio-cni ./cni/cmd/install-cni
 
       mkdir -p ${CRAFT_PART_INSTALL}/opt/cni/bin
