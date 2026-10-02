@@ -1,3 +1,0 @@
-ops
-lightkube
-charmlibs-interfaces-istio-ingress-route

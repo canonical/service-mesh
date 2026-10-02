@@ -5,14 +5,13 @@ description: gRPC echo server for testing ingress routes
 summary: gRPC echo server for testing ingress routes
 type: charm
 platforms:
-  ubuntu@24.04:amd64:
+  ubuntu@26.04:amd64:
 parts:
   charm:
-    charm-binary-python-packages:
-      - cryptography
-      - jsonschema
-      - pydantic>=2
-      - charmlibs-interfaces-istio-ingress-route
+    source: .
+    plugin: uv
+    build-packages: [git]
+    build-snaps: [astral-uv]
 
 
 requires:

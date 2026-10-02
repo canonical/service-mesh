@@ -1,0 +1,13 @@
+[project]
+name = "tester-http"
+version = "0.1.0"
+requires-python = ">=3.12"
+dependencies = [
+    "ops",
+    "cryptography",
+    "jsonschema",
+    "pydantic>=2",
+    "charmlibs-interfaces-gateway-metadata",
+    "charmlibs-interfaces-istio-ingress-route",
+    "charmlibs-interfaces-istio-request-auth",
+]
