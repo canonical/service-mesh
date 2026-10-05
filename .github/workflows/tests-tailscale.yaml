@@ -30,6 +30,7 @@ on:
         default: '["canonical-k8s"]'
 
 permissions:
+  actions: read
   contents: read
 
 concurrency:
