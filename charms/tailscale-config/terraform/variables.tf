@@ -16,9 +16,6 @@ variable "channel" {
 }
 
 variable "config" {
-  # Secret values MUST NOT be passed as Terraform variables. Python sets the
-  # root-credential secret URI externally, outside Terraform. Provider reads
-  # may persist that URI in Terraform state, but not the secret contents.
   description = "Map of the charm configuration options"
   type        = map(string)
   default     = {}
