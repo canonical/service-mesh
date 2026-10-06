@@ -410,7 +410,7 @@ class IstioCoreCharm(ops.CharmBase):
         """
         for relation in self.ingress_config.relations:
             if self.ingress_config.is_ready(relation):
-                unique_name = f"ext_authz-{relation.app.name}"
+                unique_name = f"ext-authz-{relation.app.name}"
                 self.ingress_config.publish_ext_authz_provider_name(relation, unique_name)
 
     def _publish_istio_metadata(self):
@@ -494,7 +494,7 @@ class IstioCoreCharm(ops.CharmBase):
                 if ext_authz_info is None:
                     continue
 
-                provider: Dict[str, Any] = {"name": f"ext_authz-{relation.app.name}"}
+                provider: Dict[str, Any] = {"name": f"ext-authz-{relation.app.name}"}
                 if ext_authz_info.ext_authz_protocol == "grpc":
                     provider["envoyExtAuthzGrpc"] = {
                         "service": ext_authz_info.ext_authz_service_name,

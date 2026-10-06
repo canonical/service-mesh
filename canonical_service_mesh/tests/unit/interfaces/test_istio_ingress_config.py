@@ -101,10 +101,10 @@ def test_provider_clear_publishes_fake_config(mock_relation_mapping, mock_app, m
 
 def test_provider_get_ext_authz_provider_name(mock_relation_mapping, mock_app, mock_relation):
     """Provider reads the ext_authz_provider_name from the requirer's databag."""
-    mock_relation.data[mock_relation.app] = {"ext_authz_provider_name": "ext_authz-test-abc123"}
+    mock_relation.data[mock_relation.app] = {"ext_authz_provider_name": "ext-authz-test-abc123"}
     provider = IngressConfigProvider(mock_relation_mapping, mock_app)
 
-    assert provider.get_ext_authz_provider_name() == "ext_authz-test-abc123"
+    assert provider.get_ext_authz_provider_name() == "ext-authz-test-abc123"
     assert provider.is_ready() is True
 
 
