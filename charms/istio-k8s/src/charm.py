@@ -100,8 +100,8 @@ GATEWAY_API_CRDS_RESOURCE_TYPES = {
 
 # Rock image settings
 ROCK_REGISTRY = "docker.io/ubuntu"
-ISTIO_VERSION = "1.29"
-ISTIO_ROCK_TAG = f"{ISTIO_VERSION}-24.04_stable"
+ISTIO_VERSION = "1.31"
+ISTIO_ROCK_TAG = f"{ISTIO_VERSION}-26.04_stable"
 PILOT_IMAGE = "istio-pilot"
 CNI_IMAGE = "istio-install-cni"
 ZTUNNEL_IMAGE = "istio-ztunnel"
