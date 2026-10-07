@@ -253,3 +253,18 @@ def test_valid_telemetry_labels(model_name, harness: Harness[IstioBeaconCharm]):
     for k, v in charm._telemetry_labels.items():
         assert len(k) <= 63
         assert len(v) <= 63
+
+
+def test_construct_waypoint_waypoint_for_label(harness: Harness[IstioBeaconCharm]):
+    """Test that the waypoint is constructed to capture all traffic.
+
+    The ``istio.io/waypoint-for`` label must be ``all`` so the waypoint intercepts both
+    service- and workload-addressed traffic; ``service`` alone breaks service-to-service
+    communication on the mesh.
+    """
+    harness.begin()
+    charm = harness.charm
+
+    waypoint = charm._construct_waypoint()
+
+    assert waypoint.metadata.labels["istio.io/waypoint-for"] == "all"
