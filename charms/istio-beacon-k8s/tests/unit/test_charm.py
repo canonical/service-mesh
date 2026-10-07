@@ -267,4 +267,4 @@ def test_construct_waypoint_waypoint_for_label(harness: Harness[IstioBeaconCharm
 
     waypoint = charm._construct_waypoint()
 
-    assert waypoint.metadata.labels["istio.io/waypoint-for"] == "all"
+    assert waypoint.metadata.labels["istio.io/waypoint-for"] == "all" # type: ignore
