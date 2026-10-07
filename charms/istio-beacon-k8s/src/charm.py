@@ -371,7 +371,7 @@ class IstioBeaconCharm(ops.CharmBase):
             metadata=Metadata(
                 name=self._waypoint_name,
                 namespace=self.model.name,
-                labels={"istio.io/waypoint-for": "service", **self._telemetry_labels},
+                labels={"istio.io/waypoint-for": "all", **self._telemetry_labels},
             ),
             spec=IstioWaypointSpec(
                 gatewayClassName="istio-waypoint",
