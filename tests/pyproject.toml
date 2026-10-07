@@ -8,7 +8,7 @@ dependencies = [
   "lightkube",
   "pytest",
   "pytest-bdd>=8.1.0",
-  "pytest-jubilant",
+  "pytest-jubilant>=2.3,<3",
 ]
 
 [project.optional-dependencies]
