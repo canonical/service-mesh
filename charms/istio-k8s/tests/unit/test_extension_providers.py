@@ -83,7 +83,7 @@ def test_external_authorizer_config(istio_core_context, ingress_config):
         flattened = charm._build_extension_providers_config(external_providers)
 
         expected = {
-            "meshConfig.extensionProviders[0].name": "ext_authz-remote",
+            "meshConfig.extensionProviders[0].name": "ext-authz-remote",
             "meshConfig.extensionProviders[0].envoyExtAuthzHttp.service": "oauth-service",
             "meshConfig.extensionProviders[0].envoyExtAuthzHttp.port": "8080",
             "meshConfig.extensionProviders[0].envoyExtAuthzHttp.includeRequestHeadersInCheck[0]": "authorization",
@@ -110,7 +110,7 @@ def test_grpc_external_authorizer_config(istio_core_context, grpc_ingress_config
         flattened = charm._build_extension_providers_config(external_providers)
 
         assert flattened == {
-            "meshConfig.extensionProviders[0].name": "ext_authz-remote",
+            "meshConfig.extensionProviders[0].name": "ext-authz-remote",
             "meshConfig.extensionProviders[0].envoyExtAuthzGrpc.service": (
                 "authorization-service.iam.svc.cluster.local"
             ),
@@ -141,7 +141,7 @@ def test_combined_extension_providers_config(istio_core_context, workload_tracin
             "meshConfig.extensionProviders[0].opentelemetry.port": 4317,
             "meshConfig.extensionProviders[0].opentelemetry.service": "endpoint.namespace.svc.cluster.local",
             # External authorizer provider (index 1)
-            "meshConfig.extensionProviders[1].name": "ext_authz-remote",
+            "meshConfig.extensionProviders[1].name": "ext-authz-remote",
             "meshConfig.extensionProviders[1].envoyExtAuthzHttp.service": "oauth-service",
             "meshConfig.extensionProviders[1].envoyExtAuthzHttp.port": "8080",
             "meshConfig.extensionProviders[1].envoyExtAuthzHttp.includeRequestHeadersInCheck[0]": "authorization",
