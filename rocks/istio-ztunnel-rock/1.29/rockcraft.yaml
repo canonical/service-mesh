@@ -30,7 +30,7 @@ parts:
       - libc6 # glibc
       - iptables # includes both iptables and ip6tables
       - conntrack # libnetfilter_conntrack and libnfnetlink (and maybe libmnl?)
-      - gcc
+      - libgcc-s1
   ca-certs:
     plugin: nil
     overlay-packages: [ca-certificates]
