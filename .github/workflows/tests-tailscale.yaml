@@ -18,13 +18,6 @@ on:
       k8s-distributions:
         type: string
         default: '["canonical-k8s"]'
-    secrets:
-      TAILSCALE_CLIENT_ID:
-        required: true
-      TAILSCALE_CLIENT_SECRET:
-        required: true
-      TAILSCALE_TEST_AUTH_KEY:
-        required: true
   workflow_dispatch:
     inputs:
       tailscale-channel:
