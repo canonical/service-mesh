@@ -115,6 +115,7 @@ jobs:
       vars.RUN_TAILSCALE_SOLUTION_TESTS == 'true' &&
       github.event.pull_request.head.repo.full_name == github.repository
     uses: ./.github/workflows/tests-tailscale.yaml
+    secrets: inherit
     with:
       tailscale-channel: "dev/edge"
       k8s-distributions: '["canonical-k8s"]'
