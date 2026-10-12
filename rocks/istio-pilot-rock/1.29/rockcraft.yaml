@@ -4,7 +4,7 @@
 name: istio-pilot
 summary: Istio's pilot in a rock
 description: "Pilot: The core component of Istio's service mesh"
-version: "1.29.7"
+version: "1.29.8"
 base: ubuntu@24.04
 build-base: ubuntu@24.04
 services:
@@ -22,7 +22,7 @@ parts:
     plugin: go
     source: https://github.com/istio/istio
     source-type: git
-    source-tag: "1.29.7"
+    source-tag: "1.29.8"
     build-snaps:
       - go/1.25/candidate
     override-build: |
