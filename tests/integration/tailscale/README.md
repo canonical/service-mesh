@@ -2,7 +2,7 @@
 
 This suite exercises `tailscale-config`, `tailscale-k8s`, and
 `tailscale-beacon-k8s` together with Bookinfo productpage and details. It uses
-Terraform application deployments, Jubilant, and pytest-bdd, like the Istio
+Terraform modules, Jubilant, and pytest-bdd, like the Istio
 solution suite. It is separate from each charm's integration tests.
 
 The initial backend is Tailscale SaaS. Headscale is not enabled in this suite:
