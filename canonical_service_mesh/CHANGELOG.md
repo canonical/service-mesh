@@ -1,5 +1,12 @@
 # Changelog
 
+## [0.4.0](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.3.1...canonical-service-mesh-v0.4.0) (2026-10-07)
+
+
+### Features
+
+* bump istio version to 1.31 ([#841](https://github.com/canonical/service-mesh/issues/841)) ([7ee9a3d](https://github.com/canonical/service-mesh/commit/7ee9a3d468dbc85ae6e1492de1ba2b83015e8870))
+
 ## [0.3.1](https://github.com/canonical/service-mesh/compare/canonical-service-mesh-v0.3.0...canonical-service-mesh-v0.3.1) (2026-10-01)
 
 
