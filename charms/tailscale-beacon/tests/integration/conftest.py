@@ -82,8 +82,7 @@ def tailscale_credentials() -> dict[str, str]:
     """
     client_id = os.environ.get("TAILSCALE_CLIENT_ID")
     client_secret = os.environ.get("TAILSCALE_CLIENT_SECRET")
-    if not client_id or not client_secret:
-        pytest.skip("TAILSCALE_CLIENT_ID and TAILSCALE_CLIENT_SECRET must be set")
+    assert client_id and client_secret, "TAILSCALE_CLIENT_ID and TAILSCALE_CLIENT_SECRET must be set"
     return {"client-id": client_id, "client-secret": client_secret}
 
 
