@@ -53,7 +53,7 @@ jobs:
       suites: ${{ steps.suites.outputs.suites }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
       - name: Generate matrix list
         id: suites
         run: |
@@ -73,7 +73,7 @@ jobs:
         k8s_distribution: ${{ fromJSON(inputs.k8s-distributions) }}
     steps:
       - name: Checkout
-        uses: actions/checkout@v4
+        uses: actions/checkout@v6
 
       - name: Setup env
         uses: ./.github/actions/setup-env
