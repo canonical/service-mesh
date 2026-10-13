@@ -66,10 +66,12 @@ separate controller credentials from the environment.
 
 ## CI credentials
 
-The `Tests: Tailscale Solution` workflow can be dispatched manually. Configure a
-GitHub environment named `tailscale-solution-tests` with the test-tailnet secrets,
-required reviewers, and deployment-branch restrictions appropriate for trusted
-code. Do not grant these credentials to unreviewed branches.
+The `Tests: Tailscale Solution` workflow can be dispatched manually. Configure the
+test-tailnet secrets (`TAILSCALE_CLIENT_ID`, `TAILSCALE_CLIENT_SECRET`,
+`TAILSCALE_TEST_AUTH_KEY`) and variables (`TAILSCALE_OPERATOR_TAGS`,
+`TAILSCALE_PROXY_TAGS`) at the repository level. For external contributors,
+workflow runs must be manually approved after reviewing the code before they can
+access these credentials. Do not grant these credentials to unreviewed branches.
 
 Also configure `TAILSCALE_TEST_AUTH_KEY` as a **reusable, ephemeral, tagged**
 auth key for the runner client. Pre-approve it if device approval is enabled.

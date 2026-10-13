@@ -58,7 +58,6 @@ jobs:
       (github.event_name != 'pull_request' ||
        github.event.pull_request.head.repo.full_name == github.repository)
     runs-on: ubuntu-latest
-    environment: tailscale-solution-tests
     strategy:
       fail-fast: false
       max-parallel: 1
@@ -74,7 +73,7 @@ jobs:
           TAILSCALE_TEST_AUTH_KEY: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
         run: |
           if [[ -z "$TAILSCALE_CLIENT_ID" || -z "$TAILSCALE_CLIENT_SECRET" || -z "$TAILSCALE_TEST_AUTH_KEY" ]]; then
-            echo "::error::Configure root OAuth credentials and the ephemeral client auth key in the tailscale-solution-tests environment."
+            echo "::error::Configure root OAuth credentials and the ephemeral client auth key as repository secrets."
             exit 1
           fi
       - name: Setup env
