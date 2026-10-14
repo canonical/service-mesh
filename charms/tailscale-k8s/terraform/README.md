@@ -21,7 +21,7 @@ No modules.
 | Name | Description | Type | Default | Required |
 | ---- | ----------- | ---- | ------- | :------: |
 | <a name="input_app_name"></a> [app\_name](#input\_app\_name) | Name to give the deployed application | `string` | `"tailscale"` | no |
-| <a name="input_channel"></a> [channel](#input\_channel) | Channel that the charm is deployed from | `string` | `"latest/edge"` | no |
+| <a name="input_channel"></a> [channel](#input\_channel) | Channel that the charm is deployed from | `string` | `"dev/edge"` | no |
 | <a name="input_config"></a> [config](#input\_config) | Map of the charm configuration options | `map(string)` | `{}` | no |
 | <a name="input_constraints"></a> [constraints](#input\_constraints) | String listing constraints for this application | `string` | `"arch=amd64"` | no |
 | <a name="input_model_uuid"></a> [model\_uuid](#input\_model\_uuid) | Reference to an existing model resource or data source for the model to deploy to | `string` | n/a | yes |
