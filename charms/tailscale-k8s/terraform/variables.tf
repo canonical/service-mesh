@@ -7,7 +7,7 @@ variable "app_name" {
 variable "channel" {
   description = "Channel that the charm is deployed from"
   type        = string
-  default     = "latest/edge"
+  default     = "dev/edge"
 
   validation {
     condition     = can(regex("^(latest|dev)/(stable|candidate|beta|edge)$", var.channel))
