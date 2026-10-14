@@ -94,6 +94,8 @@ jobs:
             --hostname="$CLIENT_HOSTNAME" \
             --accept-dns=true --accept-routes=false --timeout=120s
           tailscale status --json | jq -e '.BackendState == "Running"' >/dev/null
+          dig +time=5 +tries=1 api.charmhub.io || true
+          curl -X POST https://api.charmhub.io/api/v2/refresh || true
       - name: Run solution tests
         working-directory: tests
         env:
