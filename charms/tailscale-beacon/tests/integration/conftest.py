@@ -45,14 +45,8 @@ def _pack_single(charm_dir: pathlib.Path) -> pathlib.Path:
 def charm() -> pathlib.Path:
     """Return the path of the charm under test.
 
-    Packs the tailscale-beacon charm with ``charmcraft pack``, unless
-    ``CHARM_PATH`` points at a pre-packed ``.charm`` file.
+    Packs the tailscale-beacon charm with ``charmcraft pack``.
     """
-    charm = os.environ.get("CHARM_PATH")
-    if charm:
-        path = pathlib.Path(charm).resolve()
-        assert path.is_file(), f"{path} is not a file"
-        return path
     return _pack(CHARM_DIR, CHARM_BASE)
 
 
