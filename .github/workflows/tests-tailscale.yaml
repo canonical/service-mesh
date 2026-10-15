@@ -82,20 +82,11 @@ jobs:
           k8s-distribution: ${{ matrix.k8s_distribution }}
           juju-channel: ${{ inputs.juju-channel || '3.6/stable' }}
           k8s-channel: ${{ matrix.k8s_distribution == 'microk8s' && (inputs.microk8s-channel || '1.32-strict/stable') || (inputs.canonical-k8s-channel || '1.32-classic/stable') }}
-      - name: Install Tailscale client
-        id: tailscale-client
-        run: sudo snap install tailscale
-      - name: Join the test tailnet
-        env:
-          TAILSCALE_TEST_AUTH_KEY: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
-          CLIENT_HOSTNAME: sm-client-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-        run: |
-          sudo tailscale up --auth-key="$TAILSCALE_TEST_AUTH_KEY" \
-            --hostname="$CLIENT_HOSTNAME" \
-            --accept-dns=true --accept-routes=false --timeout=120s
-          tailscale status --json | jq -e '.BackendState == "Running"' >/dev/null
-          dig +time=5 +tries=1 api.charmhub.io || true
-          curl -X POST https://api.charmhub.io/api/v2/refresh || true
+      - name: Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
+          hostname: sm-client-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
       - name: Run solution tests
         working-directory: tests
         env:
