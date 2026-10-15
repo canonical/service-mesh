@@ -13,11 +13,6 @@ permissions:
   actions: read
   contents: read
 
-env:
-  TAILSCALE_TEST_AUTH_KEY: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
-  TAILSCALE_CLIENT_ID: ${{ secrets.TAILSCALE_CLIENT_ID }}
-  TAILSCALE_CLIENT_SECRET: ${{ secrets.TAILSCALE_CLIENT_SECRET }}
-  
 jobs:
   discover-charms:
     name: Discover changed charms
