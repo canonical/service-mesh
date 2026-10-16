@@ -14,6 +14,11 @@ on:
         type: string
         description: Charm to promote (directory name under charms/)
 
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+
 jobs:
   promote:
     name: Promote
