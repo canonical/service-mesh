@@ -18,6 +18,11 @@ on:
           - istio-ingress-k8s
           - istio-k8s
 
+permissions:
+  actions: read
+  contents: write
+  security-events: write
+
 jobs:
   promote:
     name: Promote
