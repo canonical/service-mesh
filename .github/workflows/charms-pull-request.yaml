@@ -90,7 +90,7 @@ jobs:
       matrix:
         charm-path: ${{ fromJSON(needs.discover-charms.outputs.charms) }}
       fail-fast: false
-    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@v2
+    uses: canonical/observability/.github/workflows/charm-pull-request.yaml@feat/propagate-tailscale-secrets
     with:
       charm-path: ${{ matrix.charm-path }}
       provider: ${{ matrix.charm-path == 'charms/tailscale-beacon' && 'machine' || 'k8s' }}

@@ -21,6 +21,8 @@ dev = [
     "coverage[toml]",
     "pytest-mock",
     "ops[testing]",
+    "jubilant>=1.8,<2",
+    "pytest-jubilant>=2.0.1,<3",
 ]
 
 [tool.coverage.run]
