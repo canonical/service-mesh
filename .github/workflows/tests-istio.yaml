@@ -89,7 +89,7 @@ jobs:
           if [[ "${{ runner.debug }}" == "1" ]]; then
             export KEEP_MODELS=true
             sudo snap install jhack --channel=latest/edge && sudo snap connect jhack:dot-local-share-juju snapd
-            uvx tox -e istio -- -vv --gherkin-terminal-reporter --keep-models -k "${{ matrix.suite }}"
+            uvx tox -e istio -- -vv --gherkin-terminal-reporter --no-juju-teardown -k "${{ matrix.suite }}"
           else
             uvx tox -e istio -- --gherkin-terminal-reporter -k "${{ matrix.suite }}"
           fi

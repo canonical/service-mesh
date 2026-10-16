@@ -22,6 +22,17 @@
  * ```
  */
 
+data "juju_charm" "connectivity" {
+  charm        = "ubuntu"
+  channel      = "latest/stable"
+  base         = "ubuntu@22.04"
+  architecture = "amd64"
+}
+
+output "resolved_revision" {
+  value = data.juju_charm.connectivity.revision
+}
+
 resource "juju_application" "tailscale" {
   name               = var.app_name
   config             = var.config
