@@ -87,6 +87,8 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
           hostname: sm-client-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
+      - name: Reject public IPv6 to prevent Tailscale routing blackholes
+        run: sudo ip -6 route add unreachable 2000::/3
       - name: Run solution tests
         working-directory: tests
         env:
