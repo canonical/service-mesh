@@ -11,14 +11,46 @@ on:
           - beta -> candidate
           - candidate -> stable
       charm:
-        type: string
-        description: Charm to promote (directory name under charms/)
+        type: choice
+        description: Envoy charm to promote
+        options:
+          - envoy-ai-controller-k8s
+          - envoy-controller-k8s
+          - envoy-ingress-k8s
 
 jobs:
+  resolve-track:
+    name: Resolve track
+    runs-on: ubuntu-latest
+    outputs:
+      track: ${{ steps.track.outputs.track }}
+    steps:
+      - name: Select track for charm
+        id: track
+        run: |
+          case "${{ github.event.inputs.charm }}" in
+            envoy-ai-controller-k8s)
+              track="0.6"
+              ;;
+            envoy-controller-k8s)
+              track="1.7"
+              ;;
+            envoy-ingress-k8s)
+              track="1.7"
+              ;;
+            *)
+              echo "Unknown charm: ${{ github.event.inputs.charm }}" >&2
+              exit 1
+              ;;
+          esac
+          echo "track=${track}" >> "$GITHUB_OUTPUT"
+
   promote:
     name: Promote
+    needs: resolve-track
     uses: canonical/observability/.github/workflows/charm-promote.yaml@v2
     with:
       promotion: ${{ github.event.inputs.promotion }}
       charm-path: charms/${{ github.event.inputs.charm }}
+      track: ${{ needs.resolve-track.outputs.track }}
     secrets: inherit
