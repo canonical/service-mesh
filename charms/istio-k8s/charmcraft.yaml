@@ -143,4 +143,4 @@ resources:
   metrics-proxy-image:
     type: oci-image
     description: Metrics Proxy OCI image
-    upstream-source: docker.io/ubuntu/metrics-proxy:0.1.1-24.04_stable
+    upstream-source: docker.io/ubuntu/metrics-proxy:0.1-26.04_edge
