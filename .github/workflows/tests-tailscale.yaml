@@ -76,20 +76,17 @@ jobs:
             echo "::error::Configure root OAuth credentials and the ephemeral client auth key as repository secrets."
             exit 1
           fi
+      - name: Tailscale
+        uses: tailscale/github-action@v4
+        with:
+          authkey: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
+          hostname: sm-client-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
       - name: Setup env
         uses: ./.github/actions/setup-env
         with:
           k8s-distribution: ${{ matrix.k8s_distribution }}
           juju-channel: ${{ inputs.juju-channel || '3.6/stable' }}
           k8s-channel: ${{ matrix.k8s_distribution == 'microk8s' && (inputs.microk8s-channel || '1.32-strict/stable') || (inputs.canonical-k8s-channel || '1.32-classic/stable') }}
-      - name: Tailscale
-        uses: tailscale/github-action@v4
-        with:
-          authkey: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
-          hostname: sm-client-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-      - name: Clamp MSS to PMTU to prevent K8s/Tailscale fragmentation drops
-        run: |
-          sudo iptables -t mangle -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
       - name: Run solution tests
         working-directory: tests
         env:
