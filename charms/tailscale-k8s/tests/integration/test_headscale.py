@@ -9,6 +9,7 @@ and verify the Tailscale K8s operator registers successfully. They also test
 that workloads exposed via LoadBalancer Services are reachable over the tailnet.
 """
 
+import asyncio
 import json
 import logging
 import os
@@ -517,7 +518,7 @@ async def test_operator_registered_on_headscale(ops_test: OpsTest):
         )
 
     # Give the operator a moment to register
-    time.sleep(10)
+    await asyncio.sleep(10)
 
     rc, out, err = headscale_exec(namespace, "headscale", "nodes", "list", "-o", "json")
     assert rc == 0, f"Failed to list nodes: {err}"
@@ -572,7 +573,7 @@ async def test_workload_exposed_via_loadbalancer(ops_test: OpsTest):
             proxy_ready = True
             logger.info("Proxy StatefulSet found: %s", out.strip())
             break
-        time.sleep(5)
+        await asyncio.sleep(5)
 
     assert proxy_ready, "Operator did not create a proxy StatefulSet for the LoadBalancer Service"
 
@@ -608,7 +609,7 @@ async def test_workload_gets_tailnet_address(ops_test: OpsTest):
         if rc == 0 and out.strip():
             address = out.strip()
             break
-        time.sleep(5)
+        await asyncio.sleep(5)
 
     assert address, (
         "LoadBalancer Service did not receive a tailnet address within timeout"
@@ -729,10 +730,10 @@ spec:
         )
         if rc == 0 and out.strip() == "Running":
             break
-        time.sleep(5)
+        await asyncio.sleep(5)
 
     # Give tailscale time to connect
-    time.sleep(15)
+    await asyncio.sleep(15)
 
     # Resolve the workload proxy's actual tailnet IP from Headscale (the LB
     # ingress exposes a MagicDNS name the userspace client can't resolve).
@@ -742,7 +743,7 @@ spec:
         workload_ip = get_proxy_tailnet_ip(namespace, HTTPBIN_NAME)
         if workload_ip:
             break
-        time.sleep(5)
+        await asyncio.sleep(5)
     assert workload_ip, "Could not resolve the workload proxy's tailnet IP from Headscale"
     logger.info("Workload proxy tailnet IP: %s", workload_ip)
 
@@ -762,7 +763,7 @@ spec:
             logger.info("Workload reachable from tailnet client via %s", workload_ip)
             break
         last_err = result.stderr.strip()
-        time.sleep(5)
+        await asyncio.sleep(5)
 
     assert reached, (
         f"Could not reach workload at {workload_ip} from the tailnet client "
