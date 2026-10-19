@@ -87,8 +87,9 @@ jobs:
         with:
           authkey: ${{ secrets.TAILSCALE_TEST_AUTH_KEY }}
           hostname: sm-client-${{ github.run_id }}-${{ github.run_attempt }}-${{ strategy.job-index }}
-      - name: Reject public IPv6 to prevent Tailscale routing blackholes
-        run: sudo ip -6 route add unreachable 2000::/3
+      - name: Clamp MSS to PMTU to prevent K8s/Tailscale fragmentation drops
+        run: |
+          sudo iptables -t mangle -A FORWARD -p tcp -m tcp --tcp-flags SYN,RST SYN -j TCPMSS --clamp-mss-to-pmtu
       - name: Run solution tests
         working-directory: tests
         env:
