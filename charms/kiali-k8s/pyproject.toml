@@ -12,6 +12,7 @@ dependencies = [
     "ops",
     "pydantic",
     "requests",
+    "charmed-service-mesh-helpers",
     "observability-charm-tools@git+https://github.com/canonical/observability-charm-tools@main",
 ]
 
