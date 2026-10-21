@@ -14,6 +14,7 @@ dependencies = [
     "requests",
     "charmed-service-mesh-helpers",
     "observability-charm-tools@git+https://github.com/canonical/observability-charm-tools@main",
+    "lightkube_extensions",
 ]
 
 [project.optional-dependencies]
