@@ -22,6 +22,8 @@ dev = [
     "black",
     "codespell",
     # Static
+    "ty",
+    "vulture",
     "pyright",
     # Unit
     "pytest",
