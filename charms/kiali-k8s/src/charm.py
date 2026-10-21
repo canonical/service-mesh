@@ -15,7 +15,7 @@ import requests
 import yaml
 from charms.grafana_k8s.v0.grafana_metadata import GrafanaMetadataAppData, GrafanaMetadataRequirer
 from charms.istio_beacon_k8s.v0.service_mesh import ServiceMeshConsumer, UnitPolicy
-from charms.istio_k8s.v0.istio_metadata import IstioMetadataRequirer
+from charms.istio_k8s.v0.istio_metadata import IstioMetadataAppData, IstioMetadataRequirer
 from charms.loki_k8s.v1.loki_push_api import LogForwarder
 from charms.mimir_coordinator_k8s.v0.prometheus_api import PrometheusApiRequirer
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
@@ -339,7 +339,7 @@ class KialiCharm(ops.CharmBase):
             raise GrafanaMissingError("No grafana available over the grafana-metadata relation")
 
         grafana_metadata = self._grafana_metadata.get_data()
-        if not grafana_metadata:
+        if not isinstance(grafana_metadata, GrafanaMetadataAppData):
             raise WaitingStatusError("Waiting on data over the grafana-metadata relation")
 
         # Create the return object, including a default value for ingress_url
@@ -362,7 +362,8 @@ class KialiCharm(ops.CharmBase):
         LOGGER.debug("Getting Istio namespace")
         if len(self._istio_metadata.relations) == 0:
             raise BlockedStatusError("Missing required relation to istio provider")
-        if not (istio_data := self._istio_metadata.get_data()):
+        istio_data = self._istio_metadata.get_data()
+        if not isinstance(istio_data, IstioMetadataAppData):
             raise WaitingStatusError("Istio relation established, but data is missing or invalid")
         returned = istio_data.root_namespace
         LOGGER.debug(f"Istio namespace: {returned}")

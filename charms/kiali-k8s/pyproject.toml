@@ -63,6 +63,10 @@ target-version = ["py312"]
 [tool.ruff]
 line-length = 99
 target-version = "py312"
+extend-exclude = ["lib/charms/traefik_k8s/", "lib/charms/loki_k8s/", "lib/charms/prometheus_k8s/"]
+
+[tool.ty.src]
+exclude = ["lib/charms/traefik_k8s/", "lib/charms/loki_k8s/", "lib/charms/prometheus_k8s/"]
 
 [tool.ruff.lint]
 exclude = ["__pycache__", "*.egg_info"]
