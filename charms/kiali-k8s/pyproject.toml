@@ -12,7 +12,9 @@ dependencies = [
     "ops",
     "pydantic",
     "requests",
+    "charmed-service-mesh-helpers",
     "observability-charm-tools@git+https://github.com/canonical/observability-charm-tools@main",
+    "lightkube_extensions",
 ]
 
 [project.optional-dependencies]
@@ -22,6 +24,8 @@ dev = [
     "black",
     "codespell",
     # Static
+    "ty",
+    "vulture",
     "pyright",
     # Unit
     "pytest",
@@ -63,6 +67,10 @@ target-version = ["py312"]
 [tool.ruff]
 line-length = 99
 target-version = "py312"
+extend-exclude = ["lib/charms/traefik_k8s/", "lib/charms/loki_k8s/", "lib/charms/prometheus_k8s/"]
+
+[tool.ty.src]
+exclude = ["lib/charms/traefik_k8s/", "lib/charms/loki_k8s/", "lib/charms/prometheus_k8s/"]
 
 [tool.ruff.lint]
 exclude = ["__pycache__", "*.egg_info"]

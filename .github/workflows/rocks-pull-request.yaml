@@ -21,7 +21,7 @@ jobs:
       rocks: ${{ steps.matrix.outputs.rocks }}
     steps:
       - uses: actions/checkout@v6
-      - uses: dorny/paths-filter@v3
+      - uses: dorny/paths-filter@v4
         id: changes
         with:
           filters: |

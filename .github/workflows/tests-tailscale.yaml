@@ -43,7 +43,7 @@ jobs:
     outputs:
       suites: ${{ steps.suites.outputs.suites }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Generate matrix
         id: suites
         run: |
@@ -65,7 +65,7 @@ jobs:
         suite: ${{ fromJSON(needs.integration-matrix.outputs.suites) }}
         k8s_distribution: ${{ fromJSON(inputs.k8s-distributions || '["canonical-k8s"]') }}
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v6
       - name: Check test-tailnet credentials
         env:
           TAILSCALE_CLIENT_ID: ${{ secrets.TAILSCALE_CLIENT_ID }}
