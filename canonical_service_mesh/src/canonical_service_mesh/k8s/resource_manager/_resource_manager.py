@@ -35,12 +35,29 @@ from ._batch_operations import apply_many, delete_many, patch_many
 
 try:
     # lightkube >= 1.0 bundles its HTTP stack as the separate ``httpx2`` package, so the
-    # transport errors it raises are not instances of the top-level ``httpx`` exceptions.
+    # errors it raises are not instances of the top-level ``httpx`` exceptions.
     import httpx2  # pyright: ignore[reportMissingImports]  # only present with lightkube >= 1.0
 
     _TRANSPORT_ERRORS: tuple = (httpx.TransportError, httpx2.TransportError)
+    _HTTP_STATUS_ERRORS: tuple = (httpx.HTTPStatusError, httpx2.HTTPStatusError)
 except ImportError:
     _TRANSPORT_ERRORS = (httpx.TransportError,)
+    _HTTP_STATUS_ERRORS = (httpx.HTTPStatusError,)
+
+
+def _status_code(error: ApiError | httpx.HTTPStatusError) -> int | None:
+    """Return the HTTP status code of an error raised by a lightkube call.
+
+    lightkube only raises ApiError for responses with a JSON body. The 404 the API server
+    returns for an API group that doesn't exist, such as when a CRD isn't installed, has none,
+    so it escapes as the raw HTTP client error.
+
+    The annotation names httpx's error because type checkers can't see httpx2's, which has
+    the same shape.
+    """
+    if isinstance(error, ApiError):
+        return error.status.code
+    return error.response.status_code
 
 
 def _k8s_api_call(func):
@@ -187,12 +204,12 @@ class KubernetesResourceManager:
                         resource_type, namespace=namespace, labels=self.labels
                     )
                 )
-            except ApiError as error:
-                if error.status.code == 404:
-                    self.log.debug(
-                        f"resource type {resource_type} not found in cluster. Ignoring this type."
-                    )
-                raise error
+            except (ApiError, *_HTTP_STATUS_ERRORS) as error:
+                if _status_code(error) != 404:
+                    raise
+                self.log.debug(
+                    f"resource type {resource_type} not found in cluster. Ignoring this type."
+                )
 
         return resources
 

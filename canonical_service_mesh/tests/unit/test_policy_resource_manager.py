@@ -88,3 +88,23 @@ def test_prm_delete_reraises_non_404():
     prm._krm.delete.side_effect = FakeApiError(500)
     with pytest.raises(ApiError):
         prm.delete(ignore_missing=True)
+
+
+@pytest.mark.parametrize("module_name", ["httpx", "httpx2"])
+def test_prm_delete_tolerates_missing_policy_crds(module_name):
+    """Cleaning up policies on a cluster without the Istio CRDs does not fail.
+
+    On such a cluster, listing the policy resources gets a 404 with no JSON body from the API
+    server. lightkube raises that as the raw HTTP client error rather than an ApiError. Simulate
+    it by making the list call raise that error, and expect the cleanup to be a no-op.
+    """
+    http = pytest.importorskip(module_name)
+    request = http.Request("GET", "https://10.152.183.1/apis/security.istio.io/v1/policies")
+    response = http.Response(404, request=request, text="404 page not found")
+    client = MagicMock()
+    client.list.side_effect = http.HTTPStatusError("404", request=request, response=response)
+    prm = PolicyResourceManager(
+        charm=_make_charm(), lightkube_client=client, labels={"scope": "test"}
+    )
+
+    prm.delete()

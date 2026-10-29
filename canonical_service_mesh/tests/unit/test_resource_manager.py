@@ -11,7 +11,7 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.apps_v1 import StatefulSet
 from lightkube.resources.core_v1 import Pod, Service
 
-from canonical_service_mesh.k8s.resource_manager import KubernetesResourceManager
+from canonical_service_mesh.k8s.resource_manager import FakeApiError, KubernetesResourceManager
 from canonical_service_mesh.k8s.resource_manager._resource_manager import (
     K8sApiError,
     _add_labels_to_resources,
@@ -214,3 +214,55 @@ def test_create_charm_default_labels__maxlength(model_name, app_name):
 def test_create_charm_default_labels__short_names():
     labels = create_charm_default_labels("abcde", "fghij", "testscope")
     assert labels["app.kubernetes.io/instance"] == "fghij-abcde"
+
+
+def _http_status_error(module_name, status_code):
+    """Build the error lightkube leaves untranslated for a response without a JSON body."""
+    http = pytest.importorskip(module_name)
+    request = http.Request("GET", "https://10.152.183.1/apis/security.istio.io/v1/policies")
+    response = http.Response(status_code, request=request, text=f"{status_code} page not found")
+    return http.HTTPStatusError("error", request=request, response=response)
+
+
+@pytest.mark.parametrize(
+    "make_error",
+    [
+        lambda: FakeApiError(404),
+        lambda: _http_status_error("httpx", 404),
+        lambda: _http_status_error("httpx2", 404),
+    ],
+    ids=["api-error", "httpx", "httpx2"],
+)
+def test_krm_get_deployed_resources_skips_resource_types_missing_from_cluster(make_error):
+    """A resource type whose CRD isn't installed is skipped, not fatal, whatever the error type."""
+    pod = Pod(metadata=ObjectMeta(name="p1", namespace="ns"))
+    client = MagicMock()
+    client.list.side_effect = lambda res, **_: (
+        iter([pod]) if res is Pod else (_ for _ in ()).throw(make_error())
+    )
+    krm = KubernetesResourceManager(
+        labels=DEFAULT_LABELS, resource_types={Pod, test_namespaced}, lightkube_client=client
+    )
+
+    assert krm.get_deployed_resources() == [pod]
+
+
+@pytest.mark.parametrize(
+    "make_error",
+    [
+        lambda: FakeApiError(500),
+        lambda: _http_status_error("httpx", 500),
+        lambda: _http_status_error("httpx2", 500),
+    ],
+    ids=["api-error", "httpx", "httpx2"],
+)
+def test_krm_get_deployed_resources_raises_other_api_errors(make_error):
+    error = make_error()
+    client = MagicMock()
+    client.list.side_effect = error
+    krm = KubernetesResourceManager(
+        labels=DEFAULT_LABELS, resource_types={Pod}, lightkube_client=client
+    )
+
+    with pytest.raises(type(error)):
+        krm.get_deployed_resources()
