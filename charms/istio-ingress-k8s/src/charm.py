@@ -682,6 +682,26 @@ class IstioIngressCharm(CharmBase):
             spec=gateway.spec.model_dump(exclude_none=True),
         )
 
+    def _construct_forward_auth_policy(self, decisions_address: str):
+        """Return an AuthorizationPolicy allowing this gateway to reach its forward-auth provider."""
+        parsed_url = urlparse(decisions_address)
+        hostname = parsed_url.hostname
+        port = parsed_url.port
+        if hostname is None or port is None:
+            return None
+
+        # hostname may be a short in-model name ("auth-service") or a
+        # fully-qualified one ("auth-service.some-namespace.svc.cluster.local")
+        parts = hostname.split(".")
+        target_name = parts[0]
+        target_namespace = parts[1] if len(parts) > 1 else self.model.name
+
+        return self._construct_auth_policy_from_ingress_to_target(
+            target_name=target_name,
+            target_namespace=target_namespace,
+            target_ports=[port],
+        )
+
     def _construct_auth_policy_from_ingress_to_target(
         self, target_name: str, target_namespace: str, target_ports: List[int]
     ):
@@ -1624,6 +1644,12 @@ class IstioIngressCharm(CharmBase):
         httproutes = self._construct_httproutes(http_routes)
         grpcroutes = self._construct_grpcroutes(grpc_routes)
         auth_policies = self._construct_auth_policies(http_routes, grpc_routes)
+
+        auth_decisions_address = self._get_oauth_decisions_address()
+        if auth_decisions_address:
+            forward_auth_policy = self._construct_forward_auth_policy(auth_decisions_address)
+            if forward_auth_policy:
+                auth_policies.append(forward_auth_policy)
 
         # NOTE: The below DestinationRule resource instructs the gateway to use same protocol (http/2, http/1.1 etc) as the client.
         # According to the istio docs: https://istio.io/latest/docs/ops/configuration/traffic-management/protocol-selection/#http-gateway-protocol-selection
