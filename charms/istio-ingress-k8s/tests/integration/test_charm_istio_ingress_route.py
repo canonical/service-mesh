@@ -2,6 +2,7 @@
 # See LICENSE file for licensing details.
 
 import logging
+import time
 from pathlib import Path
 
 import lightkube
@@ -29,6 +30,29 @@ METADATA = yaml.safe_load(Path("./charmcraft.yaml").read_text())
 APP_NAME = METADATA["name"]
 TESTER_HTTP = "tester-http"
 TESTER_GRPC = "tester-grpc"
+
+LISTENER_POLL_ATTEMPTS = 12
+LISTENER_POLL_DELAY = 10
+
+
+def _find_listener(listeners, name):
+    """Return the listener entry with the given name, or None."""
+    return next((listener for listener in listeners if listener["name"] == name), None)
+
+
+def _wait_for_listener_attached_routes(
+    client, gateway_resource, model, listener_name, attached_routes
+):
+    """Poll the Gateway until the named listener reports the expected attachedRoutes."""
+    for _ in range(LISTENER_POLL_ATTEMPTS):
+        gateway = client.get(gateway_resource, namespace=model, name="istio-ingress-k8s")
+        listener = _find_listener(gateway.status["listeners"], listener_name)
+        if listener is not None and listener["attachedRoutes"] == attached_routes:
+            return gateway
+        time.sleep(LISTENER_POLL_DELAY)
+    raise AssertionError(
+        f"Listener {listener_name} did not reach {attached_routes} attachedRoutes in time"
+    )
 
 
 @pytest.mark.setup
@@ -319,24 +343,13 @@ def test_tls_http_routes_validity(juju: Juju):
         "gateway.networking.k8s.io", "v1", "Gateway", "gateways"
     )
     c = lightkube.Client()
-    gateway = c.get(gateway_resource, namespace=juju.model, name="istio-ingress-k8s")
+    gateway = _wait_for_listener_attached_routes(
+        c, gateway_resource, juju.model, listener_name="https-8080", attached_routes=3
+    )
 
-    # Verify HTTPS listener for HTTP routes (port 8080 -> https-8080)
-    https_8080_listener_condition = next(
-        (listener for listener in gateway.status["listeners"] if listener["name"] == "https-8080"),
-        None,
-    )
-    https_8080_listener_spec = next(
-        (listener for listener in gateway.spec["listeners"] if listener["name"] == "https-8080"),
-        None,
-    )
-    assert https_8080_listener_condition is not None, (
-        "Listener https-8080 not found in Gateway status"
-    )
+    # Verify HTTPS listener spec for HTTP routes (port 8080 -> https-8080)
+    https_8080_listener_spec = _find_listener(gateway.spec["listeners"], "https-8080")
     assert https_8080_listener_spec is not None, "Listener https-8080 not found in Gateway spec"
-    assert https_8080_listener_condition["attachedRoutes"] == 3, (
-        "Expected 3 HTTP routes attached to https-8080"
-    )
     assert https_8080_listener_spec["port"] == 8080
     assert https_8080_listener_spec["protocol"] == "HTTPS"
 
@@ -394,24 +407,13 @@ def test_tls_grpc_routes_validity(juju: Juju):
         "gateway.networking.k8s.io", "v1", "Gateway", "gateways"
     )
     c = lightkube.Client()
-    gateway = c.get(gateway_resource, namespace=juju.model, name="istio-ingress-k8s")
+    gateway = _wait_for_listener_attached_routes(
+        c, gateway_resource, juju.model, listener_name="https-9000", attached_routes=3
+    )
 
-    # Verify HTTPS listener for gRPC routes (port 9000 -> https-9000)
-    https_9000_listener_condition = next(
-        (listener for listener in gateway.status["listeners"] if listener["name"] == "https-9000"),
-        None,
-    )
-    https_9000_listener_spec = next(
-        (listener for listener in gateway.spec["listeners"] if listener["name"] == "https-9000"),
-        None,
-    )
-    assert https_9000_listener_condition is not None, (
-        "Listener https-9000 not found in Gateway status"
-    )
+    # Verify HTTPS listener spec for gRPC routes (port 9000 -> https-9000)
+    https_9000_listener_spec = _find_listener(gateway.spec["listeners"], "https-9000")
     assert https_9000_listener_spec is not None, "Listener https-9000 not found in Gateway spec"
-    assert https_9000_listener_condition["attachedRoutes"] == 3, (
-        "Expected 3 gRPC routes attached to https-9000"
-    )
     assert https_9000_listener_spec["port"] == 9000
     assert https_9000_listener_spec["protocol"] == "HTTPS"
 
