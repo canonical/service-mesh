@@ -310,8 +310,7 @@ class IstioCoreCharm(ops.CharmBase):
             return
 
         binding = self._get_cni_binding()
-        if binding is None or not self._owns_cni_binding(binding):
-            return
+        owns_cni_binding = binding is not None and self._owns_cni_binding(binding)
 
         for name in self._resource_manager_factories:
             resources = self._get_resource_manager(name).get_deployed_resources()
@@ -328,6 +327,9 @@ class IstioCoreCharm(ops.CharmBase):
                 ),
                 logger=LOGGER,
             )
+
+        if not owns_cni_binding:
+            return
 
         self._wait_for_control_plane_removal()
         self.lightkube_client.delete(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)

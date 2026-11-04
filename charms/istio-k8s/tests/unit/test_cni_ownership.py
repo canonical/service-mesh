@@ -155,15 +155,34 @@ def test_update_status_retries_claim(cni_context, mocker):
     reconcile.assert_called_once()
 
 
-def test_removing_contender_does_not_delete_shared_resources(cni_context, mocker):
+def test_removing_contender_cleans_its_resources_without_deleting_shared_claim(cni_context, mocker):
     context, client = cni_context
     client.get.return_value = _binding("other-model")
     manager = mocker.patch.object(IstioCoreCharm, "_get_resource_manager").return_value
+    manager.get_deployed_resources.return_value = []
 
     context.run(context.on.remove(), State(leader=True, model=Model(name="owner")))
 
-    manager.get_deployed_resources.assert_not_called()
+    assert manager.get_deployed_resources.call_count == 3
     client.delete.assert_not_called()
+
+
+def test_removing_after_claim_disappears_cleans_resources(cni_context, mocker):
+    context, client = cni_context
+    client.get.side_effect = _api_error(404, "NotFound")
+    manager = mocker.patch.object(IstioCoreCharm, "_get_resource_manager").return_value
+    manager.get_deployed_resources.side_effect = [
+        [ConfigMap(metadata=ObjectMeta(name="owned-config", namespace="owner"))],
+        [],
+        [],
+    ]
+
+    context.run(context.on.remove(), State(leader=True, model=Model(name="owner")))
+
+    assert client.delete.call_args_list == [
+        call(res=ConfigMap, name="owned-config", namespace="owner"),
+    ]
+    assert manager.get_deployed_resources.call_count == 3
 
 
 def test_owner_releases_claim_after_cleaning_resources_and_pods(cni_context, mocker):
