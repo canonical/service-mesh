@@ -18,6 +18,7 @@ from src.cni_ownership import (
     can_recognise,
     expected_cni_binding,
     identify_owner_namespace,
+    is_cni_cluster_role_binding,
 )
 
 
@@ -238,6 +239,25 @@ def test_shutdown_timeout_keeps_claim(cni_context, mocker):
 
     assert isinstance(caught.value.__cause__, TimeoutError)
     client.delete.assert_not_called()
+
+
+@pytest.mark.parametrize(
+    "resource,expected",
+    [
+        (_binding("owner"), True),
+        (
+            ClusterRoleBinding(
+                metadata=ObjectMeta(name="other-binding"), roleRef=_binding("owner").roleRef
+            ),
+            False,
+        ),
+        (ClusterRoleBinding(metadata=None, roleRef=_binding("owner").roleRef), False),
+        (ConfigMap(metadata=ObjectMeta(name="istio-cni", namespace="owner")), False),
+    ],
+    ids=["cni-binding", "other-binding", "no-metadata", "other-resource-type"],
+)
+def test_is_cni_cluster_role_binding(resource, expected):
+    assert is_cni_cluster_role_binding(resource) is expected
 
 
 def test_expected_cni_binding_shape():

@@ -72,6 +72,7 @@ from cni_ownership import (
     can_recognise,
     expected_cni_binding,
     identify_owner_namespace,
+    is_cni_cluster_role_binding,
     is_owned_by,
 )
 from config import CharmConfig
@@ -317,6 +318,20 @@ class IstioCoreCharm(ops.CharmBase):
         binding = self._get_live_cni_binding()
         owns_cni_binding = binding is not None and self._owns_cni_binding(binding)
 
+        self._delete_managed_resources_except_cni_binding()
+
+        if not owns_cni_binding:
+            return
+
+        self._wait_for_control_plane_removal()
+        self.lightkube_client.delete(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)
+
+    def _delete_managed_resources_except_cni_binding(self) -> None:
+        """Delete all deployed resources except the shared CNI ClusterRoleBinding.
+
+        The CNI ClusterRoleBinding is cluster-scoped and may be claimed by another
+        installation, so it is handled separately in _remove.
+        """
         for name in self._resource_manager_factories:
             resources = self._get_resource_manager(name).get_deployed_resources()
             delete_many(
@@ -324,20 +339,10 @@ class IstioCoreCharm(ops.CharmBase):
                 (
                     resource
                     for resource in resources
-                    if not (
-                        isinstance(resource, ClusterRoleBinding)
-                        and resource.metadata
-                        and resource.metadata.name == CNI_CLUSTER_ROLE_BINDING
-                    )
+                    if not is_cni_cluster_role_binding(resource)
                 ),
                 logger=LOGGER,
             )
-
-        if not owns_cni_binding:
-            return
-
-        self._wait_for_control_plane_removal()
-        self.lightkube_client.delete(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)
 
     def _get_control_plane_pods(self) -> List[Pod]:
         """List the control-plane pods deployed by this charm."""

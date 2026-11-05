@@ -9,6 +9,7 @@ whether an existing binding is a live claim held by a given installation.
 """
 
 from canonical_service_mesh.k8s.resource_manager import create_charm_default_labels
+from canonical_service_mesh.k8s.types import LightkubeResourceType
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.models.rbac_v1 import RoleRef, Subject
 from lightkube.resources.rbac_authorization_v1 import ClusterRoleBinding
@@ -47,6 +48,15 @@ def expected_cni_binding(app_name: str, namespace: str) -> ClusterRoleBinding:
                 namespace=namespace,
             )
         ],
+    )
+
+
+def is_cni_cluster_role_binding(resource: LightkubeResourceType) -> bool:
+    """Return True if the resource is the shared Istio CNI ClusterRoleBinding."""
+    return (
+        isinstance(resource, ClusterRoleBinding)
+        and resource.metadata is not None
+        and resource.metadata.name == CNI_CLUSTER_ROLE_BINDING
     )
 
 
