@@ -310,7 +310,7 @@ class IstioCoreCharm(ops.CharmBase):
         if not self.unit.is_leader():
             return
 
-        binding = self._get_cni_binding()
+        binding = self._live_cni_binding()
         owns_cni_binding = binding is not None and self._owns_cni_binding(binding)
 
         for name in self._resource_manager_factories:
@@ -348,8 +348,8 @@ class IstioCoreCharm(ops.CharmBase):
             time.sleep(1)
 
     @property
-    def _cni_binding(self) -> ClusterRoleBinding:
-        """Return the cluster-scoped binding used to claim CNI ownership."""
+    def _expected_cni_binding(self) -> ClusterRoleBinding:
+        """Build the binding this charm expects to claim for CNI ownership."""
         return ClusterRoleBinding(
             metadata=ObjectMeta(
                 name=CNI_CLUSTER_ROLE_BINDING,
@@ -367,8 +367,8 @@ class IstioCoreCharm(ops.CharmBase):
             ],
         )
 
-    def _get_cni_binding(self) -> ClusterRoleBinding | None:
-        """Read the claim without changing a binding owned by another installation."""
+    def _live_cni_binding(self) -> ClusterRoleBinding | None:
+        """Read the live claim without changing a binding owned by another installation."""
         try:
             return self.lightkube_client.get(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)
         except ApiError as error:
@@ -378,11 +378,11 @@ class IstioCoreCharm(ops.CharmBase):
 
     def _owns_cni_binding(self, binding: ClusterRoleBinding) -> bool:
         """Check that the binding identifies this charm and the expected CNI access."""
-        return is_owned_by(binding, self._cni_binding)
+        return is_owned_by(binding, self._expected_cni_binding)
 
     def _get_cni_ownership_status(self) -> ops.StatusBase | None:
         """Report a competing or unrecognized owner before workload readiness."""
-        binding = self._get_cni_binding()
+        binding = self._live_cni_binding()
         if binding is None or (binding.metadata and binding.metadata.deletionTimestamp):
             return ops.WaitingStatus("Waiting to claim Istio CNI ownership")
         if self._owns_cni_binding(binding):
@@ -407,7 +407,7 @@ class IstioCoreCharm(ops.CharmBase):
     def _cni_owner_namespace(self, binding: ClusterRoleBinding) -> str | None:
         """Return the namespace only for the expected CNI role and service account."""
         subjects = binding.subjects or []
-        if binding.roleRef != self._cni_binding.roleRef or len(subjects) != 1:
+        if binding.roleRef != self._expected_cni_binding.roleRef or len(subjects) != 1:
             return None
         subject = subjects[0]
         if subject.kind != "ServiceAccount" or subject.name != "istio-cni":
@@ -417,11 +417,11 @@ class IstioCoreCharm(ops.CharmBase):
     def _claim_cni_ownership(self) -> bool:
         """Use Kubernetes create to arbitrate installations without overwriting a claim."""
         try:
-            self.lightkube_client.create(self._cni_binding)
+            self.lightkube_client.create(self._expected_cni_binding)
         except ApiError as error:
             if error.status.reason != "AlreadyExists":
                 raise
-            binding = self._get_cni_binding()
+            binding = self._live_cni_binding()
             return binding is not None and self._owns_cni_binding(binding)
         return True
 
