@@ -15,6 +15,7 @@ from scenario import Context, Model, State
 from scenario.errors import UncaughtCharmError
 
 from src.charm import CONTROL_PLANE_LABEL, IstioCoreCharm
+from src.cni_ownership import identify_owner_namespace
 
 
 def _binding(
@@ -246,3 +247,46 @@ def test_shutdown_timeout_keeps_claim(cni_context, mocker):
 
     assert isinstance(caught.value.__cause__, TimeoutError)
     client.delete.assert_not_called()
+
+
+def test_identify_owner_namespace_returns_subject_namespace():
+    assert identify_owner_namespace(_binding("other-model"), _binding("owner")) == "other-model"
+
+
+def test_identify_owner_namespace_rejects_wrong_role():
+    binding = _binding("other-model")
+    binding.roleRef = RoleRef(
+        apiGroup="rbac.authorization.k8s.io", kind="ClusterRole", name="other-role"
+    )
+    assert identify_owner_namespace(binding, _binding("owner")) is None
+
+
+@pytest.mark.parametrize(
+    "subjects",
+    [
+        [],
+        [
+            Subject(kind="ServiceAccount", name="istio-cni", namespace="other-model"),
+            Subject(kind="ServiceAccount", name="istio-cni", namespace="other-model"),
+        ],
+    ],
+    ids=["no-subjects", "multiple-subjects"],
+)
+def test_identify_owner_namespace_rejects_non_single_subject(subjects):
+    binding = _binding("other-model")
+    binding.subjects = subjects
+    assert identify_owner_namespace(binding, _binding("owner")) is None
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        Subject(kind="User", name="istio-cni", namespace="other-model"),
+        Subject(kind="ServiceAccount", name="other-account", namespace="other-model"),
+    ],
+    ids=["wrong-kind", "wrong-name"],
+)
+def test_identify_owner_namespace_rejects_unexpected_subject(subject):
+    binding = _binding("other-model")
+    binding.subjects = [subject]
+    assert identify_owner_namespace(binding, _binding("owner")) is None
