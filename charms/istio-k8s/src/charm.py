@@ -67,7 +67,7 @@ from lightkube.resources.rbac_authorization_v1 import (
 from ops import tracing
 from ops.pebble import ChangeError, Layer
 
-from cni_ownership import is_owned_by
+from cni_ownership import identify_owner_namespace, is_owned_by
 from config import CharmConfig
 from istioctl import Istioctl, IstioctlError
 
@@ -389,7 +389,7 @@ class IstioCoreCharm(ops.CharmBase):
             return None
 
         labels = (binding.metadata.labels or {}) if binding.metadata else {}
-        namespace = self._cni_owner_namespace(binding)
+        namespace = self._identify_cni_owner_namespace(binding)
         instance = labels.get("app.kubernetes.io/instance")
         if (
             namespace is None
@@ -404,15 +404,9 @@ class IstioCoreCharm(ops.CharmBase):
             "remove the other installation first"
         )
 
-    def _cni_owner_namespace(self, binding: ClusterRoleBinding) -> str | None:
-        """Return the namespace only for the expected CNI role and service account."""
-        subjects = binding.subjects or []
-        if binding.roleRef != self._expected_cni_binding.roleRef or len(subjects) != 1:
-            return None
-        subject = subjects[0]
-        if subject.kind != "ServiceAccount" or subject.name != "istio-cni":
-            return None
-        return subject.namespace
+    def _identify_cni_owner_namespace(self, binding: ClusterRoleBinding) -> str | None:
+        """Return the CNI claim owner's namespace, or None if it cannot be identified."""
+        return identify_owner_namespace(binding, self._expected_cni_binding)
 
     def _claim_cni_ownership(self) -> bool:
         """Use Kubernetes create to arbitrate installations without overwriting a claim."""
