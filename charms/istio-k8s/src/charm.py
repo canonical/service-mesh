@@ -46,7 +46,6 @@ from lightkube.models.autoscaling_v2 import (
 )
 from lightkube.models.core_v1 import EmptyDirVolumeSource, EnvVar, Volume, VolumeMount
 from lightkube.models.meta_v1 import ObjectMeta
-from lightkube.models.rbac_v1 import RoleRef, Subject
 from lightkube.resources.admissionregistration_v1 import (
     MutatingWebhookConfiguration,
     ValidatingAdmissionPolicy,
@@ -67,7 +66,14 @@ from lightkube.resources.rbac_authorization_v1 import (
 from ops import tracing
 from ops.pebble import ChangeError, Layer
 
-from cni_ownership import identify_owner_namespace, is_owned_by
+from cni_ownership import (
+    CNI_CLUSTER_ROLE_BINDING,
+    CONTROL_PLANE_LABEL,
+    can_recognise,
+    expected_cni_binding,
+    identify_owner_namespace,
+    is_owned_by,
+)
 from config import CharmConfig
 from istioctl import Istioctl, IstioctlError
 
@@ -76,8 +82,6 @@ LOGGER = logging.getLogger(__name__)
 SOURCE_PATH = Path(__file__).parent
 
 CONTROL_PLANE_COMPONENTS = ["pilot", "cni", "ztunnel"]
-CONTROL_PLANE_LABEL = "control-plane"
-CNI_CLUSTER_ROLE_BINDING = "istio-cni"
 CONTROL_PLANE_TERMINATION_TIMEOUT = 60
 CONTROL_PLANE_RESOURCE_TYPES = {
     ClusterRole,
@@ -354,22 +358,7 @@ class IstioCoreCharm(ops.CharmBase):
     @property
     def _expected_cni_binding(self) -> ClusterRoleBinding:
         """Build the binding this charm expects to claim for CNI ownership."""
-        return ClusterRoleBinding(
-            metadata=ObjectMeta(
-                name=CNI_CLUSTER_ROLE_BINDING,
-                labels=create_charm_default_labels(
-                    self.app.name, self.model.name, scope=CONTROL_PLANE_LABEL
-                ),
-            ),
-            roleRef=RoleRef(
-                apiGroup="rbac.authorization.k8s.io",
-                kind="ClusterRole",
-                name="istio-cni",
-            ),
-            subjects=[
-                Subject(kind="ServiceAccount", name="istio-cni", namespace=self.model.name)
-            ],
-        )
+        return expected_cni_binding(self.app.name, self.model.name)
 
     def _get_live_cni_binding(self) -> ClusterRoleBinding | None:
         """Read the live claim without changing a binding owned by another installation."""
@@ -392,25 +381,19 @@ class IstioCoreCharm(ops.CharmBase):
         if self._owns_cni_binding(binding):
             return None
 
-        labels = (binding.metadata.labels or {}) if binding.metadata else {}
-        namespace = self._identify_cni_owner_namespace(binding)
-        instance = labels.get("app.kubernetes.io/instance")
-        if (
-            namespace is None
-            or not instance
-            or labels.get("kubernetes-resource-handler-scope") != CONTROL_PLANE_LABEL
-        ):
+        if not can_recognise(binding):
             return ops.BlockedStatus(
                 "Unrecognised Istio CNI owner; inspect ClusterRoleBinding/istio-cni"
             )
+
+        # can_recognise guarantees the owner namespace and instance label exist
+        labels = (binding.metadata.labels or {}) if binding.metadata else {}
+        instance = labels.get("app.kubernetes.io/instance")
+        namespace = identify_owner_namespace(binding)
         return ops.BlockedStatus(
             f"Istio CNI owned by {instance} (namespace {namespace}); "
             "remove the other installation first"
         )
-
-    def _identify_cni_owner_namespace(self, binding: ClusterRoleBinding) -> str | None:
-        """Return the CNI claim owner's namespace, or None if it cannot be identified."""
-        return identify_owner_namespace(binding, self._expected_cni_binding)
 
     def _claim_cni_ownership(self) -> bool:
         """Use Kubernetes create to arbitrate installations without overwriting a claim."""

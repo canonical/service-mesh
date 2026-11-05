@@ -5,7 +5,6 @@ from unittest.mock import call
 
 import ops
 import pytest
-from canonical_service_mesh.k8s.resource_manager import create_charm_default_labels
 from lightkube import ApiError
 from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.models.rbac_v1 import RoleRef, Subject
@@ -14,31 +13,23 @@ from lightkube.resources.rbac_authorization_v1 import ClusterRoleBinding
 from scenario import Context, Model, State
 from scenario.errors import UncaughtCharmError
 
-from src.charm import CONTROL_PLANE_LABEL, IstioCoreCharm
-from src.cni_ownership import identify_owner_namespace
+from src.charm import IstioCoreCharm
+from src.cni_ownership import (
+    can_recognise,
+    expected_cni_binding,
+    identify_owner_namespace,
+)
 
 
 def _binding(
     namespace: str, application: str = "istio", subject_namespace: str | None = None
 ) -> ClusterRoleBinding:
-    return ClusterRoleBinding(
-        metadata=ObjectMeta(
-            name="istio-cni",
-            labels=create_charm_default_labels(application, namespace, CONTROL_PLANE_LABEL),
-        ),
-        roleRef=RoleRef(
-            apiGroup="rbac.authorization.k8s.io",
-            kind="ClusterRole",
-            name="istio-cni",
-        ),
-        subjects=[
-            Subject(
-                kind="ServiceAccount",
-                name="istio-cni",
-                namespace=subject_namespace or namespace,
-            )
-        ],
-    )
+    binding = expected_cni_binding(application, namespace)
+    if subject_namespace:
+        binding.subjects = [
+            Subject(kind="ServiceAccount", name="istio-cni", namespace=subject_namespace)
+        ]
+    return binding
 
 
 def _api_error(code: int, reason: str) -> ApiError:
@@ -249,8 +240,24 @@ def test_shutdown_timeout_keeps_claim(cni_context, mocker):
     client.delete.assert_not_called()
 
 
+def test_expected_cni_binding_shape():
+    assert expected_cni_binding("my-app", "my-model") == ClusterRoleBinding(
+        metadata=ObjectMeta(
+            name="istio-cni",
+            labels={
+                "app.kubernetes.io/instance": "my-model-my-app",
+                "kubernetes-resource-handler-scope": "control-plane",
+            },
+        ),
+        roleRef=RoleRef(
+            apiGroup="rbac.authorization.k8s.io", kind="ClusterRole", name="istio-cni"
+        ),
+        subjects=[Subject(kind="ServiceAccount", name="istio-cni", namespace="my-model")],
+    )
+
+
 def test_identify_owner_namespace_returns_subject_namespace():
-    assert identify_owner_namespace(_binding("other-model"), _binding("owner")) == "other-model"
+    assert identify_owner_namespace(_binding("other-model")) == "other-model"
 
 
 def test_identify_owner_namespace_rejects_wrong_role():
@@ -258,7 +265,7 @@ def test_identify_owner_namespace_rejects_wrong_role():
     binding.roleRef = RoleRef(
         apiGroup="rbac.authorization.k8s.io", kind="ClusterRole", name="other-role"
     )
-    assert identify_owner_namespace(binding, _binding("owner")) is None
+    assert identify_owner_namespace(binding) is None
 
 
 @pytest.mark.parametrize(
@@ -275,7 +282,7 @@ def test_identify_owner_namespace_rejects_wrong_role():
 def test_identify_owner_namespace_rejects_non_single_subject(subjects):
     binding = _binding("other-model")
     binding.subjects = subjects
-    assert identify_owner_namespace(binding, _binding("owner")) is None
+    assert identify_owner_namespace(binding) is None
 
 
 @pytest.mark.parametrize(
@@ -289,4 +296,69 @@ def test_identify_owner_namespace_rejects_non_single_subject(subjects):
 def test_identify_owner_namespace_rejects_unexpected_subject(subject):
     binding = _binding("other-model")
     binding.subjects = [subject]
-    assert identify_owner_namespace(binding, _binding("owner")) is None
+    assert identify_owner_namespace(binding) is None
+
+
+@pytest.mark.parametrize(
+    "binding",
+    [
+        _binding("other-model"),
+        _binding("owner", application="other-app"),
+        _binding("owner", subject_namespace="other-model"),
+    ],
+    ids=["other-namespace", "other-application", "other-subject-namespace"],
+)
+def test_can_recognise_other_installations_claims(binding):
+    assert can_recognise(binding)
+
+
+def test_can_recognise_rejects_wrong_role():
+    binding = _binding("other-model")
+    binding.roleRef = RoleRef(
+        apiGroup="rbac.authorization.k8s.io", kind="ClusterRole", name="other-role"
+    )
+    assert not can_recognise(binding)
+
+
+@pytest.mark.parametrize(
+    "subjects",
+    [
+        [],
+        [
+            Subject(kind="ServiceAccount", name="istio-cni", namespace="other-model"),
+            Subject(kind="ServiceAccount", name="istio-cni", namespace="other-model"),
+        ],
+    ],
+    ids=["no-subjects", "multiple-subjects"],
+)
+def test_can_recognise_rejects_non_single_subject(subjects):
+    binding = _binding("other-model")
+    binding.subjects = subjects
+    assert not can_recognise(binding)
+
+
+@pytest.mark.parametrize(
+    "subject",
+    [
+        Subject(kind="User", name="istio-cni", namespace="other-model"),
+        Subject(kind="ServiceAccount", name="other-account", namespace="other-model"),
+        Subject(kind="ServiceAccount", name="istio-cni"),
+    ],
+    ids=["wrong-kind", "wrong-name", "no-namespace"],
+)
+def test_can_recognise_rejects_unexpected_subject(subject):
+    binding = _binding("other-model")
+    binding.subjects = [subject]
+    assert not can_recognise(binding)
+
+
+def test_can_recognise_rejects_missing_instance_label():
+    binding = _binding("other-model")
+    del binding.metadata.labels["app.kubernetes.io/instance"]
+    assert not can_recognise(binding)
+
+
+def test_can_recognise_rejects_wrong_scope_label():
+    binding = _binding("other-model")
+    binding.metadata.labels["kubernetes-resource-handler-scope"] = "other-scope"
+    assert not can_recognise(binding)
