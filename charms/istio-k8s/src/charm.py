@@ -67,6 +67,7 @@ from lightkube.resources.rbac_authorization_v1 import (
 from ops import tracing
 from ops.pebble import ChangeError, Layer
 
+from cni_ownership import is_owned_by
 from config import CharmConfig
 from istioctl import Istioctl, IstioctlError
 
@@ -377,20 +378,7 @@ class IstioCoreCharm(ops.CharmBase):
 
     def _owns_cni_binding(self, binding: ClusterRoleBinding) -> bool:
         """Check that the binding identifies this charm and the expected CNI access."""
-        expected = self._cni_binding
-        labels = create_charm_default_labels(
-            self.app.name, self.model.name, scope=CONTROL_PLANE_LABEL
-        )
-        return bool(
-            binding.metadata
-            and not binding.metadata.deletionTimestamp
-            and all(
-                (binding.metadata.labels or {}).get(key) == value
-                for key, value in labels.items()
-            )
-            and binding.subjects == expected.subjects
-            and binding.roleRef == expected.roleRef
-        )
+        return is_owned_by(binding, self._cni_binding)
 
     def _get_cni_ownership_status(self) -> ops.StatusBase | None:
         """Report a competing or unrecognized owner before workload readiness."""
