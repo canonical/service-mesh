@@ -335,14 +335,18 @@ class IstioCoreCharm(ops.CharmBase):
         self._wait_for_control_plane_removal()
         self.lightkube_client.delete(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)
 
-    def _wait_for_control_plane_removal(self) -> None:
-        """Keep ownership until CNI pods finish cleaning up node-local state."""
-        deadline = time.monotonic() + CONTROL_PLANE_TERMINATION_TIMEOUT
-        while list(
+    def _control_plane_pods(self) -> List[Pod]:
+        """List the control-plane pods deployed by this charm."""
+        return list(
             self.lightkube_client.list(
                 Pod, namespace=self.model.name, labels=cast(LabelSelector, self.telemetry_labels)
             )
-        ):
+        )
+
+    def _wait_for_control_plane_removal(self) -> None:
+        """Keep ownership until CNI pods finish cleaning up node-local state."""
+        deadline = time.monotonic() + CONTROL_PLANE_TERMINATION_TIMEOUT
+        while self._control_plane_pods():
             if time.monotonic() >= deadline:
                 raise TimeoutError("Timed out waiting for Istio control-plane pods to terminate")
             time.sleep(1)
