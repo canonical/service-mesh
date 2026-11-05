@@ -310,7 +310,7 @@ class IstioCoreCharm(ops.CharmBase):
         if not self.unit.is_leader():
             return
 
-        binding = self._live_cni_binding()
+        binding = self._get_live_cni_binding()
         owns_cni_binding = binding is not None and self._owns_cni_binding(binding)
 
         for name in self._resource_manager_factories:
@@ -335,7 +335,7 @@ class IstioCoreCharm(ops.CharmBase):
         self._wait_for_control_plane_removal()
         self.lightkube_client.delete(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)
 
-    def _control_plane_pods(self) -> List[Pod]:
+    def _get_control_plane_pods(self) -> List[Pod]:
         """List the control-plane pods deployed by this charm."""
         return list(
             self.lightkube_client.list(
@@ -346,7 +346,7 @@ class IstioCoreCharm(ops.CharmBase):
     def _wait_for_control_plane_removal(self) -> None:
         """Keep ownership until CNI pods finish cleaning up node-local state."""
         deadline = time.monotonic() + CONTROL_PLANE_TERMINATION_TIMEOUT
-        while self._control_plane_pods():
+        while self._get_control_plane_pods():
             if time.monotonic() >= deadline:
                 raise TimeoutError("Timed out waiting for Istio control-plane pods to terminate")
             time.sleep(1)
@@ -371,7 +371,7 @@ class IstioCoreCharm(ops.CharmBase):
             ],
         )
 
-    def _live_cni_binding(self) -> ClusterRoleBinding | None:
+    def _get_live_cni_binding(self) -> ClusterRoleBinding | None:
         """Read the live claim without changing a binding owned by another installation."""
         try:
             return self.lightkube_client.get(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)
@@ -386,7 +386,7 @@ class IstioCoreCharm(ops.CharmBase):
 
     def _get_cni_ownership_status(self) -> ops.StatusBase | None:
         """Report a competing or unrecognized owner before workload readiness."""
-        binding = self._live_cni_binding()
+        binding = self._get_live_cni_binding()
         if binding is None or (binding.metadata and binding.metadata.deletionTimestamp):
             return ops.WaitingStatus("Waiting to claim Istio CNI ownership")
         if self._owns_cni_binding(binding):
@@ -419,7 +419,7 @@ class IstioCoreCharm(ops.CharmBase):
         except ApiError as error:
             if error.status.reason != "AlreadyExists":
                 raise
-            binding = self._live_cni_binding()
+            binding = self._get_live_cni_binding()
             return binding is not None and self._owns_cni_binding(binding)
         return True
 
