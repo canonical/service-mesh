@@ -70,7 +70,7 @@ def can_recognise(binding: ClusterRoleBinding) -> bool:
     """
     labels = (binding.metadata.labels or {}) if binding.metadata else {}
     return (
-        identify_owner_namespace(binding) is not None
+        get_recognised_owner_namespace(binding) is not None
         and bool(labels.get(_INSTANCE_LABEL))
         and labels.get(_SCOPE_LABEL) == CONTROL_PLANE_LABEL
     )
@@ -106,8 +106,8 @@ def _grants_expected_access(binding: ClusterRoleBinding, expected: ClusterRoleBi
     return binding.subjects == expected.subjects and binding.roleRef == expected.roleRef
 
 
-def identify_owner_namespace(binding: ClusterRoleBinding) -> str | None:
-    """Return the owning installation's namespace, or None if the owner cannot be identified.
+def get_recognised_owner_namespace(binding: ClusterRoleBinding) -> str | None:
+    """Return the owning installation's namespace, or None if the owner is not recognised.
 
     Only a claim with this charm's shape (expected role, expected ServiceAccount)
     reliably names another Istio installation in its subject's namespace.

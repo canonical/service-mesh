@@ -71,7 +71,7 @@ from cni_ownership import (
     CONTROL_PLANE_LABEL,
     can_recognise,
     expected_cni_binding,
-    identify_owner_namespace,
+    get_recognised_owner_namespace,
     is_cni_cluster_role_binding,
     is_owned_by,
 )
@@ -394,7 +394,7 @@ class IstioCoreCharm(ops.CharmBase):
         # can_recognise guarantees the owner namespace and instance label exist
         labels = (binding.metadata.labels or {}) if binding.metadata else {}
         instance = labels.get("app.kubernetes.io/instance")
-        namespace = identify_owner_namespace(binding)
+        namespace = get_recognised_owner_namespace(binding)
         return ops.BlockedStatus(
             f"Istio CNI owned by {instance} (namespace {namespace}); "
             "remove the other installation first"

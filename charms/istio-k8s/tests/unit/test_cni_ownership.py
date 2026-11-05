@@ -17,7 +17,7 @@ from src.charm import IstioCoreCharm
 from src.cni_ownership import (
     can_recognise,
     expected_cni_binding,
-    identify_owner_namespace,
+    get_recognised_owner_namespace,
     is_cni_cluster_role_binding,
 )
 
@@ -276,16 +276,16 @@ def test_expected_cni_binding_shape():
     )
 
 
-def test_identify_owner_namespace_returns_subject_namespace():
-    assert identify_owner_namespace(_binding("other-model")) == "other-model"
+def test_get_recognised_owner_namespace_returns_subject_namespace():
+    assert get_recognised_owner_namespace(_binding("other-model")) == "other-model"
 
 
-def test_identify_owner_namespace_rejects_wrong_role():
+def test_get_recognised_owner_namespace_rejects_wrong_role():
     binding = _binding("other-model")
     binding.roleRef = RoleRef(
         apiGroup="rbac.authorization.k8s.io", kind="ClusterRole", name="other-role"
     )
-    assert identify_owner_namespace(binding) is None
+    assert get_recognised_owner_namespace(binding) is None
 
 
 @pytest.mark.parametrize(
@@ -299,10 +299,10 @@ def test_identify_owner_namespace_rejects_wrong_role():
     ],
     ids=["no-subjects", "multiple-subjects"],
 )
-def test_identify_owner_namespace_rejects_non_single_subject(subjects):
+def test_get_recognised_owner_namespace_rejects_non_single_subject(subjects):
     binding = _binding("other-model")
     binding.subjects = subjects
-    assert identify_owner_namespace(binding) is None
+    assert get_recognised_owner_namespace(binding) is None
 
 
 @pytest.mark.parametrize(
@@ -313,10 +313,10 @@ def test_identify_owner_namespace_rejects_non_single_subject(subjects):
     ],
     ids=["wrong-kind", "wrong-name"],
 )
-def test_identify_owner_namespace_rejects_unexpected_subject(subject):
+def test_get_recognised_owner_namespace_rejects_unexpected_subject(subject):
     binding = _binding("other-model")
     binding.subjects = [subject]
-    assert identify_owner_namespace(binding) is None
+    assert get_recognised_owner_namespace(binding) is None
 
 
 @pytest.mark.parametrize(
