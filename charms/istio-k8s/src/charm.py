@@ -7,6 +7,7 @@
 
 import hashlib
 import logging
+import os
 import tempfile
 import time
 from pathlib import Path
@@ -658,6 +659,34 @@ class IstioCoreCharm(ops.CharmBase):
         overlay_path.write_text(yaml.dump(overlay, default_flow_style=False))
         return str(overlay_path)
 
+    def _write_proxy_overlay(self) -> str:
+        """Write an IstioOperator overlay giving istiod the model's proxy settings.
+
+        istiod fetches the JSON Web Key Sets of RequestAuthentication issuers itself, and uses
+        HTTPS_PROXY and NO_PROXY for it. Juju passes the model's juju-http-proxy,
+        juju-https-proxy and juju-no-proxy settings to the charm only, as JUJU_CHARM_*_PROXY.
+        Return the overlay's path, or "" when the model has no proxy settings.
+        """
+        env = {
+            name: os.environ[juju_name]
+            for name, juju_name in (
+                ("HTTP_PROXY", "JUJU_CHARM_HTTP_PROXY"),
+                ("HTTPS_PROXY", "JUJU_CHARM_HTTPS_PROXY"),
+                ("NO_PROXY", "JUJU_CHARM_NO_PROXY"),
+            )
+            if os.environ.get(juju_name)
+        }
+        if not env:
+            return ""
+        overlay = {
+            "apiVersion": "install.istio.io/v1alpha1",
+            "kind": "IstioOperator",
+            "spec": {"values": {"pilot": {"env": env}}},
+        }
+        overlay_path = Path(tempfile.gettempdir()) / "proxy-overlay.yaml"
+        overlay_path.write_text(yaml.dump(overlay, default_flow_style=False))
+        return str(overlay_path)
+
     def _get_istioctl(self) -> Istioctl:
         """Return an initialized Istioctl instance."""
         # Default settings
@@ -727,6 +756,8 @@ class IstioCoreCharm(ops.CharmBase):
         ca_bundle = self._get_ca_certificates()
         if ca_bundle:
             overlay_files.append(self._write_jwks_ca_overlay(ca_bundle))
+        if proxy_overlay := self._write_proxy_overlay():
+            overlay_files.append(proxy_overlay)
 
         return Istioctl(
             istioctl_path="./istioctl",
