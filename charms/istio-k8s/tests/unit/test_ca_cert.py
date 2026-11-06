@@ -131,3 +131,27 @@ def test_get_istioctl_with_ca(istio_core_context, jwks_ca_cert_relation_single):
             # Verify overlay file content
             content = yaml.safe_load(Path(overlay_path).read_text())
             assert content["spec"]["values"]["pilot"]["jwksResolverExtraRootCA"] == SAMPLE_CA_CERT_1
+
+
+def test_write_proxy_overlay(istio_core_context, monkeypatch):
+    """The model's juju-*-proxy settings reach istiod's environment through an overlay."""
+    monkeypatch.setenv("JUJU_CHARM_HTTPS_PROXY", "http://proxy.internal:3128")
+    monkeypatch.setenv("JUJU_CHARM_NO_PROXY", "127.0.0.1,.svc,10.0.0.0/8")
+    state = State(relations=[], leader=True)
+    with istio_core_context(istio_core_context.on.update_status(), state) as mgr:
+        charm: IstioCoreCharm = mgr.charm
+        overlay = yaml.safe_load(Path(charm._write_proxy_overlay()).read_text())
+
+        assert overlay["kind"] == "IstioOperator"
+        assert overlay["spec"]["values"]["pilot"]["env"] == {
+            "HTTPS_PROXY": "http://proxy.internal:3128",
+            "NO_PROXY": "127.0.0.1,.svc,10.0.0.0/8",
+        }
+
+
+def test_no_proxy_overlay_without_proxy_settings(istio_core_context, monkeypatch):
+    for name in ("JUJU_CHARM_HTTP_PROXY", "JUJU_CHARM_HTTPS_PROXY", "JUJU_CHARM_NO_PROXY"):
+        monkeypatch.delenv(name, raising=False)
+    state = State(relations=[], leader=True)
+    with istio_core_context(istio_core_context.on.update_status(), state) as mgr:
+        assert mgr.charm._write_proxy_overlay() == ""
