@@ -8,8 +8,9 @@
 import hashlib
 import logging
 import tempfile
+import time
 from pathlib import Path
-from typing import Any, Dict, List, Tuple
+from typing import Any, Dict, List, Tuple, cast
 from urllib.parse import urlparse
 
 import ops
@@ -20,6 +21,7 @@ from canonical_service_mesh.interfaces.istio_ingress_config import (
 from canonical_service_mesh.k8s.resource_manager import (
     KubernetesResourceManager,
     create_charm_default_labels,
+    delete_many,
 )
 from canonical_service_mesh.models.istio import (
     AuthorizationPolicySpec,
@@ -34,8 +36,9 @@ from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.tempo_coordinator_k8s.v0.tracing import TracingEndpointRequirer
 
 # Ignore pyright errors until https://github.com/gtsystem/lightkube/pull/70 is released
-from lightkube import Client, codecs  # type: ignore
+from lightkube import ApiError, Client, codecs  # type: ignore
 from lightkube.codecs import AnyResource
+from lightkube.core.client import LabelSelector
 from lightkube.generic_resource import create_namespaced_resource
 from lightkube.models.autoscaling_v2 import (
     CrossVersionObjectReference,
@@ -52,7 +55,7 @@ from lightkube.resources.admissionregistration_v1 import (
 from lightkube.resources.apiextensions_v1 import CustomResourceDefinition
 from lightkube.resources.apps_v1 import DaemonSet, Deployment
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
-from lightkube.resources.core_v1 import ConfigMap, Service, ServiceAccount
+from lightkube.resources.core_v1 import ConfigMap, Pod, Service, ServiceAccount
 from lightkube.resources.policy_v1 import PodDisruptionBudget
 from lightkube.resources.rbac_authorization_v1 import (
     ClusterRole,
@@ -63,6 +66,15 @@ from lightkube.resources.rbac_authorization_v1 import (
 from ops import tracing
 from ops.pebble import ChangeError, Layer
 
+from cni_ownership import (
+    CNI_CLUSTER_ROLE_BINDING,
+    CONTROL_PLANE_LABEL,
+    can_recognise,
+    expected_cni_binding,
+    get_recognised_owner_namespace,
+    is_cni_cluster_role_binding,
+    is_owned_by,
+)
 from config import CharmConfig
 from istioctl import Istioctl, IstioctlError
 
@@ -71,7 +83,7 @@ LOGGER = logging.getLogger(__name__)
 SOURCE_PATH = Path(__file__).parent
 
 CONTROL_PLANE_COMPONENTS = ["pilot", "cni", "ztunnel"]
-CONTROL_PLANE_LABEL = "control-plane"
+CONTROL_PLANE_TERMINATION_TIMEOUT = 60
 CONTROL_PLANE_RESOURCE_TYPES = {
     ClusterRole,
     ClusterRoleBinding,
@@ -163,6 +175,7 @@ class IstioCoreCharm(ops.CharmBase):
 
         self.framework.observe(self.on.config_changed, self._reconcile)
         self.framework.observe(self.on.start, self._reconcile)
+        self.framework.observe(self.on.update_status, self._reconcile)
         self.framework.observe(self.on.remove, self._remove)
         self.framework.observe(self.on.metrics_proxy_pebble_ready, self._reconcile)
         self.framework.observe(self.workload_tracing.on.endpoint_changed, self._reconcile)
@@ -210,11 +223,13 @@ class IstioCoreCharm(ops.CharmBase):
         except ChangeError as e:
             LOGGER.error(f"Error while replanning proxy container: {e}")
 
-    def _reconcile(self, _event: ops.ConfigChangedEvent):
+    def _reconcile(self, _event: ops.EventBase) -> None:
         """Reconcile the entire state of the charm."""
-        # Reconciliation can only be attempted by the leader.
-        if not self.unit.is_leader():
+        if not self.unit.is_leader() or self.app.planned_units() < 1:
             return
+        if not self._claim_cni_ownership():
+            return
+
         # Order here matters, we want to ensure rel data is populated before we reconcile objects/config
         self._publish_ext_authz_provider_names()
         self._publish_istio_metadata()
@@ -232,6 +247,10 @@ class IstioCoreCharm(ops.CharmBase):
         """Collect unit statuses. Framework picks the worst."""
         if not self.unit.is_leader():
             event.add_status(ops.ActiveStatus("Standby (non-leader)"))
+            return
+
+        if status := self._get_cni_ownership_status():
+            event.add_status(status)
             return
 
         for status in self._get_control_plane_statuses():
@@ -293,10 +312,104 @@ class IstioCoreCharm(ops.CharmBase):
 
     def _remove(self, _event: ops.RemoveEvent):
         """Remove the charm's resources."""
-        if self.unit.is_leader():
-            for name in self._resource_manager_factories:
-                krh = self._get_resource_manager(name)
-                krh.delete()
+        if not self.unit.is_leader():
+            return
+
+        binding = self._get_live_cni_binding()
+        owns_cni_binding = binding is not None and self._owns_cni_binding(binding)
+
+        self._delete_managed_resources_except_cni_binding()
+
+        if not owns_cni_binding:
+            return
+
+        self._wait_for_control_plane_removal()
+        self.lightkube_client.delete(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)
+
+    def _delete_managed_resources_except_cni_binding(self) -> None:
+        """Delete all deployed resources except the shared CNI ClusterRoleBinding.
+
+        The CNI ClusterRoleBinding is cluster-scoped and may be claimed by another
+        installation, so it is handled separately in _remove.
+        """
+        for name in self._resource_manager_factories:
+            resources = self._get_resource_manager(name).get_deployed_resources()
+            delete_many(
+                self.lightkube_client,
+                (
+                    resource
+                    for resource in resources
+                    if not is_cni_cluster_role_binding(resource)
+                ),
+                logger=LOGGER,
+            )
+
+    def _get_control_plane_pods(self) -> List[Pod]:
+        """List the control-plane pods deployed by this charm."""
+        return list(
+            self.lightkube_client.list(
+                Pod, namespace=self.model.name, labels=cast(LabelSelector, self.telemetry_labels)
+            )
+        )
+
+    def _wait_for_control_plane_removal(self) -> None:
+        """Keep ownership until CNI pods finish cleaning up node-local state."""
+        deadline = time.monotonic() + CONTROL_PLANE_TERMINATION_TIMEOUT
+        while self._get_control_plane_pods():
+            if time.monotonic() >= deadline:
+                raise TimeoutError("Timed out waiting for Istio control-plane pods to terminate")
+            time.sleep(1)
+
+    @property
+    def _expected_cni_binding(self) -> ClusterRoleBinding:
+        """Build the binding this charm expects to claim for CNI ownership."""
+        return expected_cni_binding(self.app.name, self.model.name)
+
+    def _get_live_cni_binding(self) -> ClusterRoleBinding | None:
+        """Read the live claim without changing a binding owned by another installation."""
+        try:
+            return self.lightkube_client.get(ClusterRoleBinding, CNI_CLUSTER_ROLE_BINDING)
+        except ApiError as error:
+            if error.status.code != 404:
+                raise
+            return None
+
+    def _owns_cni_binding(self, binding: ClusterRoleBinding) -> bool:
+        """Check that the binding identifies this charm and the expected CNI access."""
+        return is_owned_by(binding, self._expected_cni_binding)
+
+    def _get_cni_ownership_status(self) -> ops.StatusBase | None:
+        """Report a competing or unrecognized owner before workload readiness."""
+        binding = self._get_live_cni_binding()
+        if binding is None or (binding.metadata and binding.metadata.deletionTimestamp):
+            return ops.WaitingStatus("Waiting to claim Istio CNI ownership")
+        if self._owns_cni_binding(binding):
+            return None
+
+        if not can_recognise(binding):
+            return ops.BlockedStatus(
+                "Unrecognised Istio CNI owner; inspect ClusterRoleBinding/istio-cni"
+            )
+
+        # can_recognise guarantees the owner namespace and instance label exist
+        labels = (binding.metadata.labels or {}) if binding.metadata else {}
+        instance = labels.get("app.kubernetes.io/instance")
+        namespace = get_recognised_owner_namespace(binding)
+        return ops.BlockedStatus(
+            f"Istio CNI owned by {instance} (namespace {namespace}); "
+            "remove the other installation first"
+        )
+
+    def _claim_cni_ownership(self) -> bool:
+        """Use Kubernetes create to arbitrate installations without overwriting a claim."""
+        try:
+            self.lightkube_client.create(self._expected_cni_binding)
+        except ApiError as error:
+            if error.status.reason != "AlreadyExists":
+                raise
+            binding = self._get_live_cni_binding()
+            return binding is not None and self._owns_cni_binding(binding)
+        return True
 
     # Properties
 
