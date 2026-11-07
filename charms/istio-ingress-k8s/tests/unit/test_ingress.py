@@ -329,6 +329,7 @@ def test_construct_forward_auth_policy(
     [
         "not-a-url-with-no-port",
         "http://no-port-host",
+        "http://auth-service:999999999",
     ],
 )
 def test_construct_forward_auth_policy_invalid_address_returns_none(
@@ -346,12 +347,7 @@ def test_construct_forward_auth_policy_invalid_address_returns_none(
 def test_sync_ingress_resources_includes_forward_auth_policy(
     istio_ingress_charm, istio_ingress_context
 ):
-    """Test that _sync_ingress_resources adds an auth policy for the forward-auth provider.
-
-    Regression test: previously, a gateway using forward-auth (ext-authz) had no
-    AuthorizationPolicy allowing it to reach its auth provider, so the mesh itself
-    blocked the ext-authz call even though the gateway was otherwise healthy.
-    """
+    """Test that _sync_ingress_resources adds an auth policy for the forward-auth provider."""
     mock_ingress_manager = MagicMock()
     mock_auth_manager = MagicMock()
 
@@ -365,7 +361,7 @@ def test_sync_ingress_resources_includes_forward_auth_policy(
         },
     )
 
-    with patch.object(IstioIngressCharm, "_is_ready"), istio_ingress_context(
+    with istio_ingress_context(
         istio_ingress_context.on.update_status(),
         state=scenario.State(leader=True, relations=[forward_auth_relation]),
     ) as manager:
