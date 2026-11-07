@@ -682,13 +682,69 @@ class IstioIngressCharm(CharmBase):
             spec=gateway.spec.model_dump(exclude_none=True),
         )
 
+    def _construct_forward_auth_policy(
+        self, decisions_address: str
+    ) -> Optional[AuthorizationPolicy]:
+        """Return an AuthorizationPolicy allowing this gateway to reach its forward-auth provider.
+
+        Returns None if decisions_address can't be parsed into a valid hostname and port.
+        """
+        parsed_url = urlparse(decisions_address)
+        hostname = parsed_url.hostname
+        try:
+            port = parsed_url.port
+        except ValueError:
+            # Raised by urlparse when the port is out of the valid 0-65535 range.
+            return None
+        if hostname is None or port is None:
+            return None
+
+        # hostname may be a short in-model name ("auth-service") or a
+        # fully-qualified one ("auth-service.some-namespace.svc.cluster.local")
+        parts = hostname.split(".")
+        target_name = parts[0]
+        target_namespace = parts[1] if len(parts) > 1 else self.model.name
+
+        return self._construct_auth_policy_from_ingress_to_target(
+            target_name=target_name,
+            target_namespace=target_namespace,
+            target_ports=[port],
+            name_suffix="-forward-auth",
+        )
+
+    def _construct_forward_auth_policies(self) -> List[AuthorizationPolicy]:
+        """Return the list of AuthorizationPolicies needed to reach the forward-auth provider.
+
+        Empty if no forward-auth provider is related, or its address can't be parsed.
+        """
+        auth_decisions_address = self._get_oauth_decisions_address()
+        if not auth_decisions_address:
+            return []
+
+        forward_auth_policy = self._construct_forward_auth_policy(auth_decisions_address)
+        return [forward_auth_policy] if forward_auth_policy else []
+
     def _construct_auth_policy_from_ingress_to_target(
-        self, target_name: str, target_namespace: str, target_ports: List[int]
+        self,
+        target_name: str,
+        target_namespace: str,
+        target_ports: List[int],
+        name_suffix: str = "",
     ):
-        """Return an AuthorizationPolicy that allows the ingress workload to communicate with the target workload."""
+        """Return an AuthorizationPolicy that allows the ingress workload to communicate with the target workload.
+
+        name_suffix distinguishes policies constructed for different purposes (e.g. ingress
+        routing vs. forward-auth) so they don't collide when they target the same app.
+        """
         return AuthorizationPolicy(
             metadata=ObjectMeta(
-                name=target_name + "-" + self.app.name + "-" + target_namespace + "-l4",
+                name=target_name
+                + "-"
+                + self.app.name
+                + "-"
+                + target_namespace
+                + name_suffix
+                + "-l4",
                 namespace=target_namespace,
             ),
             spec=AuthorizationPolicySpec(
@@ -1624,6 +1680,7 @@ class IstioIngressCharm(CharmBase):
         httproutes = self._construct_httproutes(http_routes)
         grpcroutes = self._construct_grpcroutes(grpc_routes)
         auth_policies = self._construct_auth_policies(http_routes, grpc_routes)
+        auth_policies.extend(self._construct_forward_auth_policies())
 
         # NOTE: The below DestinationRule resource instructs the gateway to use same protocol (http/2, http/1.1 etc) as the client.
         # According to the istio docs: https://istio.io/latest/docs/ops/configuration/traffic-management/protocol-selection/#http-gateway-protocol-selection

@@ -282,6 +282,112 @@ def test_construct_auth_policies_mixed_http_grpc(istio_ingress_charm, istio_ingr
         assert sorted(ports) == ["8080", "9000"]
 
 
+@pytest.mark.parametrize(
+    "decisions_address, expected_name, expected_namespace, expected_port",
+    [
+        # Short, in-model hostname: namespace falls back to the charm's own model.
+        ("http://auth-service:80", "auth-service", None, "80"),
+        # Fully-qualified k8s DNS name: namespace is taken from the hostname itself.
+        (
+            "http://oidc-gatekeeper.kubeflow.svc.cluster.local:8080",
+            "oidc-gatekeeper",
+            "kubeflow",
+            "8080",
+        ),
+    ],
+)
+def test_construct_forward_auth_policy(
+    decisions_address,
+    expected_name,
+    expected_namespace,
+    expected_port,
+    istio_ingress_charm,
+    istio_ingress_context,
+):
+    """Test that _construct_forward_auth_policy allows this gateway to reach its auth provider."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(),
+    ) as manager:
+        charm: IstioIngressCharm = manager.charm
+        policy = charm._construct_forward_auth_policy(decisions_address)
+
+        expected_namespace = expected_namespace or charm.model.name
+        assert policy.metadata.namespace == expected_namespace
+        assert policy.spec["selector"]["matchLabels"]["app.kubernetes.io/name"] == expected_name
+
+        rule = policy.spec["rules"][0]
+        assert rule["to"] == [{"operation": {"ports": [expected_port]}}]
+
+        principals = rule["from"][0]["source"]["principals"]
+        expected_principal = f"cluster.local/ns/{charm.model.name}/sa/{charm.managed_name}"
+        assert principals == [expected_principal]
+
+
+@pytest.mark.parametrize(
+    "decisions_address",
+    [
+        "not-a-url-with-no-port",
+        "http://no-port-host",
+        "http://auth-service:999999999",
+    ],
+)
+def test_construct_forward_auth_policy_invalid_address_returns_none(
+    decisions_address, istio_ingress_charm, istio_ingress_context
+):
+    """Test that _construct_forward_auth_policy returns None when hostname/port can't be parsed."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(),
+    ) as manager:
+        charm: IstioIngressCharm = manager.charm
+        assert charm._construct_forward_auth_policy(decisions_address) is None
+
+
+def test_sync_ingress_resources_includes_forward_auth_policy(
+    istio_ingress_charm, istio_ingress_context
+):
+    """Test that _sync_ingress_resources adds an auth policy for the forward-auth provider."""
+    mock_ingress_manager = MagicMock()
+    mock_auth_manager = MagicMock()
+
+    forward_auth_relation = scenario.Relation(
+        endpoint="forward-auth",
+        interface="forward_auth",
+        remote_app_data={
+            "decisions_address": "http://auth-service:80",
+            "app_names": json.dumps([]),
+            "headers": json.dumps([]),
+        },
+    )
+
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(leader=True, relations=[forward_auth_relation]),
+    ) as manager:
+        charm: IstioIngressCharm = manager.charm
+        charm._get_ingress_route_resource_manager = MagicMock(return_value=mock_ingress_manager)
+        charm._get_ingress_auth_policy_resource_manager = MagicMock(
+            return_value=mock_auth_manager
+        )
+
+        charm._sync_ingress_resources(http_routes=[], grpc_routes=[])
+
+        auth_resources = mock_auth_manager.reconcile.call_args.kwargs["raw_policies"]
+
+        # No ingress routes are configured, so the only policy should be the
+        # one allowing this gateway to reach its forward-auth provider.
+        assert len(auth_resources) == 1
+        forward_auth_policy = auth_resources[0]
+        assert (
+            forward_auth_policy.spec["selector"]["matchLabels"]["app.kubernetes.io/name"]
+            == "auth-service"
+        )
+        assert forward_auth_policy.spec["rules"][0]["to"] == [
+            {"operation": {"ports": ["80"]}}
+        ]
+
+
 def generate_ingress_relation_data(
     name, model, port=80, ip="1.2.3.4", host=None, strip_prefix=False, endpoint="ingress"
 ):
