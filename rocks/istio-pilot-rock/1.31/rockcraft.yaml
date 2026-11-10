@@ -4,7 +4,7 @@
 name: istio-pilot
 summary: Istio's pilot in a rock
 description: "Pilot: The core component of Istio's service mesh"
-version: "1.31.1"
+version: "1.31.3"
 base: ubuntu@26.04
 build-base: ubuntu@26.04
 services:
@@ -22,13 +22,13 @@ parts:
     plugin: go
     source: https://github.com/istio/istio
     source-type: git
-    source-tag: "1.31.1"
+    source-tag: "1.31.3"
     build-snaps:
       - go/1.26/candidate
     override-build: |
       # Hotfix for vulnerability, remove when updating
-      [ "$(date -u +%Y%m%d)" -ge 20261015 ] && exit 1
-      go get google.golang.org/grpc@v1.83.2
+      [ "$CRAFT_PROJECT_VERSION" = "1.31.3" ] || { echo "istio version changed, remove this hotfix if GO-2026-6865 is fixed upstream"; exit 1; }
+      go get github.com/klauspost/compress@v1.20.2
       go mod tidy
 
       VERSION=$CRAFT_PROJECT_VERSION GOOS=linux GOARCH=amd64 LDFLAGS='-extldflags -static -s -w' common/scripts/gobuild.sh ./out/linux_amd64/ -tags=vtprotobuf,disable_pgv ./pilot/cmd/pilot-discovery
@@ -38,11 +38,8 @@ parts:
     plugin: nil
     overlay-packages: [ca-certificates]
   deb-security-manifest:
-    plugin: nil
-    after:
-      - istio-pilot
-      - ca-certs
-    override-prime: |
-      set -x
-      mkdir -p $CRAFT_PRIME/usr/share/rocks/
-      (echo "# os-release" && cat /etc/os-release && echo "# dpkg-query" && dpkg-query --admindir=$CRAFT_PRIME/var/lib/dpkg/ -f '${db:Status-Abbrev},${binary:Package},${Version},${source:Package},${Source:Version}\n' -W) > $CRAFT_PRIME/usr/share/rocks/dpkg.query
+    plugin: make
+    source: https://github.com/canonical/rocks-security-manifest
+    source-type: git
+    source-branch: main
+    override-prime: gen_manifest
