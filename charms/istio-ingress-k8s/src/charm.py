@@ -682,9 +682,7 @@ class IstioIngressCharm(CharmBase):
             spec=gateway.spec.model_dump(exclude_none=True),
         )
 
-    def _construct_forward_auth_policy(
-        self, decisions_address: str
-    ) -> Optional[AuthorizationPolicy]:
+    def _construct_forward_auth_policy(self, decisions_address: str):
         """Return an AuthorizationPolicy allowing this gateway to reach its forward-auth provider.
 
         Returns None if decisions_address can't be parsed into a valid hostname and port.
@@ -712,7 +710,7 @@ class IstioIngressCharm(CharmBase):
             name_suffix="-forward-auth",
         )
 
-    def _construct_forward_auth_policies(self) -> List[AuthorizationPolicy]:
+    def _construct_forward_auth_policies(self) -> list:
         """Return the list of AuthorizationPolicies needed to reach the forward-auth provider.
 
         Empty if no forward-auth provider is related, or its address can't be parsed.
