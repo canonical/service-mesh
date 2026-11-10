@@ -849,7 +849,7 @@ class IstioCoreCharm(ops.CharmBase):
 
 
 def write_proxy_overlay() -> Path:
-    """Write an IstioOperator overlay giving istiod the model's proxy settings, and return its path.
+    """Write an IstioOperator overlay with the model's proxy settings, and return its path.
 
     istiod fetches the JSON Web Key Sets of RequestAuthentication issuers itself, and uses
     HTTPS_PROXY and NO_PROXY for it. Juju passes the model's juju-http-proxy,
