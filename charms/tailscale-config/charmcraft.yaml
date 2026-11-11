@@ -49,6 +49,11 @@ parts:
     build-packages:
       # Required for uv to fetch the canonical-service-mesh git dependency.
       - git
+  icon:
+    plugin: dump
+    source: .
+    stage:
+      - icon.svg
 
 config:
   options:
