@@ -7,6 +7,7 @@
 
 import hashlib
 import logging
+import os
 import tempfile
 import time
 from pathlib import Path
@@ -727,6 +728,7 @@ class IstioCoreCharm(ops.CharmBase):
         ca_bundle = self._get_ca_certificates()
         if ca_bundle:
             overlay_files.append(self._write_jwks_ca_overlay(ca_bundle))
+        overlay_files.append(str(write_proxy_overlay()))
 
         return Istioctl(
             istioctl_path="./istioctl",
@@ -844,6 +846,34 @@ class IstioCoreCharm(ops.CharmBase):
                 ).model_dump(by_alias=True, exclude_unset=True, exclude_none=True),
             ),
         ]
+
+
+def write_proxy_overlay() -> Path:
+    """Write an IstioOperator overlay with the model's proxy settings, and return its path.
+
+    istiod fetches the JSON Web Key Sets of RequestAuthentication issuers itself, and uses
+    HTTPS_PROXY and NO_PROXY for it. Juju passes the model's juju-http-proxy,
+    juju-https-proxy and juju-no-proxy settings to the charm only, as JUJU_CHARM_*_PROXY.
+    These are authoritative, so a setting the model does not have is set blank.
+    """
+    overlay = {
+        "apiVersion": "install.istio.io/v1alpha1",
+        "kind": "IstioOperator",
+        "spec": {
+            "values": {
+                "pilot": {
+                    "env": {
+                        "HTTP_PROXY": os.environ.get("JUJU_CHARM_HTTP_PROXY", ""),
+                        "HTTPS_PROXY": os.environ.get("JUJU_CHARM_HTTPS_PROXY", ""),
+                        "NO_PROXY": os.environ.get("JUJU_CHARM_NO_PROXY", ""),
+                    }
+                }
+            }
+        },
+    }
+    overlay_path = Path(tempfile.gettempdir()) / "proxy-overlay.yaml"
+    overlay_path.write_text(yaml.dump(overlay, default_flow_style=False))
+    return overlay_path
 
 
 def flatten_config(value: Any, prefix: str = "") -> Dict[str, Any]:
