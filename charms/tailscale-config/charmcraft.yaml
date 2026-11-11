@@ -32,10 +32,9 @@ links:
   source: https://github.com/canonical/service-mesh
   issues: https://github.com/canonical/service-mesh/issues
 
-base: ubuntu@24.04
 platforms:
-  amd64:
-  arm64:
+  ubuntu@26.04:amd64:
+  ubuntu@26.04:arm64:
 
 assumes:
   - juju >= 3.6
