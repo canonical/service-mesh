@@ -8,15 +8,12 @@ on:
         description: Which charm to release
         options:
           - all
-          - bookinfo-details-k8s
-          - bookinfo-productpage-k8s
           - envoy-ai-controller-k8s
           - envoy-controller-k8s
           - envoy-ingress-k8s
           - istio-beacon-k8s
           - istio-ingress-k8s
           - istio-k8s
-          - kiali-k8s
           - tailscale-beacon
           - tailscale-beacon-k8s
           - tailscale-config
@@ -26,7 +23,16 @@ on:
       - main
       - 'track/**'
     paths:
-      - 'charms/**'
+      - 'charms/envoy-ai-controller-k8s/**'
+      - 'charms/envoy-controller-k8s/**'
+      - 'charms/envoy-ingress-k8s/**'
+      - 'charms/istio-beacon-k8s/**'
+      - 'charms/istio-ingress-k8s/**'
+      - 'charms/istio-k8s/**'
+      - 'charms/tailscale-beacon/**'
+      - 'charms/tailscale-beacon-k8s/**'
+      - 'charms/tailscale-config/**'
+      - 'charms/tailscale-k8s/**'
 
 jobs:
   set-charms:
@@ -37,22 +43,22 @@ jobs:
     steps:
       - uses: actions/checkout@v6
         with:
-          sparse-checkout: charms
+          sparse-checkout: |
+            manifest.yaml
+            scripts
+            charms
           sparse-checkout-cone-mode: true
       - uses: dorny/paths-filter@v4
         id: changes
         if: github.event_name != 'workflow_dispatch'
         with:
           filters: |
-            bookinfo-details-k8s: charms/bookinfo-details-k8s/**
-            bookinfo-productpage-k8s: charms/bookinfo-productpage-k8s/**
             envoy-ai-controller-k8s: charms/envoy-ai-controller-k8s/**
             envoy-controller-k8s: charms/envoy-controller-k8s/**
             envoy-ingress-k8s: charms/envoy-ingress-k8s/**
             istio-beacon-k8s: charms/istio-beacon-k8s/**
             istio-ingress-k8s: charms/istio-ingress-k8s/**
             istio-k8s: charms/istio-k8s/**
-            kiali-k8s: charms/kiali-k8s/**
             tailscale-beacon: charms/tailscale-beacon/**
             tailscale-beacon-k8s: charms/tailscale-beacon-k8s/**
             tailscale-config: charms/tailscale-config/**
@@ -60,15 +66,26 @@ jobs:
       - name: Set charms matrix
         id: set-charms
         run: |
+          # Single source of truth: manifest.yaml maps each charm to the Charmhub
+          # track it releases to from this branch. Explicit tracks are mandatory:
+          # the branch name (track/26.10) would otherwise infer 26.10/edge.
+          branch="${{ github.ref_name }}"
+
           if [[ "${{ github.event_name }}" == "workflow_dispatch" && "${{ inputs.charm }}" != "all" ]]; then
             # Manual dispatch of a single charm: release only that charm.
-            echo 'charms=[{"charm-path": "charms/${{ inputs.charm }}", "charm-name": "${{ inputs.charm }}"}]' >> "$GITHUB_OUTPUT"
+            selected="$(python3 scripts/manifest.py charms "${branch}" --only "${{ inputs.charm }}")"
+            if [[ "${selected}" == "[]" ]]; then
+              echo "::error::No release for charm '${{ inputs.charm }}' on branch '${branch}' in manifest.yaml"
+              exit 1
+            fi
+            echo "charms=${selected}" >> "$GITHUB_OUTPUT"
           elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]]; then
-            # Manual dispatch of 'all': release every charm.
-            echo "charms=$(ls -d1 charms/* | jq -Rsc '[split("\n")[:-1][] | {("charm-path"): ., ("charm-name"): ltrimstr("charms/")}]')" >> "$GITHUB_OUTPUT"
+            # Manual dispatch of 'all': release every charm on this branch.
+            echo "charms=$(python3 scripts/manifest.py charms "${branch}")" >> "$GITHUB_OUTPUT"
           else
             # Push: release only the charms that changed.
-            echo "charms=$(echo '${{ steps.changes.outputs.changes }}' | jq -c '[.[] | {("charm-path"): ("charms/" + .), ("charm-name"): .}]')" >> "$GITHUB_OUTPUT"
+            changes='${{ steps.changes.outputs.changes }}'
+            echo "charms=$(python3 scripts/manifest.py charms "${branch}" --only "${changes}")" >> "$GITHUB_OUTPUT"
           fi
 
   release:
@@ -88,5 +105,6 @@ jobs:
     with:
       charm-path: ${{ matrix.charm-path }}
       git-tag-prefix: ${{ matrix.charm-name }}
-      default-track: dev
+      track: ${{ matrix.track }}
+      terraform-tag-prefix: ${{ matrix.terraform-tag-prefix || 'tf-' }}
       provider: ${{ matrix.charm-path == 'charms/tailscale-beacon' && 'machine' || 'k8s' }}

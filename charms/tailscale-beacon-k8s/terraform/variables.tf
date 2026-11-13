@@ -7,11 +7,11 @@ variable "app_name" {
 variable "channel" {
   description = "Channel that the charm is deployed from"
   type        = string
-  default     = "dev/edge"
+  default     = "1.104/edge"
 
   validation {
-    condition     = can(regex("^(latest|dev)/(stable|candidate|beta|edge)$", var.channel))
-    error_message = "The channel must be '<track>/<risk>' where track is 'latest' or 'dev' and risk is one of stable, candidate, beta, edge. e.g. 'latest/edge'."
+    condition     = can(regex("^(latest|dev|1[.]104)/(stable|candidate|beta|edge)$", var.channel))
+    error_message = "The channel must be '<track>/<risk>' where track is 'latest', 'dev' or '1.104' and risk is one of stable, candidate, beta, edge. e.g. 'latest/edge'."
   }
 }
 

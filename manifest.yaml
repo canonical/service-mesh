@@ -1,0 +1,98 @@
+# Single source of truth for what this repo releases: which charms, from which
+# branch, on which Charmhub track. Consumed by .github/workflows/charms-release.yaml.
+# Format mirrors canonical/observability's manifest.yaml. Add `support:` dates
+# per release once they are decided.
+artifacts:
+  charms:
+    - name: bookinfo-details-k8s
+      repo: canonical/service-mesh
+      path: charms/bookinfo-details-k8s
+      releases: []
+    - name: bookinfo-productpage-k8s
+      repo: canonical/service-mesh
+      path: charms/bookinfo-productpage-k8s
+      releases: []
+    - name: envoy-ai-controller-k8s
+      repo: canonical/service-mesh
+      path: charms/envoy-ai-controller-k8s
+      releases:
+        - name: "0.6"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-envoy-ai-
+    - name: envoy-controller-k8s
+      repo: canonical/service-mesh
+      path: charms/envoy-controller-k8s
+      releases:
+        - name: "1.7"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-envoy-
+    - name: envoy-ingress-k8s
+      repo: canonical/service-mesh
+      path: charms/envoy-ingress-k8s
+      releases:
+        - name: "1.7"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-envoy-
+    - name: istio-beacon-k8s
+      repo: canonical/service-mesh
+      path: charms/istio-beacon-k8s
+      releases:
+        - name: "1.31"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-istio-
+    - name: istio-ingress-k8s
+      repo: canonical/service-mesh
+      path: charms/istio-ingress-k8s
+      releases:
+        - name: "1.31"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-istio-
+    - name: istio-k8s
+      repo: canonical/service-mesh
+      path: charms/istio-k8s
+      releases:
+        - name: "1.31"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-istio-
+    - name: kiali-k8s
+      repo: canonical/service-mesh
+      path: charms/kiali-k8s
+      releases: []
+    - name: tailscale-beacon
+      repo: canonical/service-mesh
+      path: charms/tailscale-beacon
+      releases:
+        - name: "1.104"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-tailscale-
+    - name: tailscale-beacon-k8s
+      repo: canonical/service-mesh
+      path: charms/tailscale-beacon-k8s
+      releases:
+        - name: "1.104"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-tailscale-
+    - name: tailscale-config
+      repo: canonical/service-mesh
+      path: charms/tailscale-config
+      releases:
+        - name: "1.104"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-tailscale-
+    - name: tailscale-k8s
+      repo: canonical/service-mesh
+      path: charms/tailscale-k8s
+      releases:
+        - name: "1.104"
+          branch: track/26.10
+          cycle: "26.10"
+          terraform-tag-prefix: tf-tailscale-

@@ -11,14 +11,50 @@ on:
           - beta -> candidate
           - candidate -> stable
       charm:
-        type: string
-        description: Charm to promote (directory name under charms/)
+        type: choice
+        description: Charm to promote
+        options:
+          - envoy-ai-controller-k8s
+          - envoy-controller-k8s
+          - envoy-ingress-k8s
+          - istio-beacon-k8s
+          - istio-ingress-k8s
+          - istio-k8s
+          - tailscale-beacon
+          - tailscale-beacon-k8s
+          - tailscale-config
+          - tailscale-k8s
+
+permissions:
+  actions: read
+  contents: write
+  security-events: write
 
 jobs:
+  resolve-track:
+    name: Resolve track
+    runs-on: ubuntu-latest
+    outputs:
+      track: ${{ steps.track.outputs.track }}
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          sparse-checkout: |
+            manifest.yaml
+            scripts
+          sparse-checkout-cone-mode: true
+      - name: Look up the charm's track in manifest.yaml
+        id: track
+        run: |
+          track="$(python3 scripts/manifest.py track "${{ github.ref_name }}" "${{ github.event.inputs.charm }}")"
+          echo "track=${track}" >> "$GITHUB_OUTPUT"
+
   promote:
     name: Promote
+    needs: resolve-track
     uses: canonical/observability/.github/workflows/charm-promote.yaml@v2
     with:
       promotion: ${{ github.event.inputs.promotion }}
       charm-path: charms/${{ github.event.inputs.charm }}
+      track: ${{ needs.resolve-track.outputs.track }}
     secrets: inherit
