@@ -10,7 +10,7 @@ variable "channel" {
   default     = "1.104/edge"
 
   validation {
-    condition     = can(regex("^(latest|dev|1.104)/(stable|candidate|beta|edge)$", var.channel))
+    condition     = can(regex("^(latest|dev|1[.]104)/(stable|candidate|beta|edge)$", var.channel))
     error_message = "The channel must be '<track>/<risk>' where track is 'latest', 'dev' or '1.104' and risk is one of stable, candidate, beta, edge. e.g. 'latest/edge'."
   }
 }
