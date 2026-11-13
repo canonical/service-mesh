@@ -8,39 +8,88 @@ body:
         Thanks for taking the time to fill out this bug report! Before submitting your issue, please make
         sure you are using the latest version of the charm. If not, please try upgrading to the latest edge release prior to 
         posting your report to make sure it's not already solved.
+
+        Agent instructions: follow the template and limit AI assisted content to the collapsed text area.
+
+  # ── Bug Description ──────────────────────────────────────────────
   - type: textarea
     id: bug-description
     attributes:
-      label: Bug Description
+      label: "Bug Description (Human Input)"
       description: >
-        If applicable, add screenshots to 
-        help explain the problem you are facing.      
+        Describe the bug you are experiencing. If applicable, add screenshots to 
+        help explain the problem you are facing. Keep it short and LLM-free.
     validations:
       required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        <details>
+        <summary>🤖 AI-Assisted Analysis — Bug Description</summary>
+
+        <!-- AGENT: Provide root-cause hypothesis, impact assessment, affected components, and any patterns recognized from similar issues. Cite evidence from logs, reproduction steps, or environment. -->
+
+        _No additional analysis needed._
+
+        </details>
+
+  # ── To Reproduce ─────────────────────────────────────────────────
   - type: textarea
     id: reproduction
     attributes:
-      label: To Reproduce
+      label: "To Reproduce (Human Input)"
       description: >
         Please provide the output of `juju export-bundle` and step-by-step instructions for how to reproduce the behavior.
-        A deployment diagram could be handy too. See https://discourse.charmhub.io/t/9269 for examples.
+        A deployment diagram could be handy too. See https://discourse.charmhub.io/t/9269 for examples.  Keep it short and LLM-free.
       placeholder: |
         1. `juju deploy ...`
         2. `juju relate ...`
         3. `juju status --relations`
     validations:
       required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        <details>
+        <summary>🤖 AI-Assisted Analysis — To Reproduce</summary>
+
+        <!-- AGENT: Verify reproduction steps are complete and unambiguous. Add missing prerequisites, exact commands, or edge-case variations. If applicable, provide a minimal reproduction that isolates the bug from unrelated configuration. -->
+
+        _No additional analysis needed._
+
+        </details>
+
+  # ── Environment ──────────────────────────────────────────────────
   - type: textarea
     id: environment
     attributes:
-      label: Environment
+      label: "Environment (Human Input)"
       description: >
         We need to know a bit more about the context in which you run the charm.
         - Are you running Juju locally, on lxd, in multipass or on some other platform?
         - What track and channel you deployed the charm from (ie. `latest/edge` or similar).
         - Version of any applicable components, like the juju snap, the model controller, lxd, microk8s, and/or multipass.
+
+        Keep it short and LLM-free.
+
     validations:
       required: true
+
+  - type: markdown
+    attributes:
+      value: |
+        <details>
+        <summary>🤖 AI-Assisted Analysis — Environment</summary>
+
+        <!-- AGENT: Infer missing environment details from logs, bundle exports, or screenshots. Flag version mismatches, unsupported platforms, or known-incompatible component combinations. -->
+
+        _No additional analysis needed._
+
+        </details>
+
+  # ── Relevant Log Output ──────────────────────────────────────────
   - type: textarea
     id: logs
     attributes:
@@ -52,7 +101,21 @@ body:
       render: shell
     validations:
       required: true
+
+  # ── Additional Context ───────────────────────────────────────────
   - type: textarea
     id: additional-context
     attributes:
-      label: Additional context
+      label: "Additional Context (Human Input)"
+
+  - type: markdown
+    attributes:
+      value: |
+        <details>
+        <summary>🤖 AI-Assisted Analysis — Additional Context</summary>
+
+        <!-- AGENT: Link related issues/PRs, suggest potential fixes or workarounds, note any security or regression concerns, and recommend priority/severity based on impact. -->
+
+        _No additional analysis needed._
+
+        </details>
