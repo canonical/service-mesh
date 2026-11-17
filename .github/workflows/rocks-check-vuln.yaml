@@ -1,0 +1,72 @@
+name: "Rocks: Check Vulnerabilities"
+
+on:
+  pull_request:
+    branches:
+      - main
+      - 'track/**'
+    paths:
+      - 'rocks/**'
+
+permissions:
+  contents: read
+
+jobs:
+  discover-rocks:
+    name: Discover changed rocks
+    runs-on: ubuntu-latest
+    outputs:
+      rocks: ${{ steps.matrix.outputs.rocks }}
+    steps:
+      - uses: actions/checkout@v6
+      - uses: dorny/paths-filter@v4
+        id: changes
+        with:
+          filters: |
+            pilot: rocks/istio-pilot-rock/**
+            cni: rocks/istio-install-cni-rock/**
+            kiali: rocks/kiali-rock/**
+      - id: matrix
+        run: |
+          rocks='[]'
+          if [ "${{ steps.changes.outputs.pilot }}" = "true" ]; then
+            rocks=$(echo "$rocks" | jq -c '. + ["rocks/istio-pilot-rock"]')
+          fi
+          if [ "${{ steps.changes.outputs.cni }}" = "true" ]; then
+            rocks=$(echo "$rocks" | jq -c '. + ["rocks/istio-install-cni-rock"]')
+          fi
+          if [ "${{ steps.changes.outputs.kiali }}" = "true" ]; then
+            rocks=$(echo "$rocks" | jq -c '. + ["rocks/kiali-rock"]')
+          fi
+          echo "rocks=$rocks" >> "$GITHUB_OUTPUT"
+
+  check-vulnerabilities:
+    name: Check Vulnerabilities (${{ matrix.rock-path }})
+    runs-on: ubuntu-latest
+    needs: discover-rocks
+    if: ${{ needs.discover-rocks.outputs.rocks != '' && needs.discover-rocks.outputs.rocks != '[]' }}
+    strategy:
+      matrix:
+        rock-path: ${{ fromJSON(needs.discover-rocks.outputs.rocks) }}
+      fail-fast: false
+
+    steps:
+      - name: Download Repository
+        uses: actions/checkout@v6
+
+      - name: Set up Go
+        uses: actions/setup-go@v7
+        with:
+          go-version: '1.26'
+
+      - name: Install Govulncheck
+        run: go install golang.org/x/vuln/cmd/govulncheck@v1.9.0
+
+      - name: Install Just
+        run: sudo snap install just --classic
+
+      - name: Check Vulnerabilities
+        working-directory: ${{ matrix.rock-path }}
+        env:
+          GITHUB_TOKEN: ${{ github.token }}
+        run: just govulncheck
