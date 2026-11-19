@@ -102,6 +102,10 @@ CERTGEN_SECRETS = ("envoy", "envoy-gateway", "envoy-rate-limit", "envoy-oidc-hma
 # Sequential minor-version upgrades on upgrade-charm are not yet enforced; see
 # https://github.com/canonical/service-mesh/issues/112
 
+# Accepted values for proxy-external-traffic-policy. Local preserves client source IPs,
+# which allowlists and audit logs depend on.
+VALID_TRAFFIC_POLICIES = ("Local", "Cluster")
+
 # Accepted values for the log-level config. Anything else falls back to the default
 # rather than reaching the controller's config (an invalid value would crash-loop the
 # controller with an opaque error).
@@ -133,7 +137,9 @@ def _load_crd_yaml(directory: str) -> list:
     docs = []
     for yaml_file in sorted(crd_dir.glob("*.yaml")):
         docs.extend(load_all_yaml(yaml_file.read_text(), create_resources_for_crds=False))
-    return docs
+    # The upstream Gateway API bundle also ships a ValidatingAdmissionPolicy that guards
+    # against mixing channels/versions; the charm owns the CRDs, so only CRDs are managed.
+    return [d for d in docs if d.kind == "CustomResourceDefinition"]
 
 
 class _CrdsNotEstablishedError(Exception):
@@ -705,14 +711,21 @@ class EnvoyControllerCharm(ops.CharmBase):
         ]
         # `provider` is not on canonical_service_mesh.EnvoyProxySpec yet, so merge
         # onto the dumped dict verbatim.
-        spec_dict["provider"] = {
-            "type": "Kubernetes",
-            "kubernetes": {
-                "envoyDeployment": {
-                    "container": {"env": env},
-                }
+        replicas = max(1, int(self.config["proxy-replicas"]))
+        policy = str(self.config["proxy-external-traffic-policy"])
+        if policy not in VALID_TRAFFIC_POLICIES:
+            logger.warning("Invalid proxy-external-traffic-policy %r; using Local", policy)
+            policy = "Local"
+        kubernetes: dict = {
+            "envoyDeployment": {
+                "replicas": replicas,
+                "container": {"env": env},
             },
+            "envoyService": {"externalTrafficPolicy": policy},
         }
+        if replicas > 1:
+            kubernetes["envoyPDB"] = {"minAvailable": replicas - 1}
+        spec_dict["provider"] = {"type": "Kubernetes", "kubernetes": kubernetes}
         return EnvoyProxy(
             metadata=ObjectMeta(name=self.app.name, namespace=self.model.name),
             spec=spec_dict,

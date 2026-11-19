@@ -151,13 +151,13 @@ def test_workload_version_from_envoy_gateway_binary(ctx, krm_mocks):
     # parsing the image tag (as we used to) fails when the image is digest-pinned — which
     # is exactly how Charmhub delivers its proxied OCI resources.
     version_out = (
-        "ENVOY_GATEWAY_VERSION: v1.7.0\n"
+        "ENVOY_GATEWAY_VERSION: v1.9.4\n"
         "ENVOY_PROXY_VERSION: distroless-v1.37.0\n"
         "GATEWAYAPI_VERSION: v1.4.1\n"
     )
     state = make_state(exec_stdout=version_out)
     state_out = ctx.run(ctx.on.config_changed(), state)
-    assert state_out.workload_version == "v1.7.0"
+    assert state_out.workload_version == "v1.9.4"
 
 
 def test_workload_version_empty_when_container_unreachable(ctx):
