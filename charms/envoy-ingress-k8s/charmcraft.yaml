@@ -31,6 +31,54 @@ config:
         load-balancer address is used. Must be a bare hostname: no scheme
         prefix and no port (e.g. "foo.example.com").
 
+    additional-hostnames:
+      type: string
+      default: ""
+      description: |
+        Extra DNS names (comma separated) served by the gateway. They are added to
+        the certificate SANs and the HTTPS listener stops filtering on
+        external_hostname so host-based routes can share one gateway.
+    allowed-cidrs:
+      type: string
+      default: ""
+      description: |
+        Comma separated client IPs/CIDRs allowed to reach the gateway (HTTP, HTTPS
+        and TCP/TLS routes). Everything else is denied. Empty means no restriction.
+        Relies on the proxy preserving client IPs (controller option
+        proxy-external-traffic-policy=Local). UDP routes are not covered by Envoy
+        Gateway authorization; restrict those at the network layer.
+    external-ips:
+      type: string
+      default: ""
+      description: |
+        Comma separated IP addresses requested for the gateway Service
+        (Gateway.spec.addresses), e.g. a floating or anchor IP on bare metal.
+    http3:
+      type: boolean
+      default: false
+      description: |
+        Advertise and serve HTTP/3 (QUIC, UDP 443) on the HTTPS listener.
+        Requires a certificates relation.
+    tls-secret-name:
+      type: string
+      default: ""
+      description: |
+        Name of an existing kubernetes.io/tls Secret in the charm's namespace to
+        serve on the HTTPS and TLS listeners instead of a certificate from the
+        certificates relation. The operator owns its lifecycle (e.g. certbot or
+        cert-manager renewal); the charm never writes or deletes it.
+    extra-routes:
+      type: string
+      default: ""
+      description: |
+        JSON list of additional routes. Each entry has name, service, namespace,
+        service_port and protocol (http, tcp, tls-terminate or udp). http entries
+        take hostnames, path_prefix and strip_prefix; the others require a
+        listener port. tls-terminate terminates TLS at the gateway with the
+        related certificate and forwards plain TCP (e.g. MQTTS on 8883).
+        Example: [{"name":"mqtts","protocol":"tls-terminate","port":8883,
+        "service":"emqx","namespace":"core","service_port":1883}]
+
 provides:
   ingress:
     interface: ingress
