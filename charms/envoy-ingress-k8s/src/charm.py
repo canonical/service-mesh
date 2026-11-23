@@ -478,7 +478,7 @@ class EnvoyIngressCharm(ops.CharmBase):
             if er.protocol != "http"
             and not (er.protocol == "tls-terminate" and not self._tls_ready)
         ]
-        self._l4_route_krm().reconcile(routes)
+        self._l4_route_krm().reconcile(routes)  # pyright: ignore[reportArgumentType]
 
     def _reconcile_http3_policy(self):
         """Enable HTTP/3 (QUIC) on the HTTPS listener when http3 is set and TLS is ready."""
@@ -493,11 +493,11 @@ class EnvoyIngressCharm(ops.CharmBase):
         sp_krm = self._security_policy_krm()
         backend_krm = self._ext_auth_backend_krm()
         info = self.forward_auth.get_provider_info()
-        has_ext_auth = bool(info and info.decisions_address)
+        decisions_address = info.decisions_address if info else None
         authz = extensions.authorization(self._allowed_cidrs)
 
-        if has_ext_auth:
-            backend, policy = self._construct_ext_auth(info.decisions_address)
+        if decisions_address:
+            backend, policy = self._construct_ext_auth(decisions_address)
             backend_krm.reconcile([backend])
         else:
             backend_krm.delete(ignore_missing=True)
@@ -517,7 +517,7 @@ class EnvoyIngressCharm(ops.CharmBase):
                     }
                 },
             )
-        if authz is not None:
+        if authz is not None and policy.spec is not None:
             policy.spec["authorization"] = authz
         sp_krm.reconcile([policy])
 
