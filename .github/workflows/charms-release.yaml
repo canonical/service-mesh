@@ -83,7 +83,7 @@ jobs:
       actions: read
       security-events: write
       contents: write
-    uses: canonical/observability/.github/workflows/charm-release.yaml@v2
+    uses: canonical/observability/.github/workflows/charm-release.yaml@feat/propagate-tailscale-secrets
     secrets: inherit
     with:
       charm-path: ${{ matrix.charm-path }}
