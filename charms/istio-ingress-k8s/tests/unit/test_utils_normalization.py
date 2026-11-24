@@ -30,7 +30,11 @@ from charmlibs.interfaces.istio_ingress_route import (
 )
 
 from utils import (
+    GatewayListener,
+    GRPCRoute,
+    HTTPRoute,
     deduplicate_listeners,
+    enforce_tls_ports,
     get_unauthenticated_paths,
     get_unauthenticated_paths_from_istio_ingress_route_configs,
     normalize_ipa_listeners,
@@ -391,3 +395,88 @@ def test_get_unauthenticated_paths_from_istio_ingress_route():
     assert "/api/public/*" in paths
     # For gRPC service without method, only wildcard is added
     assert "/PublicService/*" in paths
+
+
+def _tls_listener(port):
+    return GatewayListener(
+        port=port,
+        gateway_protocol="HTTPS" if port == 443 else "HTTP",
+        tls_secret_name="secret" if port == 443 else None,
+        source_app="app1",
+    )
+
+
+def _tls_http_route(port):
+    return HTTPRoute(
+        name=f"route-{port}",
+        listener_port=port,
+        listener_protocol="HTTPS" if port == 443 else "HTTP",
+        namespace="model1",
+        source_app="app1",
+        source_relation="istio-ingress-route",
+        matches=[],
+        backend_refs=[],
+        filters=[],
+    )
+
+
+def _tls_grpc_route(port):
+    return GRPCRoute(
+        name=f"grpc-route-{port}",
+        listener_port=port,
+        listener_protocol="HTTPS" if port == 443 else "HTTP",
+        namespace="model1",
+        source_app="app1",
+        source_relation="istio-ingress-route",
+        matches=[],
+        backend_refs=[],
+        filters=[],
+    )
+
+
+def test_enforce_tls_ports_tls_available_keeps_everything():
+    """With TLS available nothing is filtered, including port 443."""
+    listeners = [_tls_listener(80), _tls_listener(443)]
+    http_routes = [_tls_http_route(80), _tls_http_route(443)]
+    grpc_routes = [_tls_grpc_route(443)]
+
+    kept_listeners, kept_http, kept_grpc, dropped = enforce_tls_ports(
+        listeners, http_routes, grpc_routes, tls_available=True
+    )
+
+    assert kept_listeners == listeners
+    assert kept_http == http_routes
+    assert kept_grpc == grpc_routes
+    assert dropped is False
+
+
+def test_enforce_tls_ports_tls_unavailable_drops_443():
+    """Without TLS, port-443 listeners and routes are dropped; other ports survive."""
+    listeners = [_tls_listener(80), _tls_listener(443), _tls_listener(8080)]
+    http_routes = [_tls_http_route(80), _tls_http_route(443)]
+    grpc_routes = [_tls_grpc_route(443), _tls_grpc_route(9090)]
+
+    kept_listeners, kept_http, kept_grpc, dropped = enforce_tls_ports(
+        listeners, http_routes, grpc_routes, tls_available=False
+    )
+
+    assert kept_listeners == [listeners[0], listeners[2]]
+    assert kept_http == [http_routes[0]]
+    assert kept_grpc == [grpc_routes[1]]
+    assert dropped is True
+
+
+def test_enforce_tls_ports_tls_unavailable_no_443_noop():
+    """Without TLS and without port-443 requests nothing changes and nothing is dropped."""
+    listeners = [_tls_listener(80)]
+    http_routes = [_tls_http_route(80)]
+    grpc_routes = [_tls_grpc_route(9090)]
+
+    kept_listeners, kept_http, kept_grpc, dropped = enforce_tls_ports(
+        listeners, http_routes, grpc_routes, tls_available=False
+    )
+
+    assert kept_listeners == listeners
+    assert kept_http == http_routes
+    assert kept_grpc == grpc_routes
+    assert dropped is False

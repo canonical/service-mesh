@@ -102,6 +102,7 @@ from utils import (
     deduplicate_grpc_routes,
     deduplicate_http_routes,
     deduplicate_listeners,
+    enforce_tls_ports,
     get_relation_by_name_and_app,
     get_unauthenticated_paths,
     get_unauthenticated_paths_from_istio_ingress_route_configs,
@@ -160,6 +161,7 @@ FORWARD_AUTH_RELATION = "forward-auth"
 REQUEST_AUTH_RELATION = "istio-request-auth"
 UPSTREAM_INGRESS_RELATION = "upstream-ingress"
 PEERS_RELATION = "peers"
+CERTIFICATES_RELATION = "certificates"
 
 # RFC 2606 reserved ".invalid" TLD: a well-formed but guaranteed-unroutable hostname.
 # Used to block all traffic when a hostname is requested but resolves invalid, without
@@ -848,24 +850,25 @@ class IstioIngressCharm(CharmBase):
             ),
         )
 
-    def _is_tls_enabled(self) -> bool:
+    def _is_tls_available(self) -> bool:
+        """Return True if a TLS certificate is available (delivered over the certificates relation)."""
         return self._construct_gateway_tls_secret() is not None
 
     def _get_normalized_istio_routes(self) -> Tuple[List[HTTPRoute],List[GRPCRoute]]:
         """Return the normalized Istio routes."""
-        is_tls_enabled = self._is_tls_enabled()
+        is_tls_available = self._is_tls_available()
         istio_ingress_route_configs = self._get_istio_ingress_route_configs()
         istio_http_routes = normalize_istio_ingress_route_http_routes(
-            istio_ingress_route_configs, is_tls_enabled, self.app.name
+            istio_ingress_route_configs, is_tls_available, self.app.name
         )
         istio_grpc_routes = normalize_istio_ingress_route_grpc_routes(
-            istio_ingress_route_configs, is_tls_enabled, self.app.name
+            istio_ingress_route_configs, is_tls_available, self.app.name
         )
         return istio_http_routes, istio_grpc_routes
 
     def _get_normalized_ipa_routes(self) -> List[HTTPRoute]:
         """Return the normalized IPA routes from both sources."""
-        return normalize_ipa_routes(self._get_routes(), self._is_tls_enabled(), self.app.name)
+        return normalize_ipa_routes(self._get_routes(), self._is_tls_available(), self.app.name)
 
     def _convert_to_jwt_rules(self, interface_jwt_rules: list) -> List[JWTRule]:
         """Convert interface JWTRule models to Istio CRD JWTRule models."""
@@ -1046,7 +1049,7 @@ class IstioIngressCharm(CharmBase):
         istio_ingress_route_configs = self._get_istio_ingress_route_configs()
 
         # Normalize data to common intermediate formats
-        tls_secret_name = self._certificate_secret_name if self._is_tls_enabled() else None
+        tls_secret_name = self._certificate_secret_name if self._is_tls_available() else None
 
         # Normalize listeners from both sources
         ipa_listeners = normalize_ipa_listeners(tls_secret_name)
@@ -1058,10 +1061,18 @@ class IstioIngressCharm(CharmBase):
         ipa_http_routes = self._get_normalized_ipa_routes()
         istio_http_routes, istio_grpc_routes = self._get_normalized_istio_routes()
 
+        # Never serve plaintext on port 443: drop those listeners and routes while TLS is unavailable.
+        tls_listeners, tls_http_routes, tls_grpc_routes, _ = enforce_tls_ports(
+            ipa_listeners + istio_listeners,
+            ipa_http_routes + istio_http_routes,
+            istio_grpc_routes,
+            tls_available=tls_secret_name is not None,
+        )
+
         # Merge and deduplicate using source-agnostic functions
-        unique_listeners = deduplicate_listeners(ipa_listeners + istio_listeners)
-        valid_http_routes, http_apps_to_clear = deduplicate_http_routes(ipa_http_routes + istio_http_routes)
-        valid_grpc_routes, grpc_apps_to_clear = deduplicate_grpc_routes(istio_grpc_routes)  # ipa relation doesnt support grpc routes.
+        unique_listeners = deduplicate_listeners(tls_listeners)
+        valid_http_routes, http_apps_to_clear = deduplicate_http_routes(tls_http_routes)
+        valid_grpc_routes, grpc_apps_to_clear = deduplicate_grpc_routes(tls_grpc_routes)  # ipa relation doesnt support grpc routes.
 
         # Clear conflicts from original structures (needed for publishing back to apps)
         all_apps_to_clear = http_apps_to_clear | grpc_apps_to_clear
@@ -1151,6 +1162,7 @@ class IstioIngressCharm(CharmBase):
         self._collect_readiness_status(event)
         self._collect_external_hostname_status(event)
         self._collect_listener_hostname_status(event)
+        self._collect_tls_status(event)
         event.add_status(ActiveStatus(f"Serving at {self._ingress_url}"))
 
     def _collect_leadership_status(self, event: CollectStatusEvent):
@@ -1231,6 +1243,32 @@ class IstioIngressCharm(CharmBase):
                 BlockedStatus(
                     "Invalid listener-hostname provided, Please ensure this adheres to RFC 1123."
                 )
+            )
+
+    def _is_port_443_requested(self) -> bool:
+        """Return True if any istio-ingress-route requirer requests port 443."""
+        for config_data in self._get_istio_ingress_route_configs().values():
+            config = config_data["config"]
+            if config is None:
+                continue
+            for listener in config.listeners:
+                if listener.port == 443:
+                    return True
+        return False
+
+    def _collect_tls_status(self, event: CollectStatusEvent):
+        """Surface the TLS state: no silent plaintext, no silent cert waiting.
+
+        (Should be called on the leader unit only.)
+        """
+        if self._is_tls_available():
+            return
+
+        if self.model.get_relation(CERTIFICATES_RELATION):
+            event.add_status(MaintenanceStatus("Waiting for TLS certificate"))
+        elif self._is_port_443_requested():
+            event.add_status(
+                BlockedStatus("Port 443 requested but no TLS certificate provider related.")
             )
 
     def _get_oauth_decisions_address(self) -> Optional[str]:

@@ -6,6 +6,11 @@ from unittest.mock import MagicMock, PropertyMock, patch
 
 import pytest
 import scenario
+from charmlibs.interfaces.istio_ingress_route import (
+    IstioIngressRouteConfig,
+    Listener,
+    ProtocolType,
+)
 from charms.tls_certificates_interface.v3.tls_certificates import (
     generate_ca,
     generate_certificate,
@@ -18,6 +23,7 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.autoscaling_v2 import HorizontalPodAutoscaler
 from lightkube.resources.core_v1 import Secret
 from ops import ActiveStatus, BlockedStatus
+from ops.model import MaintenanceStatus
 
 from charm import BLOCKED_LISTENER_HOSTNAME, IstioIngressCharm
 from utils import GatewayListener
@@ -730,3 +736,155 @@ def test_on_remove_deletes_hpa_only_when_last_unit(
 
     manager = mock_get_gateway_manager.return_value
     assert manager.delete.call_count == call_count
+
+
+class _StatusRecorder:
+    """CollectStatusEvent stand-in that records added statuses."""
+
+    def __init__(self):
+        self.statuses = []
+
+    def add_status(self, status):
+        self.statuses.append(status)
+
+
+def _config_with_443_listener():
+    """Mock version of `_get_istio_ingress_route_configs` as if one requirer asked for port 443."""
+    return {
+        ("app1", "istio-ingress-route"): {
+            "handler": MagicMock(),
+            "config": IstioIngressRouteConfig(
+                model="model1",
+                listeners=[Listener(port=443, protocol=ProtocolType.HTTP)],
+            ),
+        }
+    }
+
+
+def test_collect_tls_status_443_without_certificates_relation_blocks(
+    istio_ingress_charm, istio_ingress_context
+):
+    """A 443 request with no certificates relation must be Blocked, not silently plaintext."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(),
+    ) as manager:
+        charm = manager.charm
+        charm._get_istio_ingress_route_configs = _config_with_443_listener
+        charm._is_tls_available = lambda: False
+
+        event = _StatusRecorder()
+        charm._collect_tls_status(event)
+
+        assert len(event.statuses) == 1
+        assert isinstance(event.statuses[0], BlockedStatus)
+        assert "443" in event.statuses[0].message
+
+
+def test_collect_tls_status_443_with_certificates_relation_is_maintenance(
+    istio_ingress_charm, istio_ingress_context
+):
+    """A 443 request while the certificate is pending must be Maintenance."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(relations=[scenario.Relation(endpoint="certificates")]),
+    ) as manager:
+        charm = manager.charm
+        charm._get_istio_ingress_route_configs = _config_with_443_listener
+        charm._is_tls_available = lambda: False
+
+        event = _StatusRecorder()
+        charm._collect_tls_status(event)
+
+        assert len(event.statuses) == 1
+        assert isinstance(event.statuses[0], MaintenanceStatus)
+        assert event.statuses[0].message == "Waiting for TLS certificate"
+
+
+def test_collect_tls_status_certificates_pending_without_443_is_maintenance(
+    istio_ingress_charm, istio_ingress_context
+):
+    """No 443 request while the certificate is pending must yield Maintenance."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(relations=[scenario.Relation(endpoint="certificates")]),
+    ) as manager:
+        charm = manager.charm
+        charm._get_istio_ingress_route_configs = lambda: {}
+        charm._is_tls_available = lambda: False
+
+        event = _StatusRecorder()
+        charm._collect_tls_status(event)
+
+        assert len(event.statuses) == 1
+        assert isinstance(event.statuses[0], MaintenanceStatus)
+
+
+def test_collect_tls_status_silent_when_tls_uninvolved(
+    istio_ingress_charm, istio_ingress_context,
+):
+    """No 443 request and no certificates relation: no TLS status is added."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(),
+    ) as manager:
+        charm = manager.charm
+        charm._get_istio_ingress_route_configs = lambda: {}
+        charm._is_tls_available = lambda: False
+
+        event = _StatusRecorder()
+        charm._collect_tls_status(event)
+
+        assert event.statuses == []
+
+
+def test_collect_tls_status_silent_when_tls_available(
+    istio_ingress_charm, istio_ingress_context
+):
+    """With a certificate delivered, no TLS status is added even for 443 requests."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(relations=[scenario.Relation(endpoint="certificates")]),
+    ) as manager:
+        charm = manager.charm
+        charm._get_istio_ingress_route_configs = _config_with_443_listener
+        charm._is_tls_available = lambda: True
+
+        event = _StatusRecorder()
+        charm._collect_tls_status(event)
+
+        assert event.statuses == []
+
+
+def test_is_port_443_requested_true(istio_ingress_charm, istio_ingress_context):
+    """A requirer listener on port 443 is detected."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(),
+    ) as manager:
+        charm = manager.charm
+        charm._get_istio_ingress_route_configs = _config_with_443_listener
+        assert charm._is_port_443_requested() is True
+
+
+def test_is_port_443_requested_false(istio_ingress_charm, istio_ingress_context):
+    """No configs, or configs without port 443, mean no 443 request."""
+    with istio_ingress_context(
+        istio_ingress_context.on.update_status(),
+        state=scenario.State(),
+    ) as manager:
+        charm = manager.charm
+        charm._get_istio_ingress_route_configs = lambda: {}
+        assert charm._is_port_443_requested() is False
+
+        charm._get_istio_ingress_route_configs = lambda: {
+            ("app1", "istio-ingress-route"): {"handler": MagicMock(), "config": None},
+            ("app2", "istio-ingress-route"): {
+                "handler": MagicMock(),
+                "config": IstioIngressRouteConfig(
+                    model="model1",
+                    listeners=[Listener(port=8080, protocol=ProtocolType.HTTP)],
+                ),
+            },
+        }
+        assert charm._is_port_443_requested() is False

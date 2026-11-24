@@ -539,6 +539,38 @@ def deduplicate_listeners(all_listeners: List[GatewayListener]) -> List[GatewayL
     return list(seen.values())
 
 
+def enforce_tls_ports(
+    listeners: List[GatewayListener],
+    http_routes: List[HTTPRoute],
+    grpc_routes: List[GRPCRoute],
+    tls_available: bool,
+) -> Tuple[List[GatewayListener], List[HTTPRoute], List[GRPCRoute], bool]:
+    """Drop port-443 listeners and routes when TLS is unavailable.
+
+    Args:
+        listeners: Normalized Gateway listeners (all sources)
+        http_routes: Normalized HTTPRoutes (all sources)
+        grpc_routes: Normalized GRPCRoutes
+        tls_available: Whether a TLS certificate is currently available
+
+    Returns:
+        Tuple of (filtered listeners, filtered HTTPRoutes, filtered GRPCRoutes,
+        whether any port-443 listener was dropped)
+    """
+    if tls_available:
+        return listeners, http_routes, grpc_routes, False
+
+    kept_listeners = [lst for lst in listeners if lst["port"] != 443]
+    kept_http_routes = [r for r in http_routes if r["listener_port"] != 443]
+    kept_grpc_routes = [r for r in grpc_routes if r["listener_port"] != 443]
+    dropped = len(kept_listeners) != len(listeners)
+    if dropped:
+        logger.warning(
+            "TLS is unavailable: dropping port-443 listeners and routes (port 443 must never serve plaintext)"
+        )
+    return kept_listeners, kept_http_routes, kept_grpc_routes, dropped
+
+
 def deduplicate_http_routes(
     all_http_routes: List[HTTPRoute],
 ) -> Tuple[List[HTTPRoute], Set[Tuple[str, str]]]:
