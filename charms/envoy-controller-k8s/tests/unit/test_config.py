@@ -86,6 +86,8 @@ def test_otlp_sink_configured_when_related(ctx, krm_mocks):
     assert len(sinks) == 1
     assert sinks[0]["openTelemetry"]["host"] == "collector"
     assert sinks[0]["openTelemetry"]["port"] == 4317
+    # AND the protocol is explicit, which Envoy Gateway v1.9+ requires to start
+    assert sinks[0]["openTelemetry"]["protocol"] == "grpc"
 
 
 def test_otlp_sink_defaults_to_grpc_port(ctx, krm_mocks):

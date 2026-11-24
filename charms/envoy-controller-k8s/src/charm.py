@@ -584,6 +584,12 @@ class EnvoyControllerCharm(ops.CharmBase):
         if sink:
             telemetry = TelemetryConfig(metrics=MetricsConfig(sinks=[sink]))
             envoy_gateway["telemetry"] = telemetry.model_dump(by_alias=True, exclude_none=True)
+            # Envoy Gateway v1.9+ refuses to start without an explicit protocol on the
+            # control-plane sink ("unsupported protocol  for OpenTelemetry sink"). The
+            # shared sink model has no such field and the EnvoyProxy data-plane sink must
+            # not carry it, so it is added here only. The requirer asks for grpc.
+            for s in envoy_gateway["telemetry"]["metrics"]["sinks"]:
+                s["openTelemetry"]["protocol"] = "grpc"
         # When an extension server is related, wire its gRPC endpoint into extensionManager so
         # EG delegates xDS fine-tuning to it. Omitted when unrelated (or the provider has not
         # published yet) so the controller never dials a non-existent endpoint.
