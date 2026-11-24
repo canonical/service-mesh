@@ -105,6 +105,7 @@ class EnvoyIngressCharm(ops.CharmBase):
         super().__init__(*args)
         self._lightkube_field_manager = self.app.name
         self._lightkube_client: Optional[Client] = None
+        self._l4_crds_missing = False
 
         self.ingress = IngressPerAppProvider(self, relation_name="ingress")
         self.forward_auth = ForwardAuthRequirer(self, relation_name="forward-auth")
@@ -319,6 +320,11 @@ class EnvoyIngressCharm(ops.CharmBase):
                 ops.WaitingStatus("Waiting for GatewayClass controller to become available")
             )
             return
+        if self._l4_crds_missing:
+            event.add_status(
+                ops.BlockedStatus("TCPRoute/UDPRoute CRDs missing; upgrade envoy-controller-k8s")
+            )
+            return
         if self._conflicting_apps():
             event.add_status(
                 ops.BlockedStatus("Route conflict detected; check the logs for details")
@@ -343,7 +349,12 @@ class EnvoyIngressCharm(ops.CharmBase):
             self._l4_route_krm(),
             self._http3_policy_krm(),
         ):
-            krm.delete(ignore_missing=True)
+            try:
+                krm.delete(ignore_missing=True)
+            except httpx.HTTPStatusError as e:
+                # The CRD of this resource type was never installed, so nothing to delete.
+                if e.response.status_code != 404:
+                    raise
 
     def _reconcile_tls_secret(self):
         """Mirror the relation certificate into a kubernetes.io/tls Secret."""
@@ -478,7 +489,19 @@ class EnvoyIngressCharm(ops.CharmBase):
             if er.protocol != "http"
             and not (er.protocol == "tls-terminate" and not self._tls_ready)
         ]
-        self._l4_route_krm().reconcile(routes)  # pyright: ignore[reportArgumentType]
+        self._l4_crds_missing = False
+        try:
+            self._l4_route_krm().reconcile(routes)  # pyright: ignore[reportArgumentType]
+        except httpx.HTTPStatusError as e:
+            # A controller older than Gateway API v1.6 does not install the standard
+            # TCPRoute/UDPRoute CRDs; lightkube then raises a raw 404 for the list call.
+            if e.response.status_code != 404:
+                raise
+            if routes:
+                logger.error(
+                    "TCPRoute/UDPRoute CRDs are not installed; upgrade envoy-controller-k8s"
+                )
+                self._l4_crds_missing = True
 
     def _reconcile_http3_policy(self):
         """Enable HTTP/3 (QUIC) on the HTTPS listener when http3 is set and TLS is ready."""

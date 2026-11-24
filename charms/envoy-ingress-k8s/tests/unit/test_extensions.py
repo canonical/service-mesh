@@ -2,7 +2,9 @@
 # See LICENSE file for licensing details.
 
 import json
+from unittest.mock import MagicMock
 
+import httpx
 import ops
 import pytest
 from conftest import make_state
@@ -86,6 +88,35 @@ def test_tls_terminate_route_withheld_until_cert(
 ):
     _run(ctx, {"extra-routes": json.dumps([MQTTS])})
     assert krm_mocks.l4_route.reconcile.call_args.args[0] == []
+
+
+def _missing_crd(krm_mocks):
+    krm_mocks.l4_route.reconcile.side_effect = httpx.HTTPStatusError(
+        "404", request=MagicMock(), response=MagicMock(status_code=404)
+    )
+
+
+def test_missing_l4_crds_are_ignored_without_l4_routes(
+    ctx, gateway_class_accepted, krm_mocks
+):
+    # GIVEN a controller without the TCPRoute/UDPRoute CRDs and no L4 routes requested
+    _missing_crd(krm_mocks)
+    state_out = ctx.run(
+        ctx.on.config_changed(), make_state(config={"external_hostname": "ingress.example.com"})
+    )
+    # THEN the hook does not fail and the charm stays active
+    assert state_out.unit_status == ops.ActiveStatus("Serving at ingress.example.com")
+
+
+def test_missing_l4_crds_block_when_l4_routes_requested(
+    ctx, gateway_class_accepted, krm_mocks, certs_ready
+):
+    _missing_crd(krm_mocks)
+    cfg = {"extra-routes": json.dumps([QUIC]), "external_hostname": "ingress.example.com"}
+    state_out = ctx.run(ctx.on.config_changed(), make_state(config=cfg, certificates=True))
+    assert state_out.unit_status == ops.BlockedStatus(
+        "TCPRoute/UDPRoute CRDs missing; upgrade envoy-controller-k8s"
+    )
 
 
 def test_allowlist_creates_authorization_policy(ctx, gateway_class_accepted, krm_mocks):
