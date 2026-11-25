@@ -86,6 +86,8 @@ def test_otlp_sink_configured_when_related(ctx, krm_mocks):
     assert len(sinks) == 1
     assert sinks[0]["openTelemetry"]["host"] == "collector"
     assert sinks[0]["openTelemetry"]["port"] == 4317
+    # AND the protocol is explicit, which Envoy Gateway v1.9+ requires to start
+    assert sinks[0]["openTelemetry"]["protocol"] == "grpc"
 
 
 def test_otlp_sink_defaults_to_grpc_port(ctx, krm_mocks):
@@ -249,3 +251,26 @@ def test_config_change_alters_layer_hash(ctx, krm_mocks):
     with ctx(ctx.on.config_changed(), make_state(config={"log-level": "debug"})) as mgr:
         debug_env = mgr.charm._construct_gateway_layer().services["envoy-gateway"].environment
     assert info_env["EG_CONFIG_HASH"] != debug_env["EG_CONFIG_HASH"]
+
+
+def test_proxy_defaults_single_replica_local_policy_no_pdb(ctx, krm_mocks):
+    k8s = _envoy_proxy_spec(ctx, krm_mocks)["provider"]["kubernetes"]
+    assert k8s["envoyDeployment"]["replicas"] == 1
+    assert k8s["envoyService"]["externalTrafficPolicy"] == "Local"
+    assert "envoyPDB" not in k8s
+
+
+def test_proxy_replicas_above_one_adds_pdb(ctx, krm_mocks):
+    k8s = _envoy_proxy_spec(ctx, krm_mocks, config={"proxy-replicas": 3})["provider"]["kubernetes"]
+    assert k8s["envoyDeployment"]["replicas"] == 3
+    assert k8s["envoyPDB"] == {"minAvailable": 2}
+
+
+def test_proxy_invalid_traffic_policy_falls_back_to_local(ctx, krm_mocks):
+    spec = _envoy_proxy_spec(ctx, krm_mocks, config={"proxy-external-traffic-policy": "bogus"})
+    assert spec["provider"]["kubernetes"]["envoyService"]["externalTrafficPolicy"] == "Local"
+
+
+def test_proxy_cluster_traffic_policy_honoured(ctx, krm_mocks):
+    spec = _envoy_proxy_spec(ctx, krm_mocks, config={"proxy-external-traffic-policy": "Cluster"})
+    assert spec["provider"]["kubernetes"]["envoyService"]["externalTrafficPolicy"] == "Cluster"
