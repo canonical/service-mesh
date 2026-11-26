@@ -102,7 +102,6 @@ from utils import (
     deduplicate_grpc_routes,
     deduplicate_http_routes,
     deduplicate_listeners,
-    enforce_tls_ports,
     get_relation_by_name_and_app,
     get_unauthenticated_paths,
     get_unauthenticated_paths_from_istio_ingress_route_configs,
@@ -111,6 +110,7 @@ from utils import (
     normalize_istio_ingress_route_grpc_routes,
     normalize_istio_ingress_route_http_routes,
     normalize_istio_ingress_route_listeners,
+    without_port_443,
 )
 
 logger = logging.getLogger(__name__)
@@ -1062,17 +1062,18 @@ class IstioIngressCharm(CharmBase):
         istio_http_routes, istio_grpc_routes = self._get_normalized_istio_routes()
 
         # Never serve plaintext on port 443: drop those listeners and routes while TLS is unavailable.
-        tls_listeners, tls_http_routes, tls_grpc_routes, _ = enforce_tls_ports(
-            ipa_listeners + istio_listeners,
-            ipa_http_routes + istio_http_routes,
-            istio_grpc_routes,
-            tls_available=tls_secret_name is not None,
-        )
+        listeners = ipa_listeners + istio_listeners
+        http_routes = ipa_http_routes + istio_http_routes
+        grpc_routes = istio_grpc_routes
+        if tls_secret_name is None:
+            listeners = without_port_443(listeners, port_of=lambda item: item["port"])
+            http_routes = without_port_443(http_routes, port_of=lambda item: item["listener_port"])
+            grpc_routes = without_port_443(grpc_routes, port_of=lambda item: item["listener_port"])
 
         # Merge and deduplicate using source-agnostic functions
-        unique_listeners = deduplicate_listeners(tls_listeners)
-        valid_http_routes, http_apps_to_clear = deduplicate_http_routes(tls_http_routes)
-        valid_grpc_routes, grpc_apps_to_clear = deduplicate_grpc_routes(tls_grpc_routes)  # ipa relation doesnt support grpc routes.
+        unique_listeners = deduplicate_listeners(listeners)
+        valid_http_routes, http_apps_to_clear = deduplicate_http_routes(http_routes)
+        valid_grpc_routes, grpc_apps_to_clear = deduplicate_grpc_routes(grpc_routes)  # ipa relation doesnt support grpc routes.
 
         # Clear conflicts from original structures (needed for publishing back to apps)
         all_apps_to_clear = http_apps_to_clear | grpc_apps_to_clear

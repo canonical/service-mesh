@@ -10,8 +10,7 @@ Functions here are source-agnostic and work on normalized data structures.
 """
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, Tuple, TypedDict
-
+from typing import Callable, Dict, List, Optional, Set, Tuple, TypedDict
 from canonical_service_mesh.models import (
     BackendRef,
     GRPCMethodMatch,
@@ -539,36 +538,23 @@ def deduplicate_listeners(all_listeners: List[GatewayListener]) -> List[GatewayL
     return list(seen.values())
 
 
-def enforce_tls_ports(
-    listeners: List[GatewayListener],
-    http_routes: List[HTTPRoute],
-    grpc_routes: List[GRPCRoute],
-    tls_available: bool,
-) -> Tuple[List[GatewayListener], List[HTTPRoute], List[GRPCRoute], bool]:
-    """Drop port-443 listeners and routes when TLS is unavailable.
+def without_port_443(items: List, port_of: Callable) -> List:
+    """Return a copy of items excluding those whose port, per port_of, is 443.
+
+    Logs a warning when items are dropped: port 443 must never serve plaintext.
 
     Args:
-        listeners: Normalized Gateway listeners (all sources)
-        http_routes: Normalized HTTPRoutes (all sources)
-        grpc_routes: Normalized GRPCRoutes
-        tls_available: Whether a TLS certificate is currently available
+        items: Normalized listeners or routes (all sources)
+        port_of: Callable extracting the port from an item (e.g. lambda item: item["port"])
 
     Returns:
-        Tuple of (filtered listeners, filtered HTTPRoutes, filtered GRPCRoutes,
-        whether any port-443 listener was dropped)
+        List of items not using port 443
     """
-    if tls_available:
-        return listeners, http_routes, grpc_routes, False
-
-    kept_listeners = [lst for lst in listeners if lst["port"] != 443]
-    kept_http_routes = [r for r in http_routes if r["listener_port"] != 443]
-    kept_grpc_routes = [r for r in grpc_routes if r["listener_port"] != 443]
-    dropped = len(kept_listeners) != len(listeners)
+    kept = [item for item in items if port_of(item) != 443]
+    dropped = len(items) - len(kept)
     if dropped:
-        logger.warning(
-            "TLS is unavailable: dropping port-443 listeners and routes (port 443 must never serve plaintext)"
-        )
-    return kept_listeners, kept_http_routes, kept_grpc_routes, dropped
+        logger.warning("Dropped %d port-443 item(s): 443 must never serve plaintext", dropped)
+    return kept
 
 
 def deduplicate_http_routes(

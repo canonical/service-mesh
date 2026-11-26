@@ -34,7 +34,6 @@ from utils import (
     GRPCRoute,
     HTTPRoute,
     deduplicate_listeners,
-    enforce_tls_ports,
     get_unauthenticated_paths,
     get_unauthenticated_paths_from_istio_ingress_route_configs,
     normalize_ipa_listeners,
@@ -42,6 +41,7 @@ from utils import (
     normalize_istio_ingress_route_grpc_routes,
     normalize_istio_ingress_route_http_routes,
     normalize_istio_ingress_route_listeners,
+    without_port_443,
 )
 
 
@@ -434,49 +434,48 @@ def _tls_grpc_route(port):
     )
 
 
-def test_enforce_tls_ports_tls_available_keeps_everything():
-    """With TLS available nothing is filtered, including port 443."""
-    listeners = [_tls_listener(80), _tls_listener(443)]
-    http_routes = [_tls_http_route(80), _tls_http_route(443)]
-    grpc_routes = [_tls_grpc_route(443)]
+def test_without_port_443_warns_when_dropping(caplog):
+    """A warning is logged when port-443 items are dropped."""
+    import logging
 
-    kept_listeners, kept_http, kept_grpc, dropped = enforce_tls_ports(
-        listeners, http_routes, grpc_routes, tls_available=True
-    )
+    listeners = [_tls_listener(443)]
+    with caplog.at_level(logging.WARNING, logger="utils"):
+        kept = without_port_443(listeners, port_of=lambda item: item["port"])
 
-    assert kept_listeners == listeners
-    assert kept_http == http_routes
-    assert kept_grpc == grpc_routes
-    assert dropped is False
+    assert kept == []
+    assert "Dropped 1 port-443 item(s)" in caplog.text
 
 
-def test_enforce_tls_ports_tls_unavailable_drops_443():
-    """Without TLS, port-443 listeners and routes are dropped; other ports survive."""
+def test_without_port_443_no_drop_no_warning(caplog):
+    """No warning is logged when nothing is dropped."""
+    import logging
+
+    listeners = [_tls_listener(80)]
+    with caplog.at_level(logging.WARNING, logger="utils"):
+        without_port_443(listeners, port_of=lambda item: item["port"])
+
+    assert caplog.text == ""
+
+
+def test_without_port_443_drops_443_keeps_others():
+    """Port-443 items are dropped; other ports survive."""
     listeners = [_tls_listener(80), _tls_listener(443), _tls_listener(8080)]
     http_routes = [_tls_http_route(80), _tls_http_route(443)]
     grpc_routes = [_tls_grpc_route(443), _tls_grpc_route(9090)]
 
-    kept_listeners, kept_http, kept_grpc, dropped = enforce_tls_ports(
-        listeners, http_routes, grpc_routes, tls_available=False
-    )
+    kept_listeners = without_port_443(listeners, port_of=lambda item: item["port"])
+    kept_http = without_port_443(http_routes, port_of=lambda item: item["listener_port"])
+    kept_grpc = without_port_443(grpc_routes, port_of=lambda item: item["listener_port"])
 
     assert kept_listeners == [listeners[0], listeners[2]]
     assert kept_http == [http_routes[0]]
     assert kept_grpc == [grpc_routes[1]]
-    assert dropped is True
 
 
-def test_enforce_tls_ports_tls_unavailable_no_443_noop():
-    """Without TLS and without port-443 requests nothing changes and nothing is dropped."""
-    listeners = [_tls_listener(80)]
-    http_routes = [_tls_http_route(80)]
-    grpc_routes = [_tls_grpc_route(9090)]
+def test_without_port_443_no_443_noop():
+    """Without port-443 items nothing is dropped and order is preserved."""
+    listeners = [_tls_listener(80), _tls_listener(8080)]
+    http_routes = [_tls_http_route(80), _tls_http_route(9090)]
 
-    kept_listeners, kept_http, kept_grpc, dropped = enforce_tls_ports(
-        listeners, http_routes, grpc_routes, tls_available=False
-    )
-
-    assert kept_listeners == listeners
-    assert kept_http == http_routes
-    assert kept_grpc == grpc_routes
-    assert dropped is False
+    assert without_port_443(listeners, port_of=lambda item: item["port"]) == listeners
+    assert without_port_443(http_routes, port_of=lambda item: item["listener_port"]) == http_routes
