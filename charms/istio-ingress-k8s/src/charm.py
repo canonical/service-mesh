@@ -61,11 +61,11 @@ from canonical_service_mesh.utils import (
     generate_telemetry_labels,
     get_peer_identity_for_juju_application,
 )
+from charmlibs.interfaces.forward_auth import ForwardAuthRequirer, ForwardAuthRequirerConfig
 from charmlibs.interfaces.gateway_metadata import GatewayMetadata, GatewayMetadataProvider
 from charmlibs.interfaces.istio_ingress_route import IstioIngressRouteProvider
 from charmlibs.interfaces.istio_request_auth import IstioRequestAuthProvider
 from charmlibs.interfaces.service_mesh import MeshType
-from charms.oauth2_proxy_k8s.v0.forward_auth import ForwardAuthRequirer, ForwardAuthRequirerConfig
 from charms.observability_libs.v1.cert_handler import CertHandler
 from charms.prometheus_k8s.v0.prometheus_scrape import MetricsEndpointProvider
 from charms.traefik_k8s.v2.ingress import IngressPerAppProvider as IPAv2
