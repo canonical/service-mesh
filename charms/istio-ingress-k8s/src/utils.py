@@ -11,6 +11,7 @@ Functions here are source-agnostic and work on normalized data structures.
 import logging
 from collections import defaultdict
 from typing import Callable, Dict, List, Optional, Set, Tuple, TypedDict
+
 from canonical_service_mesh.models import (
     BackendRef,
     GRPCMethodMatch,
