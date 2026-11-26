@@ -115,3 +115,24 @@ parts:
     plugin: uv
     build-snaps: [astral-uv]
     build-packages: [git]
+  # CRD bundles are not vendored: these parts fetch the pinned upstream release
+  # assets at pack time and dump them verbatim onto the paths the charm loads
+  # CRDs from (src/crds/<dir>/, see CRD_SCOPES in src/charm.py). The Gateway API
+  # bundle also ships a ValidatingAdmissionPolicy (+ binding), which the charm
+  # loader filters out.
+  gateway-api-crds:
+    plugin: dump
+    source: https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml
+    source-type: file
+    organize:
+      standard-install.yaml: src/crds/gateway-api/standard-install.yaml
+    prime:
+      - src/crds/gateway-api/standard-install.yaml
+  envoy-gateway-crds:
+    plugin: dump
+    source: https://github.com/envoyproxy/gateway/releases/download/v1.9.4/envoy-gateway-crds.yaml
+    source-type: file
+    organize:
+      envoy-gateway-crds.yaml: src/crds/envoy-gateway/envoy-gateway-crds.yaml
+    prime:
+      - src/crds/envoy-gateway/envoy-gateway-crds.yaml
