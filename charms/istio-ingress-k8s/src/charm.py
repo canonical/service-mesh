@@ -1036,8 +1036,7 @@ class IstioIngressCharm(CharmBase):
         forward_auth_headers = self._get_forward_auth_headers()
 
         # Publish or clear the auth_decisions_address in ingress-config, if related.
-        if self.model.get_relation(INGRESS_CONFIG_RELATION):
-            self._publish_to_istio_ingress_config_relation(auth_decisions_address, forward_auth_headers)
+        self._sync_ingress_config_relation(auth_decisions_address, forward_auth_headers)
 
         # If auth relation exists but no decisions address, remove gateway.
         if self.model.get_relation(FORWARD_AUTH_RELATION) and not auth_decisions_address:
@@ -1425,6 +1424,13 @@ class IstioIngressCharm(CharmBase):
                     external_host=self._ingress_url,
                     tls_enabled=is_tls_enabled,
                 )
+
+    def _sync_ingress_config_relation(
+        self, decisions_address: Optional[str], forward_auth_headers: Optional[List[str]]
+    ):
+        """Publish or clear the auth configuration in ingress-config, if related."""
+        if self.model.get_relation(INGRESS_CONFIG_RELATION):
+            self._publish_to_istio_ingress_config_relation(decisions_address, forward_auth_headers)
 
     def _publish_to_istio_ingress_config_relation(
         self, decisions_address: Optional[str], forward_auth_headers: Optional[List[str]]
