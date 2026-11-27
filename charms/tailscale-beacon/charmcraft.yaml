@@ -82,3 +82,8 @@ parts:
     plugin: uv
     build-snaps: [astral-uv]
     build-packages: [git]
+  icon:
+    plugin: dump
+    source: .
+    stage:
+      - icon.svg

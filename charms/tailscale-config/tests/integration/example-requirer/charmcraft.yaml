@@ -15,10 +15,9 @@ description: |
   works by exchanging it for a short-lived access token against the Tailscale
   API. It reaches ActiveStatus only when that exchange succeeds.
 
-base: ubuntu@24.04
 platforms:
-  amd64:
-  arm64:
+  ubuntu@26.04:amd64:
+  ubuntu@26.04:arm64:
 
 assumes:
   - juju >= 3.6
