@@ -402,6 +402,14 @@ class EnvoyControllerCharm(ops.CharmBase):
     def _reconcile_crds(self):
         """Apply Gateway API + Envoy Gateway + GIE CRDs."""
         for scope, directory in CRD_SCOPES.items():
+            # With manage-gateway-api-crds=false another component (e.g. the istio-k8s
+            # charm) owns the Gateway API CRDs. Skip applying ours: patching this older
+            # bundle over a newer one is rejected by Gateway API's safe-upgrades admission
+            # policy. _crds_established below still gates on them — the controller cannot
+            # start without those schemas registered — so a missing provider defers the
+            # reconcile instead of breaking it.
+            if scope == GATEWAY_API_SCOPE and not bool(self.config["manage-gateway-api-crds"]):
+                continue
             self._crd_manager(scope).reconcile(_load_crd_yaml(directory))
 
         # Wait for all CRDs to reach Established=True before returning so the controller

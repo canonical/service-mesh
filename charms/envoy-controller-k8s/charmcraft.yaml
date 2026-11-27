@@ -60,6 +60,18 @@ config:
         Incompatible with merged-gateways (not used by this charm). Toggling this
         relocates where new proxies are created; existing proxies are re-provisioned
         by the controller in the new location.
+    manage-gateway-api-crds:
+      type: boolean
+      default: true
+      description: |
+        Whether this charm installs and manages the Gateway API CRDs
+        (gateway.networking.k8s.io). Keep true (default) for a standalone
+        deployment. Set false only when another component already provides
+        compatible CRDs — e.g. the istio-k8s charm, which ships a newer
+        Gateway API bundle and an admission policy that rejects older ones.
+        The charm then skips installing its own bundle but still waits for
+        the Gateway API CRDs to be Established in the cluster before
+        starting the controller.
 
 provides:
   grafana-dashboard:
