@@ -8,6 +8,7 @@ dependencies = [
     "ops[tracing]~=2.5",
     "pydantic>=2",
     "cosl",
+    "charmlibs-interfaces-forward-auth~=1.0",
     "charmlibs-interfaces-gateway-metadata",
     "charmlibs-interfaces-istio-ingress-route",
     "charmlibs-interfaces-istio-request-auth",

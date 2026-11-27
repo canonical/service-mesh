@@ -10,7 +10,7 @@ Functions here are source-agnostic and work on normalized data structures.
 """
 import logging
 from collections import defaultdict
-from typing import Dict, List, Optional, Set, Tuple, TypedDict
+from typing import Callable, Dict, List, Optional, Set, Tuple, TypedDict
 
 from canonical_service_mesh.models import (
     BackendRef,
@@ -537,6 +537,25 @@ def deduplicate_listeners(all_listeners: List[GatewayListener]) -> List[GatewayL
             seen[key] = listener
 
     return list(seen.values())
+
+
+def without_port_443(items: List, port_of: Callable) -> List:
+    """Return a copy of items excluding those whose port, per port_of, is 443.
+
+    Logs a warning when items are dropped: port 443 must never serve plaintext.
+
+    Args:
+        items: Normalized listeners or routes (all sources)
+        port_of: Callable extracting the port from an item (e.g. lambda item: item["port"])
+
+    Returns:
+        List of items not using port 443
+    """
+    kept = [item for item in items if port_of(item) != 443]
+    dropped = len(items) - len(kept)
+    if dropped:
+        logger.warning("Dropped %d port-443 item(s): 443 must never serve plaintext", dropped)
+    return kept
 
 
 def deduplicate_http_routes(
