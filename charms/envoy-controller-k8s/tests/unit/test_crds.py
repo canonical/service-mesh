@@ -28,3 +28,17 @@ def test_reconcile_halts_until_crds_established(ctx, krm_mocks):
     # THEN it does not start the controller against unregistered schemas:
     # the EnvoyProxy is never reconciled
     krm_mocks.proxy.reconcile.assert_not_called()
+
+
+def test_gateway_api_crds_skipped_when_externally_managed(ctx, krm_mocks):
+    # GIVEN another charm (e.g. istio-k8s) provides the Gateway API CRDs
+    state = make_state(config={"manage-gateway-api-crds": False})
+    # WHEN the charm reconciles
+    ctx.run(ctx.on.config_changed(), state)
+    # THEN the charm never even constructs the Gateway API CRD manager...
+    assert charm.GATEWAY_API_SCOPE not in krm_mocks.crd
+    # ...but still applies the CRDs only it provides, and starts the controller
+    for scope in (charm.ENVOY_GATEWAY_SCOPE, charm.GIE_SCOPE):
+        krm_mocks.crd[scope].reconcile.assert_called_once()
+    krm_mocks.proxy.reconcile.assert_called_once()
+
