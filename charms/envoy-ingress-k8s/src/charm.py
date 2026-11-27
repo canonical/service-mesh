@@ -67,6 +67,8 @@ from lightkube.models.meta_v1 import ObjectMeta
 from lightkube.resources.core_v1 import Secret
 from lightkube.resources.rbac_authorization_v1 import ClusterRole
 
+import extensions
+
 logger = logging.getLogger(__name__)
 
 # The single, cluster-scoped GatewayClass owned by the controller charm. This charm
@@ -78,6 +80,8 @@ GATEWAY_CLASS_NAME = "envoy"
 ENVOY_BACKEND_GROUP = "gateway.envoyproxy.io"
 ENVOY_BACKEND_KIND = "Backend"
 
+L4_ROUTE_SCOPE = "l4-routes"
+HTTP3_POLICY_SCOPE = "http3-policy"
 GATEWAY_SCOPE = "gateway"
 HTTPROUTE_SCOPE = "httproute"
 SECURITY_POLICY_SCOPE = "security-policy"
@@ -101,6 +105,7 @@ class EnvoyIngressCharm(ops.CharmBase):
         super().__init__(*args)
         self._lightkube_field_manager = self.app.name
         self._lightkube_client: Optional[Client] = None
+        self._l4_crds_missing = False
 
         self.ingress = IngressPerAppProvider(self, relation_name="ingress")
         self.forward_auth = ForwardAuthRequirer(self, relation_name="forward-auth")
@@ -134,7 +139,8 @@ class EnvoyIngressCharm(ops.CharmBase):
         # exceed the 64-char X.509 CN limit under long (test) model names. The host goes in
         # the SANs, where TLS clients actually validate the served cert.
         host = self._external_hostname or f"{self.app.name}.{self.model.name}.svc.cluster.local"
-        return CertificateRequestAttributes(sans_dns=[host])
+        sans = [host] + [h for h in self._additional_hostnames if h != host]
+        return CertificateRequestAttributes(sans_dns=sans)
 
     @property
     def lightkube_client(self) -> Client:
@@ -182,7 +188,59 @@ class EnvoyIngressCharm(ops.CharmBase):
         return bool(_HOSTNAME_RE.match(hostname))
 
     @property
+    def _additional_hostnames(self) -> list:
+        return [
+            h for h in re.split(r"[,\s]+", str(self.config.get("additional-hostnames") or "")) if h
+        ]
+
+    @property
+    def _config_error(self) -> Optional[str]:
+        """First invalid extension option, or None. Surfaced as Blocked; never applied."""
+        try:
+            extensions.parse_cidrs(str(self.config.get("allowed-cidrs") or ""))
+            extensions.parse_ips(str(self.config.get("external-ips") or ""))
+            extensions.parse_extra_routes(str(self.config.get("extra-routes") or ""))
+        except extensions.ConfigError as e:
+            return str(e)
+        for host in self._additional_hostnames:
+            if not self._is_valid_hostname(host):
+                return f"invalid additional-hostnames entry {host!r}"
+        return None
+
+    @property
+    def _allowed_cidrs(self) -> list:
+        return (
+            []
+            if self._config_error
+            else extensions.parse_cidrs(str(self.config.get("allowed-cidrs") or ""))
+        )
+
+    @property
+    def _external_ips(self) -> list:
+        return (
+            []
+            if self._config_error
+            else extensions.parse_ips(str(self.config.get("external-ips") or ""))
+        )
+
+    @property
+    def _extra_routes(self) -> list:
+        return (
+            []
+            if self._config_error
+            else extensions.parse_extra_routes(str(self.config.get("extra-routes") or ""))
+        )
+
+    @property
+    def _tls_secret_ref(self) -> Optional[dict]:
+        if not self._tls_ready:
+            return None
+        return {"kind": "Secret", "name": self._tls_secret_name, "namespace": self.model.name}
+
+    @property
     def _tls_ready(self) -> bool:
+        if self._byo_tls_secret:
+            return True
         if not self.model.get_relation("certificates"):
             return False
         certs, key = self.tls.get_assigned_certificates()
@@ -218,8 +276,15 @@ class EnvoyIngressCharm(ops.CharmBase):
           6. SecurityPolicy — extAuth when forward-auth is related.
           7. Publish — ingress URLs to requirers and gateway metadata to consumers.
         """
+        if not self.unit.is_leader():
+            return
+
         if not self._trusted:
             logger.warning("Charm is not trusted; skipping reconciliation")
+            return
+
+        if self._config_error:
+            logger.error("Invalid configuration, not reconciling: %s", self._config_error)
             return
 
         if not self._gateway_class_accepted():
@@ -229,6 +294,8 @@ class EnvoyIngressCharm(ops.CharmBase):
         self._reconcile_tls_secret()
         self._reconcile_gateway()
         self._reconcile_httproutes()
+        self._reconcile_l4_routes()
+        self._reconcile_http3_policy()
         self._reconcile_security_policy()
         self._publish_ingress_urls()
         self._publish_gateway_metadata()
@@ -240,6 +307,9 @@ class EnvoyIngressCharm(ops.CharmBase):
                 ops.BlockedStatus(f"Trust not granted. Run 'juju trust {self.app.name}'")
             )
             return
+        if self._config_error:
+            event.add_status(ops.BlockedStatus(f"Invalid config: {self._config_error}"[:120]))
+            return
         if self._external_hostname_invalid:
             event.add_status(
                 ops.BlockedStatus("Invalid external_hostname; must be a bare RFC 1123 hostname")
@@ -250,15 +320,18 @@ class EnvoyIngressCharm(ops.CharmBase):
                 ops.WaitingStatus("Waiting for GatewayClass controller to become available")
             )
             return
+        if self._l4_crds_missing:
+            event.add_status(
+                ops.BlockedStatus("TCPRoute/UDPRoute CRDs missing; upgrade envoy-controller-k8s")
+            )
+            return
         if self._conflicting_apps():
             event.add_status(
                 ops.BlockedStatus("Route conflict detected; check the logs for details")
             )
             return
         if not (address := self._gateway_address):
-            event.add_status(
-                ops.WaitingStatus("Waiting for gateway address assignment")
-            )
+            event.add_status(ops.WaitingStatus("Waiting for gateway address assignment"))
             return
         event.add_status(ops.ActiveStatus(f"Serving at {address}"))
 
@@ -272,11 +345,22 @@ class EnvoyIngressCharm(ops.CharmBase):
             self._httproute_krm(),
             self._security_policy_krm(),
             self._tls_secret_krm(),
+            self._ext_auth_backend_krm(),
+            self._l4_route_krm(),
+            self._http3_policy_krm(),
         ):
-            krm.delete(ignore_missing=True)
+            try:
+                krm.delete(ignore_missing=True)
+            except httpx.HTTPStatusError as e:
+                # The CRD of this resource type was never installed, so nothing to delete.
+                if e.response.status_code != 404:
+                    raise
 
     def _reconcile_tls_secret(self):
         """Mirror the relation certificate into a kubernetes.io/tls Secret."""
+        if self._byo_tls_secret:
+            # Operator-managed (certbot, cert-manager, ...): never mirror or delete it.
+            return
         krm = self._tls_secret_krm()
         if not self._tls_ready:
             krm.delete(ignore_missing=True)
@@ -286,11 +370,18 @@ class EnvoyIngressCharm(ops.CharmBase):
             metadata=ObjectMeta(name=self._tls_secret_name, namespace=self.model.name),
             type="kubernetes.io/tls",
             stringData={
-                "tls.crt": str(certs[0].certificate),
+                "tls.crt": self._certificate_chain_pem(certs[0]),
                 "tls.key": str(key),
             },
         )
         krm.reconcile([secret])
+
+    @staticmethod
+    def _certificate_chain_pem(provider_cert) -> str:
+        """Leaf certificate followed by its issuing chain, so clients can build the path."""
+        leaf = str(provider_cert.certificate)
+        extra = [str(c) for c in (getattr(provider_cert, "chain", None) or []) if str(c) != leaf]
+        return "\n".join([leaf, *extra])
 
     def _reconcile_gateway(self):
         """Create the Gateway with an HTTP listener, plus HTTPS when certs are present."""
@@ -300,7 +391,7 @@ class EnvoyIngressCharm(ops.CharmBase):
                 port=HTTP_PORT,
                 protocol="HTTP",
                 allowedRoutes=AllowedRoutes(namespaces={"from": "All"}),
-                hostname=self._external_hostname,
+                hostname=self._listener_hostname,
             )
         ]
         if self._tls_ready:
@@ -310,7 +401,7 @@ class EnvoyIngressCharm(ops.CharmBase):
                     port=HTTPS_PORT,
                     protocol="HTTPS",
                     allowedRoutes=AllowedRoutes(namespaces={"from": "All"}),
-                    hostname=self._external_hostname,
+                    hostname=self._listener_hostname,
                     tls=GatewayTLSConfig(
                         certificateRefs=[
                             SecretObjectReference(
@@ -323,9 +414,17 @@ class EnvoyIngressCharm(ops.CharmBase):
                 )
             )
         spec = IstioGatewaySpec(gatewayClassName=GATEWAY_CLASS_NAME, listeners=listeners)
+        spec_dict = spec.model_dump(by_alias=True, exclude_none=True)
+        spec_dict["listeners"].extend(
+            extensions.l4_listeners(self._extra_routes, self._tls_secret_ref)
+        )
+        if self._external_ips:
+            spec_dict["addresses"] = [
+                {"type": "IPAddress", "value": ip} for ip in self._external_ips
+            ]
         gateway = Gateway(
             metadata=ObjectMeta(name=self.app.name, namespace=self.model.name),
-            spec=spec.model_dump(by_alias=True, exclude_none=True),
+            spec=spec_dict,
         )
         self._gateway_krm().reconcile([gateway])
 
@@ -336,19 +435,113 @@ class EnvoyIngressCharm(ops.CharmBase):
             if relation.app.name in self._conflicting_apps():
                 continue
             routes.extend(self._construct_httproutes(relation.app.name, data))
+        routes.extend(self._construct_extra_httproutes())
         self._httproute_krm().reconcile(routes)
+
+    def _construct_extra_httproutes(self) -> list:
+        """HTTPRoutes for http entries of extra-routes (host and path based)."""
+        routes = []
+        for er in self._extra_routes:
+            if er.protocol != "http":
+                continue
+            rule = extensions.http_rule(er)
+            listener = HTTPS_LISTENER_NAME if self._tls_ready else HTTP_LISTENER_NAME
+            route = self._httproute(
+                name=er.name,
+                namespace=er.namespace,
+                listener=listener,
+                rules=[HTTPRouteRule.model_validate(rule)],
+            )
+            if er.hostnames:
+                route.spec["hostnames"] = er.hostnames
+            routes.append(route)
+            if self._tls_ready:
+                redirect = self._httproute(
+                    name=f"{er.name}-redirect",
+                    namespace=er.namespace,
+                    listener=HTTP_LISTENER_NAME,
+                    rules=[
+                        HTTPRouteRule(
+                            matches=[
+                                HTTPRouteMatch(
+                                    path=HTTPPathMatch(type="PathPrefix", value=er.path_prefix)
+                                )
+                            ],
+                            filters=[
+                                {
+                                    "type": "RequestRedirect",
+                                    "requestRedirect": {"scheme": "https", "statusCode": 301},
+                                }
+                            ],
+                        )
+                    ],
+                )
+                if er.hostnames:
+                    redirect.spec["hostnames"] = er.hostnames
+                routes.append(redirect)
+        return routes
+
+    def _reconcile_l4_routes(self):
+        """TCPRoutes/UDPRoutes for the L4 entries of extra-routes."""
+        routes = [
+            extensions.l4_route(er, self.app.name, self.model.name)
+            for er in self._extra_routes
+            if er.protocol != "http"
+            and not (er.protocol == "tls-terminate" and not self._tls_ready)
+        ]
+        self._l4_crds_missing = False
+        try:
+            self._l4_route_krm().reconcile(routes)  # pyright: ignore[reportArgumentType]
+        except httpx.HTTPStatusError as e:
+            # A controller older than Gateway API v1.6 does not install the standard
+            # TCPRoute/UDPRoute CRDs; lightkube then raises a raw 404 for the list call.
+            if e.response.status_code != 404:
+                raise
+            if routes:
+                logger.error(
+                    "TCPRoute/UDPRoute CRDs are not installed; upgrade envoy-controller-k8s"
+                )
+                self._l4_crds_missing = True
+
+    def _reconcile_http3_policy(self):
+        """Enable HTTP/3 (QUIC) on the HTTPS listener when http3 is set and TLS is ready."""
+        krm = self._http3_policy_krm()
+        if self.config.get("http3") and self._tls_ready:
+            krm.reconcile([extensions.http3_policy(self.app.name, self.model.name)])
+        else:
+            krm.delete(ignore_missing=True)
 
     def _reconcile_security_policy(self):
         """Manage the ext-auth Backend + SecurityPolicy that apply extAuth to the Gateway."""
         sp_krm = self._security_policy_krm()
         backend_krm = self._ext_auth_backend_krm()
         info = self.forward_auth.get_provider_info()
-        if not info or not info.decisions_address:
-            sp_krm.delete(ignore_missing=True)
+        decisions_address = info.decisions_address if info else None
+        authz = extensions.authorization(self._allowed_cidrs)
+
+        if decisions_address:
+            backend, policy = self._construct_ext_auth(decisions_address)
+            backend_krm.reconcile([backend])
+        else:
             backend_krm.delete(ignore_missing=True)
+            policy = None
+
+        if authz is None and policy is None:
+            sp_krm.delete(ignore_missing=True)
             return
-        backend, policy = self._construct_ext_auth(info.decisions_address)
-        backend_krm.reconcile([backend])
+        if policy is None:
+            policy = SecurityPolicy(
+                metadata=ObjectMeta(name=self.app.name, namespace=self.model.name),
+                spec={
+                    "targetRef": {
+                        "group": "gateway.networking.k8s.io",
+                        "kind": "Gateway",
+                        "name": self.app.name,
+                    }
+                },
+            )
+        if authz is not None and policy.spec is not None:
+            policy.spec["authorization"] = authz
         sp_krm.reconcile([policy])
 
     def _publish_ingress_urls(self):
@@ -391,7 +584,9 @@ class EnvoyIngressCharm(ops.CharmBase):
             filters.append(
                 {
                     "type": "URLRewrite",
-                    "urlRewrite": {"path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/"}},
+                    "urlRewrite": {
+                        "path": {"type": "ReplacePrefixMatch", "replacePrefixMatch": "/"}
+                    },
                 }
             )
 
@@ -507,9 +702,7 @@ class EnvoyIngressCharm(ops.CharmBase):
             raise
         status = (gc.status or {}) if hasattr(gc, "status") else {}
         conditions = status.get("conditions", []) if isinstance(status, dict) else []
-        return any(
-            c.get("type") == "Accepted" and c.get("status") == "True" for c in conditions
-        )
+        return any(c.get("type") == "Accepted" and c.get("status") == "True" for c in conditions)
 
     def _ready_ingress_data(self) -> list[tuple[ops.Relation, object]]:
         """Return [(relation, IngressRequirerData)] for every ready ingress relation."""
@@ -540,7 +733,19 @@ class EnvoyIngressCharm(ops.CharmBase):
         return f"/{model}-{app_name.replace('/', '-')}"
 
     @property
+    def _listener_hostname(self) -> Optional[str]:
+        """Listener hostname filter; dropped when extra hostnames share the gateway."""
+        return None if self._additional_hostnames else self._external_hostname
+
+    @property
+    def _byo_tls_secret(self) -> Optional[str]:
+        """Name of an operator-managed kubernetes.io/tls Secret, or None."""
+        return str(self.config.get("tls-secret-name") or "") or None
+
+    @property
     def _tls_secret_name(self) -> str:
+        if self._byo_tls_secret:
+            return self._byo_tls_secret
         return f"{self.app.name}-tls"
 
     @property
@@ -582,6 +787,19 @@ class EnvoyIngressCharm(ops.CharmBase):
 
     def _ext_auth_backend_krm(self) -> KubernetesResourceManager:
         return self._krm(EXT_AUTH_BACKEND_SCOPE, Backend)
+
+    def _l4_route_krm(self) -> KubernetesResourceManager:
+        return KubernetesResourceManager(
+            labels=create_charm_default_labels(
+                self.app.name, self.model.name, scope=L4_ROUTE_SCOPE
+            ),
+            resource_types={extensions.TCPRoute, extensions.UDPRoute},
+            lightkube_client=self.lightkube_client,
+            logger=logger,
+        )
+
+    def _http3_policy_krm(self) -> KubernetesResourceManager:
+        return self._krm(HTTP3_POLICY_SCOPE, extensions.ClientTrafficPolicy)
 
     def _tls_secret_krm(self) -> KubernetesResourceManager:
         return self._krm(TLS_SECRET_SCOPE, Secret)

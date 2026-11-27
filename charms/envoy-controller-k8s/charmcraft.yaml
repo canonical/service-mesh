@@ -39,6 +39,18 @@ config:
         Logging level for the Envoy Gateway controller.
         Valid values: debug, info, warn, error. Any other value logs a warning and
         falls back to the default rather than being passed to the controller.
+    proxy-replicas:
+      type: int
+      default: 1
+      description: |
+        Number of Envoy proxy replicas per Gateway. Values above 1 also create a
+        PodDisruptionBudget (minAvailable = replicas - 1).
+    proxy-external-traffic-policy:
+      type: string
+      default: "Local"
+      description: |
+        externalTrafficPolicy of the proxy Service: Local (preserves client source
+        IPs, needed for IP allowlists) or Cluster.
     gateway-namespace-mode:
       type: boolean
       default: false
@@ -95,7 +107,7 @@ resources:
   envoy-gateway-image:
     type: oci-image
     description: Envoy Gateway controller OCI image
-    upstream-source: docker.io/envoyproxy/gateway:v1.7.0
+    upstream-source: docker.io/envoyproxy/gateway:v1.9.4
 
 parts:
   charm:
@@ -103,3 +115,24 @@ parts:
     plugin: uv
     build-snaps: [astral-uv]
     build-packages: [git]
+  # CRD bundles are not vendored: these parts fetch the pinned upstream release
+  # assets at pack time and dump them verbatim onto the paths the charm loads
+  # CRDs from (src/crds/<dir>/, see CRD_SCOPES in src/charm.py). The Gateway API
+  # bundle also ships a ValidatingAdmissionPolicy (+ binding), which the charm
+  # loader filters out.
+  gateway-api-crds:
+    plugin: dump
+    source: https://github.com/kubernetes-sigs/gateway-api/releases/download/v1.6.1/standard-install.yaml
+    source-type: file
+    organize:
+      standard-install.yaml: src/crds/gateway-api/standard-install.yaml
+    prime:
+      - src/crds/gateway-api/standard-install.yaml
+  envoy-gateway-crds:
+    plugin: dump
+    source: https://github.com/envoyproxy/gateway/releases/download/v1.9.4/envoy-gateway-crds.yaml
+    source-type: file
+    organize:
+      envoy-gateway-crds.yaml: src/crds/envoy-gateway/envoy-gateway-crds.yaml
+    prime:
+      - src/crds/envoy-gateway/envoy-gateway-crds.yaml

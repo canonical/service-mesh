@@ -88,13 +88,9 @@ upstream release:
 
 | Directory | Source | Version |
 |-----------|--------|---------|
-| `gateway-api` | [kubernetes-sigs/gateway-api](https://github.com/kubernetes-sigs/gateway-api) (standard channel) | v1.4.1 |
-| `envoy-gateway` | [envoyproxy/gateway](https://github.com/envoyproxy/gateway) | v1.7.0 (matches the `envoy-gateway-image` resource tag in `charmcraft.yaml`) |
-| `gie` | [kubernetes-sigs/gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension) | v1.3.0 |
-
-To update: re-copy the CRD manifests from the matching upstream release and, for
-the Envoy Gateway bundle, keep the version aligned with the `envoy-gateway-image`
-tag.
+| `gateway-api` | [kubernetes-sigs/gateway-api](https://github.com/kubernetes-sigs/gateway-api) `standard-install.yaml` release asset (standard channel; includes TCPRoute, UDPRoute, TLSRoute) | v1.6.1 |
+| `envoy-gateway` | [envoyproxy/gateway](https://github.com/envoyproxy/gateway) `envoy-gateway-crds.yaml` release asset | v1.9.4 (matches the `envoy-gateway-image` resource tag in `charmcraft.yaml`) |
+| `gie` (vendored) | [kubernetes-sigs/gateway-api-inference-extension](https://github.com/kubernetes-sigs/gateway-api-inference-extension) | v1.3.0 |
 
 ## Configuration
 
