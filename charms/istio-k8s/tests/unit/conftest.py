@@ -4,10 +4,22 @@
 import json
 from unittest.mock import patch
 
+import ops_tracing._mock
 import pytest
 from scenario import Context, Relation
 
 from src.charm import IstioCoreCharm
+
+
+@pytest.fixture(autouse=True)
+def keep_span_processor_open():
+    # ops shuts the tracer provider down after every dispatch, but the span processor
+    # installed by scenario's tracing mock is shared across the whole session, and
+    # opentelemetry-sdk>=1.44 drops all spans from a processor that was shut down.
+    # Most likely removable once ops and ops-tracing are updated (fixed upstream in
+    # ops-tracing 3.x): https://github.com/canonical/service-mesh/issues/64
+    with patch.object(ops_tracing._mock.SPAN_PROCESSOR, "shutdown"):
+        yield
 
 
 @pytest.fixture()
